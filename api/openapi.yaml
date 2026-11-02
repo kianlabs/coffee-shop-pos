@@ -1,0 +1,88 @@
+openapi: 3.1.0
+info:
+  title: Coffee Shop POS Sync API
+  version: 0.1.0
+  description: Draft contract for optional cloud synchronization. Local checkout never depends on this API.
+servers:
+  - url: https://api.example.invalid
+paths:
+  /v1/sync/events:
+    post:
+      summary: Submit one or more durable outbox events
+      description: Server must process event IDs idempotently and acknowledge only after durable commit.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [device_id, events]
+              properties:
+                device_id:
+                  type: string
+                  format: uuid
+                events:
+                  type: array
+                  items:
+                    type: object
+                    required: [event_id, event_type, schema_version, occurred_at, payload]
+                    properties:
+                      event_id:
+                        type: string
+                        format: uuid
+                      event_type:
+                        type: string
+                      schema_version:
+                        type: integer
+                      occurred_at:
+                        type: string
+                        format: date-time
+                      payload:
+                        type: object
+                        additionalProperties: true
+      responses:
+        "200":
+          description: Events durably accepted or recognized as already processed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [acknowledged_event_ids, rejected]
+                properties:
+                  acknowledged_event_ids:
+                    type: array
+                    items:
+                      type: string
+                      format: uuid
+                  rejected:
+                    type: array
+                    items:
+                      type: object
+                      required: [event_id, code, message]
+                      properties:
+                        event_id:
+                          type: string
+                          format: uuid
+                        code:
+                          type: string
+                        message:
+                          type: string
+        "401":
+          description: Missing or invalid device authentication.
+        "409":
+          description: Event cannot be applied due to a conflict requiring reconciliation.
+  /v1/health:
+    get:
+      summary: Health check
+      security: []
+      responses:
+        "200":
+          description: API is healthy.
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

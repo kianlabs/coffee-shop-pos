@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Android build output
+android/.gradle/
+android/app/build/
+android/build/
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Backups
+*.backup
+*.bak
+
+# Signing keys
+*.jks
+*.keystore
+
+# Logs
+*.log
+
+# OS and editor files
+.DS_Store
+.idea/
+.vscode/
