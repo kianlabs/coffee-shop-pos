@@ -30,9 +30,12 @@ Obtain exact printer brand/model and manual/SDK. Verify:
 
 “Bluetooth 58 mm” alone does not guarantee ESC/POS or logo support.
 
-## Print behavior
-- Save/commit sale locally before printing.
-- Print failure must not lose or duplicate the transaction.
-- Reprint from order history must reuse the same order.
-- Keep logo asset on device; no internet dependency.
-- Test logo size, threshold/dithering, alignment, long receipts, paper-out, disconnect, and app restart.
+## Status implementasi (Nov 2026)
+- Web fallback: `src/data/printer.ts` `WebPrinter` cetak via iframe same-origin + `print()`.
+- Bridge native: `EscPosPrinter` kirim base64 ESC/POS ke Capacitor `PrinterPlugin`
+  (`android/.../PrinterPlugin.java`, terdaftar di `MainActivity`; permission BT/USB di manifest).
+- Logo: `public/assets/logo.png` → `LOGO_ASSET_PATH="assets/logo.png"` → `printLogo({dataPngBase64})`;
+  tanpa file/plugin fallback "[LOGO]". Rasterisasi penuh menunggu SDK vendor di `sendToPrinter`.
+- Pintu hardware tetap berlaku: tanpa merek/model + SDK, native = stub log ukuran byte.
+
+

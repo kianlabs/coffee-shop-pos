@@ -29,3 +29,8 @@ sequenceDiagram
 - Do not delete local order data after sync.
 - Conflict policy for product/recipe/stock edits must be specified before multi-device support.
 - Cloud sync is optional and must not block local checkout.
+
+## Status implementasi (Nov 2026)
+- DEFAULT terkunci offline: `DEFAULT_SYNC_ENDPOINT=https://api.example.invalid`; `pushEvents/syncNow` menolak kirim selama masih default.
+- Mock dev-only: `scripts/mock-sync-server.mjs` (`npm run mock:sync`, `GET /v1/health`, `POST /v1/sync/events`); `payload.__reject=true` → `rejected` agar panel Sync bisa diuji ack/retry/backoff tanpa server nyata.
+- Tanpa server nyata + API key, operasional = offline-first + backup file (`docs/backup-recovery.md`); jangan klaim cloud aktif sebelum restore teruji.

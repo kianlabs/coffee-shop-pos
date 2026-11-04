@@ -19,10 +19,17 @@ export function calcSubtotal(lines: Array<{ unitPriceRp: Rupiah; qty: number }>)
   return subtotal;
 }
 
-export function calcTotal(subtotalRp: Rupiah, discountRp: Rupiah, taxRp: Rupiah): Rupiah {
+export function calcTotal(
+  subtotalRp: Rupiah,
+  discountRp: Rupiah,
+  taxRp: Rupiah,
+  serviceChargeRp: Rupiah = 0,
+  roundingRp: Rupiah = 0,
+): Rupiah {
   const discount = discountRp < 0 ? 0 : discountRp;
   const tax = taxRp < 0 ? 0 : taxRp;
-  const total = subtotalRp - discount + tax;
+  const service = serviceChargeRp < 0 ? 0 : serviceChargeRp;
+  const total = subtotalRp - discount + tax + service + roundingRp;
   return total < 0 ? 0 : total;
 }
 

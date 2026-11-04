@@ -1,4 +1,4 @@
-import { calcLineTotal, calcSubtotal, type Rupiah } from "./money";
+import { calcLineTotal, calcSubtotal, calcTotal, type Rupiah } from "./money";
 
 export type OrderLineInput = {
   productId: string;
@@ -30,6 +30,8 @@ export type Order = {
   subtotalRp: Rupiah;
   discountRp: Rupiah;
   taxRp: Rupiah;
+  serviceChargeRp: Rupiah;
+  roundingRp: Rupiah;
   totalRp: Rupiah;
   payment: Payment;
   changeRp: Rupiah;
@@ -41,16 +43,30 @@ export type CheckoutInput = {
   lines: OrderLineInput[];
   discountRp?: Rupiah;
   taxRp?: Rupiah;
+  serviceChargeRp?: Rupiah;
+  roundingRp?: Rupiah;
   payment: Payment;
   notes?: string | null;
   idempotencyKey: string;
 };
 
-export function buildOrderLines(lines: OrderLineInput[]): OrderLine[] {
+function buildOrderLines(lines: OrderLineInput[]): OrderLine[] {
   return lines.map((l) => ({
     ...l,
     lineTotalRp: calcLineTotal(l.unitPriceRp, l.qty),
   }));
+}
+
+const ORDER_STATUSES: readonly string[] = ["completed", "voided", "refunded"];
+
+export function validateOrderStatus(status: string): string | null {
+  if (status === "partially_refunded" || status === "draft") {
+    return `Status order "${status}" tidak didukung; gunakan completed/voided/refunded.`;
+  }
+  if (!ORDER_STATUSES.includes(status)) {
+    return `Status order tidak dikenal: ${status}.`;
+  }
+  return null;
 }
 
 export function validateCheckout(input: CheckoutInput): string | null {
@@ -58,27 +74,89 @@ export function validateCheckout(input: CheckoutInput): string | null {
     return "Keranjang kosong.";
   }
   for (const l of input.lines) {
-    if (l.qty <= 0) {
+    if (!Number.isInteger(l.qty) || l.qty <= 0) {
       return `Qty tidak valid untuk ${l.productName}.`;
     }
-    if (l.unitPriceRp < 0) {
+    if (!Number.isInteger(l.unitPriceRp) || l.unitPriceRp <= 0) {
       return `Harga tidak valid untuk ${l.productName}.`;
     }
   }
   const discount = input.discountRp ?? 0;
   const tax = input.taxRp ?? 0;
+  const serviceCharge = input.serviceChargeRp ?? 0;
+  const rounding = input.roundingRp ?? 0;
+  if (!Number.isInteger(discount) || !Number.isInteger(tax)) {
+    return "Diskon/pajak harus bilangan bulat Rupiah.";
+  }
   if (discount < 0 || tax < 0) {
     return "Diskon/pajak tidak boleh negatif.";
+  }
+  if (!Number.isInteger(serviceCharge) || serviceCharge < 0) {
+    return "Biaya layanan harus bilangan bulat Rupiah ≥ 0.";
+  }
+  if (!Number.isInteger(rounding) || rounding > 0) {
+    return "Pembulatan harus bilangan bulat Rupiah ≤ 0.";
   }
   const subtotal = calcSubtotal(input.lines);
   if (discount > subtotal) {
     return "Diskon melebihi subtotal.";
   }
-  const total = subtotal - discount + tax;
+  const total = calcTotal(subtotal, discount, tax, serviceCharge, rounding);
+  if (!Number.isInteger(input.payment.amountRp)) {
+    return "Nominal bayar harus bilangan bulat Rupiah.";
+  }
   if (input.payment.amountRp < total) {
     return "Nominal bayar kurang dari total.";
   }
+  if (
+    typeof input.idempotencyKey !== "string" ||
+    input.idempotencyKey.length === 0 ||
+    input.idempotencyKey.length > 128
+  ) {
+    return "Idempotency key tidak valid.";
+  }
+  if (
+    input.payment.method !== "cash" &&
+    input.payment.method !== "qris_manual" &&
+    input.payment.method !== "other"
+  ) {
+    return "Metode bayar tidak valid.";
+  }
+  if (typeof input.payment.paidAt !== "string" || Number.isNaN(Date.parse(input.payment.paidAt))) {
+    return "Tanggal bayar tidak valid.";
+  }
+  if (
+    input.notes !== undefined &&
+    input.notes !== null &&
+    (typeof input.notes !== "string" || input.notes.length > 1000)
+  ) {
+    return "Catatan maksimal 1000 karakter.";
+  }
   return null;
+}
+
+function receiptRandomSuffix(): string {
+  try {
+    if (typeof globalThis === "object" && "crypto" in globalThis) {
+      const cryptoObj: unknown = globalThis.crypto;
+      if (
+        typeof cryptoObj === "object" &&
+        cryptoObj !== null &&
+        "getRandomValues" in cryptoObj &&
+        typeof cryptoObj.getRandomValues === "function"
+      ) {
+        const bytes = new Uint8Array(3);
+        cryptoObj.getRandomValues(bytes);
+        const n = (bytes[0] << 16) | (bytes[1] << 8) | bytes[2];
+        const s = n.toString(36).toUpperCase().padStart(4, "0");
+        return s.length > 4 ? s.slice(-4) : s;
+      }
+    }
+  } catch {
+    // Abaikan: fallback ke Math.random di bawah.
+  }
+  const n = Math.floor(Math.random() * 36 ** 4);
+  return n.toString(36).toUpperCase().padStart(4, "0");
 }
 
 export function createCompletedOrder(input: CheckoutInput, now: Date): Order {
@@ -86,17 +164,21 @@ export function createCompletedOrder(input: CheckoutInput, now: Date): Order {
   const subtotal = calcSubtotal(built);
   const discount = input.discountRp ?? 0;
   const tax = input.taxRp ?? 0;
-  const total = subtotal - discount + tax;
+  const serviceCharge = input.serviceChargeRp ?? 0;
+  const rounding = input.roundingRp ?? 0;
+  const total = calcTotal(subtotal, discount, tax, serviceCharge, rounding);
   const createdAt = now.toISOString();
   return {
     id: input.idempotencyKey,
-    receiptNumber: `R-${now.getTime().toString(36).toUpperCase()}`,
+    receiptNumber: `R-${now.getTime().toString(36).toUpperCase()}-${receiptRandomSuffix()}`,
     idempotencyKey: input.idempotencyKey,
     status: "completed",
     lines: built,
     subtotalRp: subtotal,
     discountRp: discount,
     taxRp: tax,
+    serviceChargeRp: serviceCharge,
+    roundingRp: rounding,
     totalRp: total,
     payment: input.payment,
     changeRp: input.payment.amountRp - total,
