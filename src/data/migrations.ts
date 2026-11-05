@@ -1,5 +1,5 @@
 export const DB_NAME = "coffee_shop_pos";
-export const DB_VERSION = 5;
+export const DB_VERSION = 6;
 
 export const UPGRADE_V1: string[] = [
   `PRAGMA foreign_keys = ON;`,
@@ -267,4 +267,20 @@ export const UPGRADE_V5: string[] = [
   `CREATE UNIQUE INDEX IF NOT EXISTS uq_recipes_active
      ON recipes(product_id, IFNULL(variant_id, ''))
      WHERE is_active = 1;`,
+];
+
+/**
+ * UPGRADE_V6 — mulai dari menu kosong.
+ *
+ * Menu contoh versi lama dimatikan supaya kasir menampilkan daftar kosong dan
+ * pemilik mengisi menunya sendiri lewat layar Menu. Riwayat transaksi tetap
+ * utuh karena order menyimpan snapshot nama & harga.
+ */
+export const UPGRADE_V6: string[] = [
+  `UPDATE products SET is_active = 0
+     WHERE id IN ('prod-kopi-susu','prod-kopi-tubruk','prod-americano','prod-matcha','prod-teh','prod-roti')
+       AND is_active = 1;`,
+  `UPDATE product_variants SET is_active = 0
+     WHERE id IN ('var-kopi-susu-reg','var-kopi-susu-lg','var-americano-reg','var-americano-lg','var-matcha-reg','var-matcha-lg')
+       AND is_active = 1;`,
 ];

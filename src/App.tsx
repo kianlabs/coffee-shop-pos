@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CATEGORIES, PRODUCTS, unitPriceFor, variantsForProduct, type Product, type ProductVariant } from "./domain/catalog";
+import { EMPTY_CATALOG, unitPriceFor, type Catalog, type Product, type ProductVariant } from "./domain/catalog";
+import { loadCatalog } from "./data/catalogRepo";
 import { calcSubtotal, calcTotal, formatRupiah, type Rupiah } from "./domain/money";
 import { type Order, type OrderLineInput, type PaymentMethod } from "./domain/orders";
 import { downloadTextFile, backupFileName, rememberBackup, repo, type BackupRecord } from "./data/orderRepo";
@@ -19,6 +20,7 @@ import { closeShift, openShift, summarizeShift, type Shift } from "./domain/shif
 import { ProductItem } from "./components/ProductItem";
 import { HppEditor } from "./components/HppEditor";
 import { StockEditor } from "./components/StockEditor";
+import { CatalogEditor } from "./components/CatalogEditor";
 
 type CartLine = {
   productId: string;
@@ -29,12 +31,12 @@ type CartLine = {
   qty: number;
 };
 
-type View = "kasir" | "riwayat" | "hpp" | "stok" | "backup" | "pengaturan";
+type View = "kasir" | "riwayat" | "menu" | "hpp" | "stok" | "backup" | "pengaturan";
 
 type Status = {
   kind: "error" | "ok" | "info";
   msg: string;
-  scope: "kasir" | "riwayat" | "hpp" | "stok" | "backup" | "pengaturan";
+  scope: "kasir" | "riwayat" | "menu" | "hpp" | "stok" | "backup" | "pengaturan";
 };
 
 function newIdempotencyKey(): string {
@@ -87,7 +89,8 @@ function loadStoredShift(): Shift | null {
 
 export default function App() {
   const [cart, setCart] = useState<CartLine[]>(() => loadStoredCart());
-  const [categoryId, setCategoryId] = useState<string>(CATEGORIES[0].id);
+  const [categoryId, setCategoryId] = useState<string>("");
+  const [catalog, setCatalog] = useState<Catalog>(EMPTY_CATALOG);
   const [discount, setDiscount] = useState<number>(0);
   const [tax, setTax] = useState<number>(0);
   const [payAmount, setPayAmount] = useState<number>(0);
@@ -124,6 +127,7 @@ export default function App() {
   const [printerBusy, setPrinterBusy] = useState(false);
 
   const [orders, setOrders] = useState<Order[]>([]);
+  const [catalogVersion, setCatalogVersion] = useState(0);
 
   const viewRef = useRef<View>(view);
   viewRef.current = view;
@@ -182,10 +186,31 @@ export default function App() {
     };
   }, [ordersVersion]);
 
+  // Katalog dibaca dari database (bukan daftar hardcoded), sehingga menu yang
+  // diisi pemilik langsung muncul di kasir setelah disimpan.
+  useEffect(() => {
+    let cancelled = false;
+    loadCatalog()
+      .then((next) => {
+        if (cancelled) return;
+        setCatalog(next);
+        setCategoryId((prev) =>
+          prev && next.categories.some((c) => c.id === prev) ? prev : (next.categories[0]?.id ?? ""),
+        );
+      })
+      .catch(() => {
+        // Katalog gagal dimuat: kasir tampil kosong, bukan layar putih.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [catalogVersion]);
+
   const visibleProducts = useMemo(
-    () => PRODUCTS.filter((p) => p.categoryId === categoryId && p.isActive),
-    [categoryId],
+    () => catalog.products.filter((p) => p.categoryId === categoryId && p.isActive),
+    [catalog.products, categoryId],
   );
+
   const subtotal = calcSubtotal(cart);
   const serviceCharge = Math.max(0, Math.trunc(posSettings.serviceChargeRp) || 0);
   const baseTotal = calcTotal(subtotal, discount, tax) + serviceCharge;
@@ -763,6 +788,13 @@ export default function App() {
           Kasir
         </button>{" "}
         <button
+          aria-current={view === "menu" ? "page" : undefined}
+          style={{ minHeight: 44, fontWeight: view === "menu" ? "bold" : undefined }}
+          onClick={() => setView("menu")}
+        >
+          Menu
+        </button>{" "}
+        <button
           aria-current={view === "riwayat" ? "page" : undefined}
           style={{ minHeight: 44, fontWeight: view === "riwayat" ? "bold" : undefined }}
           onClick={() => setView("riwayat")}
@@ -801,7 +833,7 @@ export default function App() {
       {view === "kasir" && (
         <>
           <div style={{ marginBottom: 12 }}>
-            {CATEGORIES.map((c) => (
+            {catalog.categories.map((c) => (
               <button
                 key={c.id}
                 aria-current={c.id === categoryId ? "true" : undefined}
@@ -817,14 +849,21 @@ export default function App() {
             ))}
           </div>
 
-          {visibleProducts.map((p) => (
-            <ProductItem
-              key={p.id}
-              product={p}
-              variants={variantsForProduct(p.id)}
-              onAdd={addToCart}
-            />
-          ))}
+          {catalog.products.length === 0 ? (
+            <div style={{ padding: 16, background: "#fff8e1", borderRadius: 8, marginBottom: 12 }}>
+              <strong>Menu masih kosong.</strong>
+              <p style={{ fontSize: 13, margin: "6px 0 10px" }}>
+                Isi dulu nama menu dan harganya — setelah itu tinggal dipilih saat jualan.
+              </p>
+              <button style={{ minHeight: 44, fontWeight: 600 }} onClick={() => setView("menu")}>
+                Buka Menu &amp; Harga
+              </button>
+            </div>
+          ) : (
+            visibleProducts.map((p) => (
+              <ProductItem key={p.id} product={p} variants={p.variants} onAdd={addToCart} />
+            ))
+          )}
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <h2 style={{ marginBottom: 0 }}>Keranjang</h2>
@@ -1031,6 +1070,7 @@ export default function App() {
         </>
       )}
 
+      {view === "menu" && <CatalogEditor onChanged={() => setCatalogVersion((v) => v + 1)} />}
       {view === "hpp" && <HppEditor />}
       {view === "stok" && <StockEditor />}
       {view === "backup" && (

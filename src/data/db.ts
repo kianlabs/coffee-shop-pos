@@ -4,8 +4,8 @@ import {
   SQLiteConnection,
   type SQLiteDBConnection,
 } from "@capacitor-community/sqlite";
-import { DB_NAME, DB_VERSION, UPGRADE_V1, UPGRADE_V2, UPGRADE_V3, UPGRADE_V4, UPGRADE_V5 } from "./migrations";
-import { CATEGORIES, PRODUCTS, VARIANTS } from "../domain/catalog";
+import { DB_NAME, DB_VERSION, UPGRADE_V1, UPGRADE_V2, UPGRADE_V3, UPGRADE_V4, UPGRADE_V5, UPGRADE_V6 } from "./migrations";
+import { DEFAULT_CATEGORIES } from "../domain/catalog";
 
 let sqlite: SQLiteConnection | null = null;
 let conn: SQLiteDBConnection | null = null;
@@ -40,6 +40,7 @@ async function openConnection(): Promise<SQLiteDBConnection> {
       { toVersion: 3, statements: UPGRADE_V3 },
       { toVersion: 4, statements: UPGRADE_V4 },
       { toVersion: 5, statements: UPGRADE_V5 },
+      { toVersion: 6, statements: UPGRADE_V6 },
     ],
   }).catch(() => undefined);
   const exists = await sql.isConnection(DB_NAME, false).catch(() => ({ result: false }));
@@ -51,7 +52,8 @@ async function openConnection(): Promise<SQLiteDBConnection> {
   await ensureV3Columns(opened);
   await ensureV4Columns(opened);
   await ensureV5Indexes(opened);
-  await seedCatalog(opened);
+  await ensureV6EmptyCatalog(opened);
+  await seedCategories(opened);
   return opened;
 }
 
@@ -172,6 +174,21 @@ async function ensureV5Indexes(db: SQLiteDBConnection): Promise<void> {
   }
 }
 
+/**
+ * V6: matikan menu contoh lama. Dijalankan idempoten setiap buka koneksi
+ * supaya tetap berlaku walau plugin tidak menjalankan upgrade statement
+ * (koneksi lama yang di-retrieve).
+ */
+async function ensureV6EmptyCatalog(db: SQLiteDBConnection): Promise<void> {
+  for (const statement of UPGRADE_V6) {
+    try {
+      await db.execute(statement);
+    } catch {
+      // Tabel belum ada / data sudah bersih.
+    }
+  }
+}
+
 export function getDb(): Promise<SQLiteDBConnection> {
   if (conn) {
     return Promise.resolve(conn);
@@ -192,28 +209,20 @@ async function categoryCount(db: SQLiteDBConnection): Promise<number> {
   return typeof row?.c === "number" ? row.c : 0;
 }
 
-async function seedCatalog(db: SQLiteDBConnection): Promise<void> {
+/**
+ * Hanya kategori yang di-seed. Produk dan varian SENGAJA kosong: menu dan
+ * harga diisi sendiri oleh pemilik warung lewat layar Menu.
+ */
+async function seedCategories(db: SQLiteDBConnection): Promise<void> {
   const count = await categoryCount(db).catch(() => -1);
   if (count !== 0) {
     return;
   }
   const now = new Date().toISOString();
-  const txn: { statement: string; values?: unknown[] }[] = [
-    ...CATEGORIES.map((c) => ({
-      statement:
-        "INSERT INTO categories (id, name, sort_order, is_active, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?);",
-      values: [c.id, c.name, c.sortOrder, now, now],
-    })),
-    ...PRODUCTS.map((p) => ({
-      statement:
-        "INSERT INTO products (id, category_id, name, description, base_price_rp, is_active, created_at, updated_at) VALUES (?, ?, ?, NULL, ?, 1, ?, ?);",
-      values: [p.id, p.categoryId, p.name, p.basePriceRp, now, now],
-    })),
-    ...VARIANTS.map((v) => ({
-      statement:
-        "INSERT INTO product_variants (id, product_id, name, price_delta_rp, is_active) VALUES (?, ?, ?, ?, 1);",
-      values: [v.id, v.productId, v.name, v.priceDeltaRp],
-    })),
-  ];
+  const txn: { statement: string; values?: unknown[] }[] = DEFAULT_CATEGORIES.map((c) => ({
+    statement:
+      "INSERT INTO categories (id, name, sort_order, is_active, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?);",
+    values: [c.id, c.name, c.sortOrder, now, now],
+  }));
   await db.executeTransaction(txn, false);
 }
