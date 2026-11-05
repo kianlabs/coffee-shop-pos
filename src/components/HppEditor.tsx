@@ -4,8 +4,17 @@ import { formatPct, marginFor, type HppMode, type VariantHppMode } from "../doma
 import { loadHppProducts, saveHppDrafts, type HppDraft, type HppProductView } from "../data/productRepo";
 import { isNativePlatform } from "../data/db";
 import { Icon } from "./Icon";
+import { RecipeEditor } from "./RecipeEditor";
 
 type Draft = { mode: string; manualRp: number };
+
+type RecipeTarget = {
+  productId: string;
+  productName: string;
+  variantId: string | null;
+  variantName: string | null;
+  basePriceRp: number;
+};
 
 const productKey = (id: string) => `p:${id}`;
 const variantKey = (id: string) => `v:${id}`;
@@ -41,6 +50,7 @@ export function HppEditor() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [recipeTarget, setRecipeTarget] = useState<RecipeTarget | null>(null);
 
   function applyRows(list: HppProductView[]) {
     setRows(list);
@@ -238,6 +248,24 @@ export function HppEditor() {
               </strong>{" "}
               · margin <strong>{formatPct(margin.marginPct)}</strong>
               {note && <span className="hpp-note"> · {note}</span>}
+              {d.mode === "recipe" && (
+                <button
+                  className="small"
+                  style={{ marginLeft: 10 }}
+                  onClick={() =>
+                    setRecipeTarget({
+                      productId: p.id,
+                      productName: p.name,
+                      variantId: null,
+                      variantName: null,
+                      basePriceRp: p.basePriceRp,
+                    })
+                  }
+                >
+                  <Icon name="calculator" size={15} />
+                  Atur resep
+                </button>
+              )}
             </div>
 
             {p.variants.length > 0 && (
@@ -289,6 +317,22 @@ export function HppEditor() {
                             }
                             style={{ width: 120, textAlign: "right" }}
                           />
+                          {vd.mode === "recipe" && (
+                            <button
+                              className="small"
+                              onClick={() =>
+                                setRecipeTarget({
+                                  productId: p.id,
+                                  productName: p.name,
+                                  variantId: v.id,
+                                  variantName: v.name,
+                                  basePriceRp: vPrice,
+                                })
+                              }
+                            >
+                              Atur resep
+                            </button>
+                          )}
                           <span className="hpp-meta">
                             jual {formatRupiah(vPrice)} · HPP {formatRupiah(vHpp)} · margin{" "}
                             {formatPct(vMargin.marginPct)}
@@ -331,6 +375,18 @@ export function HppEditor() {
           <Icon name="check" size={17} />
           <span>{info}</span>
         </div>
+      )}
+
+      {recipeTarget && (
+        <RecipeEditor
+          productId={recipeTarget.productId}
+          productName={recipeTarget.productName}
+          variantId={recipeTarget.variantId}
+          variantName={recipeTarget.variantName}
+          basePriceRp={recipeTarget.basePriceRp}
+          onClose={() => setRecipeTarget(null)}
+          onSaved={() => reload()}
+        />
       )}
     </div>
   );

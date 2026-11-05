@@ -19,6 +19,7 @@ execFileSync(
     "src/domain/shifts.ts",
     "src/domain/sales.ts",
     "src/domain/units.ts",
+    "src/domain/recipe.ts",
     "src/data/settings.ts",
     "--ignoreConfig",
     "--outDir",
@@ -41,6 +42,7 @@ const shifts = require(path.join(OUT, "domain/shifts.js"));
 const settings = require(path.join(OUT, "data/settings.js"));
 const sales = require(path.join(OUT, "domain/sales.js"));
 const units = require(path.join(OUT, "domain/units.js"));
+const recipeDomain = require(path.join(OUT, "domain/recipe.js"));
 
 let pass = 0;
 let fail = 0;
@@ -224,6 +226,26 @@ console.log("\n[9] satuan");
   check("format 12 pcs tanpa konversi", units.formatQtyWithUnit(12, "pcs"), "12 pcs");
   check("picker kg memuat g", units.getCompatibleUnits("kg").includes("g"), true);
 }
+
+console.log("\n[10] resep");
+check("resep valid lolos", recipeDomain.validateRecipeLines([
+  { ingredientId: "ing-1", qtyPerUnit: 10 },
+  { ingredientId: "ing-2", qtyPerUnit: 25.5 },
+]), null);
+check("resep kosong ditolak", typeof recipeDomain.validateRecipeLines([]), "string");
+check("resep tanpa bahan ditolak", typeof recipeDomain.validateRecipeLines([{ ingredientId: "", qtyPerUnit: 10 }]), "string");
+check("takaran nol ditolak", typeof recipeDomain.validateRecipeLines([{ ingredientId: "ing-1", qtyPerUnit: 0 }]), "string");
+check("takaran negatif ditolak", typeof recipeDomain.validateRecipeLines([{ ingredientId: "ing-1", qtyPerUnit: -5 }]), "string");
+check("bahan duplikat ditolak", typeof recipeDomain.validateRecipeLines([
+  { ingredientId: "ing-1", qtyPerUnit: 10 },
+  { ingredientId: "ing-1", qtyPerUnit: 20 },
+]), "string");
+check("draft tanpa productId ditolak", typeof recipeDomain.validateRecipeDraft({ productId: "", variantId: null, lines: [{ ingredientId: "ing-1", qtyPerUnit: 10 }] }), "string");
+check("versi baru dari null adalah 1", recipeDomain.nextRecipeVersion(null), 1);
+check("versi baru dari undefined adalah 1", recipeDomain.nextRecipeVersion(undefined), 1);
+check("versi baru bertambah 1", recipeDomain.nextRecipeVersion(1), 2);
+check("versi bertambah dari v5 jadi v6", recipeDomain.nextRecipeVersion(5), 6);
+check("pembulatan qty 3 desimal", recipeDomain.roundRecipeQty(1.23456), 1.235);
 
 rmSync(OUT, { recursive: true, force: true });
 console.log(`\n=== ${fail === 0 ? `SEMUA LULUS (${pass})` : `${fail} GAGAL dari ${pass + fail}`} ===`);

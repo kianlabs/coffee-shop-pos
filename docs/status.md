@@ -9,13 +9,14 @@ Terakhir diperbarui: 5 November 2026.
 
 | Fitur | Bukti |
 |-------|-------|
-| Kasir offline (tambah keranjang, diskon, pajak, layanan, pembulatan, bayar, kembalian) | `npm run build` + `npm test` (76 assertion) |
+| Kasir offline (tambah keranjang, diskon, pajak, layanan, pembulatan, bayar, kembalian) | `npm run build` + `npm test` (88 assertion) |
 | Menu & harga diisi sendiri oleh user (katalog kosong di awal) | `src/components/CatalogEditor.tsx`, `src/data/catalogRepo.ts` |
 | Katalog dibaca dari database, bukan daftar hardcoded | `loadCatalog()` di `App.tsx` |
 | Checkout atomik: order + item + pembayaran + stok + snapshot HPP dalam transaksi manual yang diserialkan | `src/data/orderRepository.ts#checkoutAtomicAsync`, `src/data/tx.ts` |
 | Idempotensi checkout (double-tap tidak membuat order baru) | `idempotency_key` unik + test manual |
 | HPP manual per produk/varian (user isi sendiri) | `src/components/HppEditor.tsx`, `docs/hpp.md` |
 | HPP resep otomatis dari bahan | `src/domain/hpp.ts`, `prepareConsumption()` |
+| Editor resep di UI (per produk/varian, versi otomatis, audit log) | `src/components/RecipeEditor.tsx`, `src/data/recipeRepo.ts` |
 | Snapshot HPP terkunci saat transaksi | `order_items.hpp_unit_rp`, `hpp_source`, `hpp_detail_json` |
 | Stok berkurang saat jual, kembali saat void (idempoten) | unique index `uq_stock_movements_ref`, `prepareVoidReversal()` |
 | Void atomik & tahan balapan ganda | conditional status update (`WHERE id = ? AND status = 'completed'`) |
@@ -45,7 +46,6 @@ Terakhir diperbarui: 5 November 2026.
 | Backup ke file di Android | Plugin `BackupPlugin` selesai; chooser Android belum diuji di perangkat |
 | Sinkronisasi cloud | Mock server + outbox ada; server produksi belum ada |
 | Laporan laba agregat per periode | Data snapshot sudah siap, query/layar belum ada |
-| Editor resep di UI | Tabel resep ada, layar belum |
 | Konversi satuan (kg↔g) | Sudah ada untuk input pembelian/koreksi; densitas (ml↔g) belum didukung |
 | Kuantitas stok | Masih REAL, dibulatkan 3 desimal tiap update (anti drift), belum integer milli |
 | Test UI/end-to-end | Belum ada; yang ada hanya test domain |

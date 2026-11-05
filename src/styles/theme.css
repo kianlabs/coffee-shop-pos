@@ -2623,6 +2623,91 @@ label.check input {
   }
 }
 
+/* --- Editor resep ------------------------------------------------------- */
+.recipe-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.recipe-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px auto;
+  gap: 8px;
+  align-items: end;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.recipe-line label {
+  margin: 0;
+  font-size: 0.72rem;
+}
+
+.recipe-line input,
+.recipe-line select {
+  margin-top: 3px;
+}
+
+.recipe-line-side {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 2px;
+}
+
+.recipe-line-cost {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 0.78rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.recipe-line-cost small {
+  font-size: 0.66rem;
+  font-weight: 400;
+  color: var(--text-2);
+}
+
+.recipe-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.recipe-summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.recipe-summary strong {
+  font-size: 0.95rem;
+}
+
+@media (max-width: 560px) {
+  .recipe-line {
+    grid-template-columns: 1fr;
+  }
+
+  .recipe-line-side {
+    justify-content: space-between;
+  }
+
+  .recipe-summary {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
