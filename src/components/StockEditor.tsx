@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { formatRupiah } from "../domain/money";
 import { adjustStock, loadIngredients, recordPurchase, type IngredientRow } from "../data/stock";
-
-const inputStyle = { minHeight: 44, padding: "8px 10px", fontSize: 15 } as const;
+import { isNativePlatform } from "../data/db";
+import { Icon } from "./Icon";
 
 function slugId(name: string): string {
   const base = name
@@ -18,8 +18,9 @@ function slugId(name: string): string {
  * Tanpa layar ini, tabel ingredients selalu kosong dan pemotongan stok mustahil.
  */
 export function StockEditor() {
+  const native = isNativePlatform();
   const [rows, setRows] = useState<IngredientRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(native);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -47,8 +48,9 @@ export function StockEditor() {
   }
 
   useEffect(() => {
+    if (!native) return;
     void reload();
-  }, []);
+  }, [native]);
 
   const selected = useMemo(() => rows.find((r) => r.id === buyId) ?? null, [rows, buyId]);
 
@@ -121,136 +123,205 @@ export function StockEditor() {
   }
 
   if (loading) {
-    return <p>Memuat bahan…</p>;
+    return (
+      <div className="loading-state">
+        <span className="spinner" />
+        Memuat bahan…
+      </div>
+    );
+  }
+
+  if (!native) {
+    return (
+      <div className="empty-state">
+        <Icon name="box" size={32} />
+        <h3>Stok hanya tersedia di aplikasi Android</h3>
+        <p>
+          Pembelian dan koreksi stok disimpan di database SQLite tablet. Di browser (mode
+          pratinjau), layar ini tidak bisa dipakai. Buka aplikasi Android untuk mengelola bahan.
+        </p>
+      </div>
+    );
   }
 
   return (
     <div>
-      <h2>Bahan &amp; Stok</h2>
-      <p style={{ fontSize: 13, color: "#555", marginTop: 0 }}>
-        Catat pembelian bahan di sini supaya stok dan HPP resep ikut bergerak. Harga per satuan yang terakhir
-        dipakai sebagai HPP.
+      <p className="page-desc" style={{ marginBottom: 14 }}>
+        Catat pembelian bahan di sini supaya stok dan HPP resep ikut bergerak. Harga per satuan
+        terakhir dipakai sebagai HPP.
       </p>
 
-      {rows.length === 0 ? (
-        <p>Belum ada bahan. Tambahkan lewat form pembelian di bawah.</p>
-      ) : (
-        <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 12 }}>
-          {rows.map((r) => (
-            <div
-              key={r.id}
-              style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "6px 0", fontSize: 14 }}
-            >
-              <span>{r.name}</span>
-              <span style={{ color: r.stockQty < 0 ? "#b00020" : undefined }}>
-                {r.stockQty} {r.baseUnit}
-              </span>
+      <div className="split-grid">
+        <section className="card">
+          <div className="card-head">
+            <div>
+              <h3 className="card-title">Bahan &amp; stok</h3>
+              <p className="card-sub">{rows.length} bahan terdaftar.</p>
             </div>
-          ))}
+          </div>
+          {rows.length === 0 ? (
+            <div className="empty-state" style={{ minHeight: 140 }}>
+              <Icon name="box" size={30} />
+              <p>Belum ada bahan. Tambahkan lewat form pembelian di samping.</p>
+            </div>
+          ) : (
+            <div className="stock-list" style={{ border: 0, padding: 0 }}>
+              {rows.map((r) => (
+                <div className="stock-row" key={r.id}>
+                  <span className="stock-name">{r.name}</span>
+                  <span
+                    className={`stock-qty ${r.stockQty < 0 ? "is-negative" : ""}`}
+                    title={r.stockQty < 0 ? "Stok minus — lakukan koreksi" : undefined}
+                  >
+                    {r.stockQty} {r.baseUnit}
+                    {r.stockQty < 0 && " ⚠"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="form-card">
+          <h3>Catat pembelian</h3>
+          <div className="form-grid">
+            <label style={{ gridColumn: "1 / -1" }}>
+              Bahan
+              <select aria-label="Pilih bahan" value={buyId} onChange={(e) => setBuyId(e.target.value)}>
+                <option value="">— bahan baru —</option>
+                {rows.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name} ({r.baseUnit})
+                  </option>
+                ))}
+              </select>
+            </label>
+            {!selected && (
+              <>
+                <label>
+                  Nama bahan
+                  <input
+                    aria-label="Nama bahan"
+                    placeholder="mis. Biji kopi"
+                    value={buyName}
+                    onChange={(e) => setBuyName(e.target.value.slice(0, 60))}
+                  />
+                </label>
+                <label>
+                  Satuan
+                  <input
+                    aria-label="Satuan"
+                    placeholder="gram / ml / pcs"
+                    value={buyUnit}
+                    onChange={(e) => setBuyUnit(e.target.value.slice(0, 20))}
+                  />
+                </label>
+              </>
+            )}
+            <label>
+              Jumlah
+              <input
+                aria-label="Jumlah"
+                type="number"
+                min={0}
+                inputMode="decimal"
+                value={buyQty}
+                onChange={(e) => setBuyQty(Math.max(0, Number(e.target.value) || 0))}
+                placeholder="qty"
+              />
+            </label>
+            <label>
+              Harga per satuan (Rp)
+              <input
+                aria-label="Harga per satuan"
+                type="number"
+                min={0}
+                inputMode="numeric"
+                value={buyCost}
+                onChange={(e) => setBuyCost(Math.max(0, Math.trunc(Number(e.target.value) || 0)))}
+                placeholder="Rp/satuan"
+              />
+            </label>
+            <div style={{ display: "flex", alignItems: "flex-end", gridColumn: "1 / -1" }}>
+              <button
+                className="primary block"
+                disabled={busy}
+                onClick={() => void handlePurchase()}
+              >
+                <Icon name="plus" size={17} />
+                Simpan pembelian
+              </button>
+            </div>
+          </div>
+          {buyQty > 0 && buyCost > 0 && (
+            <p className="muted" style={{ marginTop: 8 }}>
+              Total belanja: {formatRupiah(buyQty * buyCost)}
+            </p>
+          )}
+        </section>
+      </div>
+
+      <section className="form-card" style={{ marginTop: 14 }}>
+        <h3>Koreksi stok</h3>
+        <p className="muted" style={{ marginBottom: 10 }}>
+          Pakai untuk stok opname, bahan rusak, atau susut. Alasan wajib diisi agar jejaknya jelas.
+        </p>
+        <div className="form-grid">
+          <label>
+            Bahan
+            <select
+              aria-label="Pilih bahan koreksi"
+              value={adjId}
+              onChange={(e) => setAdjId(e.target.value)}
+            >
+              <option value="">— pilih bahan —</option>
+              {rows.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name} ({r.baseUnit})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Selisih (+/−)
+            <input
+              aria-label="Selisih"
+              type="number"
+              inputMode="decimal"
+              value={adjDelta}
+              onChange={(e) => setAdjDelta(Number(e.target.value) || 0)}
+              placeholder="mis. -250"
+            />
+          </label>
+          <label>
+            Alasan
+            <input
+              aria-label="Alasan"
+              value={adjReason}
+              onChange={(e) => setAdjReason(e.target.value.slice(0, 200))}
+              placeholder="mis. stok opname / tumpah"
+            />
+          </label>
+          <div style={{ display: "flex", alignItems: "flex-end" }}>
+            <button className="block" disabled={busy} onClick={() => void handleAdjust()}>
+              <Icon name="check" size={17} />
+              Simpan koreksi
+            </button>
+          </div>
         </div>
-      )}
-
-      <h3>Catat pembelian</h3>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        <select
-          aria-label="Pilih bahan"
-          value={buyId}
-          onChange={(e) => setBuyId(e.target.value)}
-          style={inputStyle}
-        >
-          <option value="">— bahan baru —</option>
-          {rows.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.name} ({r.baseUnit})
-            </option>
-          ))}
-        </select>
-        {!selected && (
-          <>
-            <input
-              aria-label="Nama bahan"
-              placeholder="Nama bahan"
-              value={buyName}
-              onChange={(e) => setBuyName(e.target.value.slice(0, 60))}
-              style={inputStyle}
-            />
-            <input
-              aria-label="Satuan"
-              placeholder="gram / ml / pcs"
-              value={buyUnit}
-              onChange={(e) => setBuyUnit(e.target.value.slice(0, 20))}
-              style={{ ...inputStyle, width: 110 }}
-            />
-          </>
-        )}
-        <input
-          aria-label="Jumlah"
-          type="number"
-          min={0}
-          inputMode="decimal"
-          value={buyQty}
-          onChange={(e) => setBuyQty(Math.max(0, Number(e.target.value) || 0))}
-          placeholder="qty"
-          style={{ ...inputStyle, width: 100 }}
-        />
-        <input
-          aria-label="Harga per satuan"
-          type="number"
-          min={0}
-          inputMode="numeric"
-          value={buyCost}
-          onChange={(e) => setBuyCost(Math.max(0, Math.trunc(Number(e.target.value) || 0)))}
-          placeholder="Rp/satuan"
-          style={{ ...inputStyle, width: 130 }}
-        />
-        <button style={{ minHeight: 44 }} disabled={busy} onClick={() => void handlePurchase()}>
-          Simpan pembelian
-        </button>
-      </div>
-      {buyQty > 0 && buyCost > 0 && (
-        <p style={{ fontSize: 13 }}>Total belanja: {formatRupiah(buyQty * buyCost)}</p>
-      )}
-
-      <h3>Koreksi stok</h3>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        <select aria-label="Pilih bahan koreksi" value={adjId} onChange={(e) => setAdjId(e.target.value)} style={inputStyle}>
-          <option value="">— pilih bahan —</option>
-          {rows.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.name}
-            </option>
-          ))}
-        </select>
-        <input
-          aria-label="Selisih"
-          type="number"
-          inputMode="decimal"
-          value={adjDelta}
-          onChange={(e) => setAdjDelta(Number(e.target.value) || 0)}
-          placeholder="+/- qty"
-          style={{ ...inputStyle, width: 110 }}
-        />
-        <input
-          aria-label="Alasan"
-          value={adjReason}
-          onChange={(e) => setAdjReason(e.target.value.slice(0, 200))}
-          placeholder="alasan (wajib)"
-          style={{ ...inputStyle, minWidth: 200 }}
-        />
-        <button style={{ minHeight: 44 }} disabled={busy} onClick={() => void handleAdjust()}>
-          Simpan koreksi
-        </button>
-      </div>
+      </section>
 
       {error && (
-        <p role="alert" style={{ color: "#b00020" }}>
-          {error}
-        </p>
+        <div className="danger-note" style={{ marginTop: 14 }} role="alert">
+          <Icon name="alert" size={17} />
+          <span>{error}</span>
+        </div>
       )}
       {info && (
-        <p aria-live="polite" style={{ color: "#1b5e20" }}>
-          {info}
-        </p>
+        <div className="banner" style={{ marginTop: 14 }} aria-live="polite">
+          <Icon name="check" size={17} />
+          <span>{info}</span>
+        </div>
       )}
     </div>
   );

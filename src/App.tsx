@@ -1,9 +1,31 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { EMPTY_CATALOG, unitPriceFor, type Catalog, type Product, type ProductVariant } from "./domain/catalog";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  EMPTY_CATALOG,
+  unitPriceFor,
+  variantsOf,
+  type Catalog,
+  type Product,
+  type ProductVariant,
+} from "./domain/catalog";
 import { loadCatalog } from "./data/catalogRepo";
 import { calcSubtotal, calcTotal, formatRupiah, type Rupiah } from "./domain/money";
 import { type Order, type OrderLineInput, type PaymentMethod } from "./domain/orders";
-import { downloadTextFile, backupFileName, rememberBackup, repo, type BackupRecord } from "./data/orderRepo";
+import {
+  downloadTextFile,
+  backupFileName,
+  rememberBackup,
+  repo,
+  type BackupRecord,
+} from "./data/orderRepo";
 import { saveBackupFile, shareBackupFile } from "./data/backupFile";
 import {
   countPendingOutbox,
@@ -13,15 +35,44 @@ import {
   syncNow,
 } from "./data/sync";
 import { decryptJson, encryptJson, isEncryptedBackup } from "./data/cryptoBackup";
-import { activePrinter, connectPrinter, disconnectPrinter, listPrinterDevices, printerStatus, type PrinterDevice, type PrinterStatus } from "./data/printer";
-import { renderReceiptText } from "./data/receipt";
+import {
+  activePrinter,
+  connectPrinter,
+  disconnectPrinter,
+  listPrinterDevices,
+  printerStatus,
+  type PrinterDevice,
+  type PrinterStatus,
+} from "./data/printer";
+import { paymentLabel, renderReceiptText } from "./data/receipt";
 import { applyRounding, getSettings, saveSettings, type PosSettings } from "./data/settings";
 import { closeShift, openShift, summarizeShift, type Shift } from "./domain/shifts";
 import { ProductItem } from "./components/ProductItem";
-import { HppEditor } from "./components/HppEditor";
-import { StockEditor } from "./components/StockEditor";
-import { CatalogEditor } from "./components/CatalogEditor";
-import { SalesReport } from "./components/SalesReport";
+import { Icon, type IconName } from "./components/Icon";
+
+// Layar admin jarang dibuka saat jam sibuk — dipisah dari bundle awal supaya
+// kasir lebih cepat tampil di tablet.
+const CatalogEditor = lazy(() =>
+  import("./components/CatalogEditor").then((m) => ({ default: m.CatalogEditor })),
+);
+const HppEditor = lazy(() =>
+  import("./components/HppEditor").then((m) => ({ default: m.HppEditor })),
+);
+const StockEditor = lazy(() =>
+  import("./components/StockEditor").then((m) => ({ default: m.StockEditor })),
+);
+const SalesReport = lazy(() =>
+  import("./components/SalesReport").then((m) => ({ default: m.SalesReport })),
+);
+
+function ViewFallback() {
+  return (
+    <div className="loading-state">
+      <span className="spinner" />
+      Memuat layar…
+    </div>
+  );
+}
 
 type CartLine = {
   productId: string;
@@ -37,7 +88,29 @@ type View = "kasir" | "riwayat" | "laporan" | "menu" | "hpp" | "stok" | "backup"
 type Status = {
   kind: "error" | "ok" | "info";
   msg: string;
-  scope: "kasir" | "riwayat" | "laporan" | "menu" | "hpp" | "stok" | "backup" | "pengaturan";
+  scope: View;
+};
+
+const NAV_ITEMS: Array<{ view: View; label: string; icon: IconName }> = [
+  { view: "kasir", label: "Kasir", icon: "cart" },
+  { view: "menu", label: "Menu", icon: "menu" },
+  { view: "riwayat", label: "Riwayat", icon: "receipt" },
+  { view: "laporan", label: "Laporan", icon: "chart" },
+  { view: "hpp", label: "HPP", icon: "calculator" },
+  { view: "stok", label: "Stok", icon: "box" },
+  { view: "backup", label: "Backup", icon: "cloud" },
+  { view: "pengaturan", label: "Setelan", icon: "settings" },
+];
+
+const VIEW_TITLES: Record<View, string> = {
+  kasir: "Kasir",
+  riwayat: "Riwayat Order",
+  laporan: "Laporan Penjualan",
+  menu: "Menu & Harga",
+  hpp: "HPP & Margin",
+  stok: "Bahan & Stok",
+  backup: "Backup & Sync",
+  pengaturan: "Pengaturan",
 };
 
 function newIdempotencyKey(): string {
@@ -88,6 +161,26 @@ function loadStoredShift(): Shift | null {
   }
 }
 
+function groupByDate(orders: Order[]): Array<[string, Order[]]> {
+  const map = new Map<string, Order[]>();
+  for (const order of orders) {
+    const key = new Date(order.createdAt).toLocaleDateString("id-ID", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+    const list = map.get(key);
+    if (list) list.push(order);
+    else map.set(key, [order]);
+  }
+  return [...map.entries()];
+}
+
+function orderItemCount(order: Order): number {
+  return order.lines.reduce((sum, line) => sum + line.qty, 0);
+}
+
 export default function App() {
   const [cart, setCart] = useState<CartLine[]>(() => loadStoredCart());
   const [categoryId, setCategoryId] = useState<string>("");
@@ -100,7 +193,6 @@ export default function App() {
   const [status, setStatus] = useState<Status | null>(null);
   const [processing, setProcessing] = useState<boolean>(false);
   const [view, setView] = useState<View>("kasir");
-  const [receipt, setReceipt] = useState<string | null>(null);
   const [ordersVersion, setOrdersVersion] = useState<number>(0);
   const [backups, setBackups] = useState<BackupRecord[]>(() => repo.listBackups());
   const [dbReady, setDbReady] = useState<boolean>(false);
@@ -119,17 +211,33 @@ export default function App() {
   const [shift, setShift] = useState<Shift | null>(() => loadStoredShift());
   const [lastShiftSummary, setLastShiftSummary] = useState<string | null>(null);
   const [historyFilter, setHistoryFilter] = useState<"all" | "completed" | "voided">("all");
+  const [historyQuery, setHistoryQuery] = useState("");
+  const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
   const [pinRequest, setPinRequest] = useState<{ orderId: string; label: string } | null>(null);
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState<string | null>(null);
   const [pinAttempts, setPinAttempts] = useState(0);
   const [printerDevices, setPrinterDevices] = useState<PrinterDevice[]>([]);
-  const [printerState, setPrinterState] = useState<PrinterStatus>({ connected: false, address: null, name: null });
+  const [printerState, setPrinterState] = useState<PrinterStatus>({
+    connected: false,
+    address: null,
+    name: null,
+  });
   const [printerBusy, setPrinterBusy] = useState(false);
+  // --- UI state khusus tampilan ---
+  const [search, setSearch] = useState("");
+  const [cartOpen, setCartOpen] = useState(false);
+  const [online, setOnline] = useState<boolean>(() =>
+    typeof navigator === "undefined" ? true : navigator.onLine,
+  );
+  const [lastReceipt, setLastReceipt] = useState<{ order: Order; text: string } | null>(null);
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [reportOrders, setReportOrders] = useState<Order[] | null>(null);
   const [catalogVersion, setCatalogVersion] = useState(0);
+
+  const deferredSearch = useDeferredValue(search);
+  const deferredHistoryQuery = useDeferredValue(historyQuery);
 
   const viewRef = useRef<View>(view);
   viewRef.current = view;
@@ -156,6 +264,28 @@ export default function App() {
       // Idem: kegagalan storage tidak boleh menghentikan kasir.
     }
   }, [shift]);
+
+  // Indikator online/offline di topbar (tanpa polling).
+  useEffect(() => {
+    const up = () => setOnline(true);
+    const down = () => setOnline(false);
+    window.addEventListener("online", up);
+    window.addEventListener("offline", down);
+    return () => {
+      window.removeEventListener("online", up);
+      window.removeEventListener("offline", down);
+    };
+  }, []);
+
+  // Toast feedback hilang sendiri supaya tidak menutupi layar kasir.
+  useEffect(() => {
+    if (!status) return;
+    const timer = window.setTimeout(
+      () => setStatus(null),
+      status.kind === "error" ? 8000 : 4200,
+    );
+    return () => window.clearTimeout(timer);
+  }, [status]);
 
   // Ringkasan Laporan memakai SELURUH order dari DB (bukan 200 terakhir di
   // state), supaya warung yang transaksinya banyak tetap benar totalnya.
@@ -226,36 +356,64 @@ export default function App() {
     };
   }, [catalogVersion]);
 
-  const visibleProducts = useMemo(
-    () => catalog.products.filter((p) => p.categoryId === categoryId && p.isActive),
-    [catalog.products, categoryId],
-  );
+  const visibleProducts = useMemo(() => {
+    const query = deferredSearch.trim().toLowerCase();
+    if (query) {
+      return catalog.products.filter(
+        (p) =>
+          p.isActive &&
+          (p.name.toLowerCase().includes(query) ||
+            p.variants.some((v) => v.isActive && v.name.toLowerCase().includes(query))),
+      );
+    }
+    return catalog.products.filter((p) => p.categoryId === categoryId && p.isActive);
+  }, [catalog.products, categoryId, deferredSearch]);
 
   const subtotal = calcSubtotal(cart);
   const serviceCharge = Math.max(0, Math.trunc(posSettings.serviceChargeRp) || 0);
   const baseTotal = calcTotal(subtotal, discount, tax) + serviceCharge;
-  const roundingCalc = cart.length === 0 ? { rounded: 0, roundingRp: 0 } : applyRounding(baseTotal, posSettings.roundingStep);
+  const roundingCalc =
+    cart.length === 0 ? { rounded: 0, roundingRp: 0 } : applyRounding(baseTotal, posSettings.roundingStep);
   const total = roundingCalc.rounded;
+  const itemCount = cart.reduce((sum, line) => sum + line.qty, 0);
+
+  // Nominal bayar otomatis "uang pas" saat keranjang baru / setelah transaksi.
+  // Ikut menyesuaikan selama kasir belum mengetik nominal sendiri: nilai lama
+  // dianggap otomatis bila masih 0 atau sama dengan total sebelumnya.
+  const prevTotalRef = useRef(0);
+  useEffect(() => {
+    const prevTotal = prevTotalRef.current;
+    prevTotalRef.current = total;
+    setPayAmount((prev) => (prev === 0 || prev === prevTotal ? total : prev));
+  }, [total]);
+
   // Kunci idempotency stabil per komposisi cart: satu key untuk satu
   // (cart, discount, tax, serviceCharge, rounding, payMethod); double-click
   // pakai key yang sama sehingga backend menandai duplikat, bukan order baru.
   const cartHash = useMemo(
-    () => `${JSON.stringify(cart)}|${discount}|${tax}|${serviceCharge}|${roundingCalc.roundingRp}|${posSettings.roundingStep}|${payMethod}|${payAmount}|${notes.trim()}`,
-    [cart, discount, tax, serviceCharge, roundingCalc.roundingRp, posSettings.roundingStep, payMethod, payAmount, notes],
+    () =>
+      `${JSON.stringify(cart)}|${discount}|${tax}|${serviceCharge}|${roundingCalc.roundingRp}|${posSettings.roundingStep}|${payMethod}|${payAmount}|${notes.trim()}`,
+    [
+      cart,
+      discount,
+      tax,
+      serviceCharge,
+      roundingCalc.roundingRp,
+      posSettings.roundingStep,
+      payMethod,
+      payAmount,
+      notes,
+    ],
   );
   const cartKeyRef = useRef<{ hash: string; key: string } | null>(null);
 
-  function addToCart(product: Product, variant: ProductVariant | null) {
+  const addToCart = useCallback((product: Product, variant: ProductVariant | null) => {
     const variantId = variant ? variant.id : null;
     setCart((prev) => {
-      const found = prev.find(
-        (l) => l.productId === product.id && l.variantId === variantId,
-      );
+      const found = prev.find((l) => l.productId === product.id && l.variantId === variantId);
       if (found) {
         return prev.map((l) =>
-          l.productId === product.id && l.variantId === variantId
-            ? { ...l, qty: l.qty + 1 }
-            : l,
+          l.productId === product.id && l.variantId === variantId ? { ...l, qty: l.qty + 1 } : l,
         );
       }
       return [
@@ -270,18 +428,25 @@ export default function App() {
         },
       ];
     });
-  }
+  }, []);
 
   function changeQty(productId: string, variantId: string | null, delta: number) {
     setCart((prev) =>
       prev
         .map((l) =>
-          l.productId === productId && l.variantId === variantId
-            ? { ...l, qty: l.qty + delta }
-            : l,
+          l.productId === productId && l.variantId === variantId ? { ...l, qty: l.qty + delta } : l,
         )
         .filter((l) => l.qty > 0),
     );
+  }
+
+  function clearCart() {
+    setCart([]);
+    setDiscount(0);
+    setTax(0);
+    setNotes("");
+    setPayAmount(0);
+    setStatus({ kind: "info", msg: "Keranjang dikosongkan.", scope: "kasir" });
   }
 
   async function handleCheckout() {
@@ -295,6 +460,14 @@ export default function App() {
     }
     if (!dbReady && !browserReady) {
       setStatus({ kind: "error", msg: "Database belum siap.", scope: "kasir" });
+      return;
+    }
+    if (payAmount < total) {
+      setStatus({
+        kind: "error",
+        msg: `Nominal bayar kurang ${formatRupiah(total - payAmount)}.`,
+        scope: "kasir",
+      });
       return;
     }
     const lines: OrderLineInput[] = cart.map((l) => ({
@@ -334,9 +507,14 @@ export default function App() {
       setDiscount(0);
       setTax(0);
       setNotes("");
+      setCartOpen(false);
       // Prepend optimistik — tanpa bump ordersVersion agar tak double full-scan.
       setOrders((prev) => [order, ...prev.filter((o) => o.id !== order.id)]);
-      setReceipt(renderReceiptText(order, { storeName: posSettings.storeName, cashierName: posSettings.cashierName }));
+      const receiptText = renderReceiptText(order, {
+        storeName: posSettings.storeName,
+        cashierName: posSettings.cashierName,
+      });
+      setLastReceipt({ order, text: receiptText });
       setStatus({
         kind: "ok",
         msg: duplicate
@@ -347,22 +525,15 @@ export default function App() {
       // Cetak otomatis setelah commit: struk gagal tidak membatalkan penjualan.
       if (posSettings.autoPrint) {
         const port = activePrinter();
-        port
-          .print(
-            renderReceiptText(order, {
-              storeName: posSettings.storeName,
-              cashierName: posSettings.cashierName,
-            }),
-          )
-          .catch((err: unknown) => {
-            setStatus({
-              kind: "error",
-              msg: `Order tersimpan, tapi struk gagal dicetak: ${
-                err instanceof Error ? err.message : "printer tidak merespons"
-              }`,
-              scope: "kasir",
-            });
+        port.print(receiptText).catch((err: unknown) => {
+          setStatus({
+            kind: "error",
+            msg: `Order tersimpan, tapi struk gagal dicetak: ${
+              err instanceof Error ? err.message : "printer tidak merespons"
+            }`,
+            scope: "kasir",
           });
+        });
       }
     } catch (e) {
       setStatus({
@@ -528,9 +699,15 @@ export default function App() {
 
   // Cetak lewat SATU jalur saja. Kalau printer native gagal, jangan diam-diam
   // fallback ke iframe — itu bisa menghasilkan dua struk untuk satu transaksi.
-  async function handlePrint(order: Order, scope: "kasir" | "riwayat" = "riwayat"): Promise<boolean> {
+  async function handlePrint(
+    order: Order,
+    scope: "kasir" | "riwayat" = "riwayat",
+  ): Promise<boolean> {
     const label = order.receiptNumber;
-    const receiptOpts = { storeName: posSettings.storeName, cashierName: posSettings.cashierName };
+    const receiptOpts = {
+      storeName: posSettings.storeName,
+      cashierName: posSettings.cashierName,
+    };
     const port = activePrinter();
     try {
       await port.print(renderReceiptText(order, receiptOpts));
@@ -552,6 +729,7 @@ export default function App() {
       setOrders(await repo.load(200));
       setDbReady(true);
       setBrowserReady(true);
+      setStatus({ kind: "ok", msg: "Riwayat dimuat ulang.", scope: "riwayat" });
     } catch (e) {
       setStatus({
         kind: "error",
@@ -675,7 +853,11 @@ export default function App() {
   async function handleBackupEncrypted() {
     try {
       if (!backupPass) {
-        setStatus({ kind: "error", msg: "Isi passphrase dulu untuk backup terenkripsi.", scope: "backup" });
+        setStatus({
+          kind: "error",
+          msg: "Isi passphrase dulu untuk backup terenkripsi.",
+          scope: "backup",
+        });
         return;
       }
       const json = await repo.exportJson();
@@ -715,7 +897,11 @@ export default function App() {
         scope: "backup",
       });
     } catch (e) {
-      setStatus({ kind: "error", msg: e instanceof Error ? e.message : "Backup terenkripsi gagal.", scope: "backup" });
+      setStatus({
+        kind: "error",
+        msg: e instanceof Error ? e.message : "Backup terenkripsi gagal.",
+        scope: "backup",
+      });
     }
   }
 
@@ -780,665 +966,1182 @@ export default function App() {
     };
   }, []);
 
-  function statusColor(kind: Status["kind"]): string {
-    return kind === "error" ? "red" : kind === "ok" ? "green" : "#333";
+  const quickCash = useMemo(() => {
+    if (total <= 0) return [];
+    const values = new Set<number>([total]);
+    for (const step of [5000, 10000, 50000]) {
+      const rounded = Math.ceil(total / step) * step;
+      if (rounded > total) values.add(rounded);
+    }
+    return [...values].slice(0, 4);
+  }, [total]);
+
+  const filteredOrders = useMemo(() => {
+    const query = deferredHistoryQuery.trim().toLowerCase();
+    return orders.filter((order) => {
+      if (historyFilter !== "all" && order.status !== historyFilter) return false;
+      if (!query) return true;
+      return (
+        order.receiptNumber.toLowerCase().includes(query) ||
+        order.lines.some((line) => line.productName.toLowerCase().includes(query))
+      );
+    });
+  }, [orders, historyFilter, deferredHistoryQuery]);
+
+  const groupedOrders = useMemo(() => groupByDate(filteredOrders), [filteredOrders]);
+
+  const shiftSummary = useMemo(() => (shift ? summarizeShift(shift, orders) : null), [shift, orders]);
+
+  const todayLabel = new Date().toLocaleDateString("id-ID", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+
+  function toggleOrderDetail(orderId: string) {
+    setExpandedOrders((prev) => ({ ...prev, [orderId]: !prev[orderId] }));
+  }
+
+  function statusBadgeClass(order: Order): string {
+    if (order.status === "voided") return "badge badge-danger";
+    if (order.status === "refunded") return "badge badge-warn";
+    return "badge badge-success";
   }
 
   return (
     <div className="app-shell">
-      <header className="app-header">
-        <h1 className="app-title">{posSettings.storeName}</h1>
-        <span className="muted">Kasir offline</span>
-      </header>
-      <p className="app-subtitle">Kasir siap · mode offline</p>
-      <nav className="nav-tabs">
-        <button
-          aria-current={view === "kasir" ? "page" : undefined}
-          onClick={() => setView("kasir")}
-        >
-          Kasir
-        </button>{" "}
-        <button
-          aria-current={view === "menu" ? "page" : undefined}
-          onClick={() => setView("menu")}
-        >
-          Menu
-        </button>{" "}
-        <button
-          aria-current={view === "riwayat" ? "page" : undefined}
-          onClick={() => setView("riwayat")}
-        >
-          Riwayat ({orders.length})
-        </button>{" "}
-        <button
-          aria-current={view === "laporan" ? "page" : undefined}
-          onClick={() => setView("laporan")}
-        >
-          Laporan
-        </button>{" "}
-        <button
-          aria-current={view === "hpp" ? "page" : undefined}
-          onClick={() => setView("hpp")}
-        >
-          HPP
-        </button>{" "}
-        <button
-          aria-current={view === "stok" ? "page" : undefined}
-          onClick={() => setView("stok")}
-        >
-          Stok
-        </button>{" "}
-        <button
-          aria-current={view === "backup" ? "page" : undefined}
-          onClick={() => setView("backup")}
-        >
-          Backup
-        </button>{" "}
-        <button
-          aria-current={view === "pengaturan" ? "page" : undefined}
-          onClick={() => setView("pengaturan")}
-        >
-          Pengaturan
-        </button>
+      <nav className="nav-rail" aria-label="Navigasi utama">
+        <div className="brand">
+          <div className="brand-mark">
+            <Icon name="coffee" size={24} />
+          </div>
+          <span className="brand-text">Kopi POS</span>
+        </div>
+        <div className="nav-list">
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.view}
+              className="nav-item"
+              aria-current={view === item.view ? "page" : undefined}
+              onClick={() => {
+                setView(item.view);
+                setCartOpen(false);
+              }}
+            >
+              <Icon name={item.icon} />
+              <span className="nav-label">{item.label}</span>
+              {item.view === "riwayat" && orders.length > 0 && (
+                <span className="nav-badge">{orders.length > 99 ? "99+" : orders.length}</span>
+              )}
+              {item.view === "backup" && pendingCount !== null && pendingCount > 0 && (
+                <span className="nav-badge">{pendingCount > 99 ? "99+" : pendingCount}</span>
+              )}
+            </button>
+          ))}
+        </div>
       </nav>
-      {view === "kasir" && (
-        <div className="pos-grid">
-          <section className="panel">
-            <div className="field-row" style={{ marginBottom: 12 }}>
-              {catalog.categories.map((c) => (
-                <button
-                  key={c.id}
-                  aria-current={c.id === categoryId ? "true" : undefined}
-                  className={c.id === categoryId ? "" : "outline"}
-                  onClick={() => setCategoryId(c.id)}
-                >
-                  {c.name}
-                </button>
-              ))}
-            </div>
 
-            {catalog.products.length === 0 ? (
-              <div className="banner">
-                <strong>Menu masih kosong</strong>
-                Isi dulu nama menu dan harganya — setelah itu tinggal dipilih saat jualan.
-                <div style={{ marginTop: 10 }}>
-                  <button onClick={() => setView("menu")}>Buka Menu &amp; Harga</button>
+      <main className="app-main">
+        <header className="topbar">
+          <div className="topbar-left">
+            <h1 className="topbar-title">{VIEW_TITLES[view]}</h1>
+            <p className="topbar-sub">
+              {posSettings.storeName || "Kopi POS"} · {todayLabel}
+            </p>
+          </div>
+          <div className="topbar-right">
+            <span className={`status-chip ${online ? "is-ok" : "is-warn"}`}>
+              <Icon name={online ? "wifi" : "wifiOff"} />
+              {online ? "Online" : "Offline"}
+            </span>
+            <span className={`status-chip is-optional ${shift ? "is-ok" : ""}`}>
+              <Icon name="clock" />
+              {shift ? "Shift buka" : "Shift tutup"}
+            </span>
+            {pendingCount !== null && pendingCount > 0 && (
+              <span className="status-chip is-warn is-optional">
+                <Icon name="sync" />
+                {pendingCount} pending
+              </span>
+            )}
+            <span
+              className={`status-chip is-optional ${printerState.connected ? "is-ok" : ""}`}
+              title={printerState.connected ? printerState.name ?? "Printer terhubung" : "Printer belum terhubung"}
+            >
+              <Icon name="printer" />
+              {printerState.connected ? "Printer" : "No printer"}
+            </span>
+          </div>
+        </header>
+
+        <div className="content">
+          <Suspense fallback={<ViewFallback />}>
+          {view === "kasir" && (
+            <div className="pos-layout">
+              <section className="catalog-panel" aria-label="Daftar menu">
+                <div className="catalog-toolbar">
+                  <div className="catalog-topline">
+                    <div className="search-box">
+                      <Icon name="search" />
+                      <input
+                        aria-label="Cari menu"
+                        placeholder="Cari menu…"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                      />
+                      {search !== "" && (
+                        <button
+                          className="search-clear"
+                          aria-label="Hapus pencarian"
+                          onClick={() => setSearch("")}
+                        >
+                          <Icon name="close" size={16} />
+                        </button>
+                      )}
+                    </div>
+                    <span className="muted" style={{ whiteSpace: "nowrap" }}>
+                      {visibleProducts.length} menu
+                    </span>
+                  </div>
+
+                  {search.trim() === "" && catalog.categories.length > 0 && (
+                    <div className="chip-row" role="group" aria-label="Kategori menu">
+                      {catalog.categories.map((category) => (
+                        <button
+                          key={category.id}
+                          className={`chip ${category.id === categoryId ? "is-active" : ""}`}
+                          aria-pressed={category.id === categoryId}
+                          onClick={() => setCategoryId(category.id)}
+                        >
+                          {category.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
+
+                {catalog.products.length === 0 ? (
+                  <div className="empty-state">
+                    <Icon name="menu" size={34} />
+                    <h3>Menu masih kosong</h3>
+                    <p>Isi nama menu dan harganya dulu — setelah itu tinggal dipilih saat jualan.</p>
+                    <button className="primary" onClick={() => setView("menu")}>
+                      <Icon name="plus" size={17} />
+                      Buka Menu &amp; Harga
+                    </button>
+                  </div>
+                ) : visibleProducts.length === 0 ? (
+                  <div className="empty-state">
+                    <Icon name="search" size={32} />
+                    <h3>Menu tidak ditemukan</h3>
+                    <p>Coba kata kunci lain, atau pilih kategori yang berbeda.</p>
+                    <button onClick={() => setSearch("")}>Hapus pencarian</button>
+                  </div>
+                ) : (
+                  <div className="product-grid">
+                    {visibleProducts.map((product) => (
+                      <ProductItem
+                        key={product.id}
+                        product={product}
+                        variants={variantsOf(product)}
+                        onAdd={addToCart}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {cartOpen && (
+                <div
+                  className="drawer-backdrop"
+                  aria-hidden="true"
+                  onClick={() => setCartOpen(false)}
+                />
+              )}
+
+              <aside
+                className={`cart-panel ${cartOpen ? "is-open" : ""}`}
+                aria-label="Keranjang pesanan"
+              >
+                <div className="cart-head">
+                  <div className="cart-title">
+                    <Icon name="cart" size={20} />
+                    Pesanan
+                    {itemCount > 0 && <span className="cart-count">{itemCount}</span>}
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {cart.length > 0 && (
+                      <button className="ghost small" onClick={clearCart}>
+                        <Icon name="trash" size={15} />
+                        Kosongkan
+                      </button>
+                    )}
+                    <button
+                      className="cart-close icon-only ghost"
+                      aria-label="Tutup keranjang"
+                      onClick={() => setCartOpen(false)}
+                    >
+                      <Icon name="close" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="cart-body">
+                  {cart.length === 0 ? (
+                    <div className="cart-empty">
+                      <Icon name="cart" size={36} />
+                      <p>Belum ada item. Pilih menu di sebelah kiri untuk mulai transaksi.</p>
+                    </div>
+                  ) : (
+                    cart.map((line) => (
+                      <div
+                        className="cart-line"
+                        key={`${line.productId}-${line.variantId ?? "base"}`}
+                      >
+                        <div className="cart-line-main">
+                          <div className="cart-name">{line.productName}</div>
+                          <div className="cart-sub">
+                            {line.variantName ? `${line.variantName} · ` : ""}
+                            {formatRupiah(line.unitPriceRp)} × {line.qty}
+                          </div>
+                        </div>
+                        <div className="cart-side">
+                          <div className="qty-group">
+                            <button
+                              className="qty-btn"
+                              aria-label={`Kurangi 1 ${line.productName}${line.variantName ? ` ${line.variantName}` : ""}`}
+                              onClick={() => changeQty(line.productId, line.variantId, -1)}
+                            >
+                              <Icon name="minus" size={16} />
+                            </button>
+                            <span className="qty-value">{line.qty}</span>
+                            <button
+                              className="qty-btn"
+                              aria-label={`Tambah 1 ${line.productName}${line.variantName ? ` ${line.variantName}` : ""}`}
+                              onClick={() => changeQty(line.productId, line.variantId, 1)}
+                            >
+                              <Icon name="plus" size={16} />
+                            </button>
+                          </div>
+                          <div className="cart-line-total money">
+                            {formatRupiah(line.unitPriceRp * line.qty)}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="cart-foot">
+                  <div className="cart-totals">
+                    <div className="cart-total-row">
+                      <span>Subtotal</span>
+                      <span className="money">{formatRupiah(subtotal)}</span>
+                    </div>
+                    {discount > 0 && (
+                      <div className="cart-total-row">
+                        <span>Diskon</span>
+                        <span className="money">−{formatRupiah(discount)}</span>
+                      </div>
+                    )}
+                    {tax > 0 && (
+                      <div className="cart-total-row">
+                        <span>Pajak</span>
+                        <span className="money">{formatRupiah(tax)}</span>
+                      </div>
+                    )}
+                    {serviceCharge > 0 && (
+                      <div className="cart-total-row">
+                        <span>Biaya layanan</span>
+                        <span className="money">{formatRupiah(serviceCharge)}</span>
+                      </div>
+                    )}
+                    {roundingCalc.roundingRp !== 0 && cart.length > 0 && (
+                      <div className="cart-total-row">
+                        <span>Pembulatan</span>
+                        <span className="money">{formatRupiah(roundingCalc.roundingRp)}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <details className="cart-extra">
+                    <summary>Diskon &amp; pajak</summary>
+                    <div className="field-row" style={{ marginTop: 8 }}>
+                      <label style={{ flex: "1 1 100px", marginBottom: 0 }}>
+                        Diskon (Rp)
+                        <input
+                          type="number"
+                          min={0}
+                          inputMode="numeric"
+                          value={discount}
+                          onChange={(e) => setDiscount(Math.max(0, Number(e.target.value) || 0))}
+                        />
+                      </label>
+                      <label style={{ flex: "1 1 100px", marginBottom: 0 }}>
+                        Pajak (Rp)
+                        <input
+                          type="number"
+                          min={0}
+                          inputMode="numeric"
+                          value={tax}
+                          onChange={(e) => setTax(Math.max(0, Number(e.target.value) || 0))}
+                        />
+                      </label>
+                    </div>
+                  </details>
+
+                  <div className="cart-total-row is-total">
+                    <span className="total-label">Total</span>
+                    <span className="total-value money">{formatRupiah(total)}</span>
+                  </div>
+
+                  <div className="segmented pay-methods" role="group" aria-label="Metode bayar">
+                    <button
+                      className={payMethod === "cash" ? "is-active" : ""}
+                      aria-pressed={payMethod === "cash"}
+                      onClick={() => setPayMethod("cash")}
+                    >
+                      Tunai
+                    </button>
+                    <button
+                      className={payMethod === "qris_manual" ? "is-active" : ""}
+                      aria-pressed={payMethod === "qris_manual"}
+                      onClick={() => setPayMethod("qris_manual")}
+                    >
+                      QRIS
+                    </button>
+                    <button
+                      className={payMethod === "other" ? "is-active" : ""}
+                      aria-pressed={payMethod === "other"}
+                      onClick={() => setPayMethod("other")}
+                    >
+                      Lainnya
+                    </button>
+                  </div>
+
+                  <label style={{ marginBottom: 0 }}>
+                    Dibayar (Rp)
+                    <input
+                      type="number"
+                      min={0}
+                      inputMode="numeric"
+                      value={payAmount}
+                      onChange={(e) => setPayAmount(Math.max(0, Number(e.target.value) || 0))}
+                    />
+                  </label>
+
+                  {quickCash.length > 0 && (
+                    <div className="quick-cash" aria-label="Nominal cepat">
+                      {quickCash.map((value) => (
+                        <button key={value} onClick={() => setPayAmount(value)}>
+                          {value === total ? "Uang pas" : formatRupiah(value)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="change-row">
+                    <span>Kembalian</span>
+                    <strong className={payAmount < total ? "is-short" : ""}>
+                      {formatRupiah(Math.max(0, payAmount - total))}
+                    </strong>
+                  </div>
+                  {payAmount > 0 && payAmount < total && (
+                    <p className="muted" style={{ color: "var(--danger)", marginTop: 4 }}>
+                      Kurang {formatRupiah(total - payAmount)}
+                    </p>
+                  )}
+
+                  <label style={{ marginTop: 8, marginBottom: 0 }}>
+                    Catatan
+                    <input
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="opsional"
+                      maxLength={1000}
+                    />
+                  </label>
+
+                  <button
+                    className="primary pay-btn"
+                    disabled={
+                      processing ||
+                      cart.length === 0 ||
+                      (!dbReady && !browserReady) ||
+                      payAmount < total
+                    }
+                    aria-busy={processing}
+                    onClick={() => void handleCheckout()}
+                  >
+                    {processing ? "Memproses…" : `Bayar ${formatRupiah(total)}`}
+                  </button>
+                </div>
+              </aside>
+
+              <button
+                className="cart-fab"
+                onClick={() => setCartOpen(true)}
+                disabled={cart.length === 0}
+                aria-label="Buka keranjang"
+              >
+                <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Icon name="cart" size={20} />
+                  Pesanan
+                  {itemCount > 0 && <span className="fab-count">{itemCount}</span>}
+                </span>
+                <span className="fab-total">{formatRupiah(total)}</span>
+              </button>
+            </div>
+          )}
+
+          {view === "riwayat" && (
+            <div>
+              <div className="history-toolbar">
+                <div className="search-box">
+                  <Icon name="search" />
+                  <input
+                    aria-label="Cari riwayat"
+                    placeholder="Cari nomor struk atau menu…"
+                    value={historyQuery}
+                    onChange={(e) => setHistoryQuery(e.target.value)}
+                  />
+                  {historyQuery !== "" && (
+                    <button
+                      className="search-clear"
+                      aria-label="Hapus pencarian"
+                      onClick={() => setHistoryQuery("")}
+                    >
+                      <Icon name="close" size={16} />
+                    </button>
+                  )}
+                </div>
+                <div className="chip-row" role="group" aria-label="Filter status">
+                  {(
+                    [
+                      ["all", "Semua"],
+                      ["completed", "Selesai"],
+                      ["voided", "Void"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      key={value}
+                      className={`chip ${historyFilter === value ? "is-active" : ""}`}
+                      aria-pressed={historyFilter === value}
+                      onClick={() => setHistoryFilter(value)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <button className="secondary" onClick={() => void handleReload()}>
+                  <Icon name="refresh" size={16} />
+                  Muat ulang
+                </button>
+              </div>
+
+              {filteredOrders.length === 0 ? (
+                <div className="empty-state">
+                  <Icon name="receipt" size={34} />
+                  <h3>{orders.length === 0 ? "Belum ada order" : "Tidak ada order yang cocok"}</h3>
+                  <p>
+                    {orders.length === 0
+                      ? "Transaksi yang selesai akan muncul di sini."
+                      : "Ubah kata kunci atau filter status untuk melihat order lain."}
+                  </p>
+                </div>
+              ) : (
+                <div className="order-list">
+                  {groupedOrders.map(([date, list]) => (
+                    <section key={date}>
+                      <h2 className="order-date">{date}</h2>
+                      {list.map((order) => {
+                        const expanded = expandedOrders[order.id] === true;
+                        return (
+                          <div className="order-card" key={order.id} style={{ marginBottom: 8 }}>
+                            <div className="order-card-head">
+                              <div className="order-main">
+                                <div className="order-receipt">
+                                  {order.receiptNumber}
+                                  <span className={statusBadgeClass(order)}>
+                                    {order.status === "completed"
+                                      ? "Selesai"
+                                      : order.status === "voided"
+                                        ? "Void"
+                                        : order.status}
+                                  </span>
+                                </div>
+                                <div className="order-meta">
+                                  {new Date(order.createdAt).toLocaleTimeString("id-ID", {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}{" "}
+                                  · {paymentLabel(order.payment.method)} · {orderItemCount(order)} item
+                                  · kembali {formatRupiah(order.changeRp)}
+                                </div>
+                              </div>
+                              <div className="order-total money">
+                                {formatRupiah(order.totalRp)}
+                                <small>{order.lines.length} baris</small>
+                              </div>
+                            </div>
+                            <div className="order-actions">
+                              <button
+                                className="ghost small"
+                                aria-expanded={expanded}
+                                onClick={() => toggleOrderDetail(order.id)}
+                              >
+                                {expanded ? "Sembunyikan" : "Detail"}
+                                <Icon
+                                  name={expanded ? "chevronDown" : "chevronRight"}
+                                  size={15}
+                                />
+                              </button>
+                              <button className="ghost small" onClick={() => void handlePrint(order)}>
+                                <Icon name="printer" size={15} />
+                                Cetak
+                              </button>
+                              {order.status === "completed" && (
+                                <button className="danger small" onClick={() => handleVoid(order.id)}>
+                                  <Icon name="trash" size={15} />
+                                  Void
+                                </button>
+                              )}
+                            </div>
+                            {expanded && (
+                              <div className="order-detail">
+                                <div className="order-lines">
+                                  {order.lines.map((line, index) => (
+                                    <div className="order-line" key={`${order.id}-${index}`}>
+                                      <span className="order-line-name">
+                                        {line.productName}
+                                        {line.variantName ? ` · ${line.variantName}` : ""}
+                                      </span>
+                                      <span className="order-line-qty">
+                                        {line.qty} × {formatRupiah(line.unitPriceRp)} ={" "}
+                                        <strong>{formatRupiah(line.lineTotalRp)}</strong>
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                                <div className="order-totals">
+                                  <div className="row-between">
+                                    <span>Subtotal</span>
+                                    <strong>{formatRupiah(order.subtotalRp)}</strong>
+                                  </div>
+                                  {order.discountRp > 0 && (
+                                    <div className="row-between">
+                                      <span>Diskon</span>
+                                      <strong>−{formatRupiah(order.discountRp)}</strong>
+                                    </div>
+                                  )}
+                                  {order.taxRp > 0 && (
+                                    <div className="row-between">
+                                      <span>Pajak</span>
+                                      <strong>{formatRupiah(order.taxRp)}</strong>
+                                    </div>
+                                  )}
+                                  {order.serviceChargeRp > 0 && (
+                                    <div className="row-between">
+                                      <span>Biaya layanan</span>
+                                      <strong>{formatRupiah(order.serviceChargeRp)}</strong>
+                                    </div>
+                                  )}
+                                  {order.roundingRp !== 0 && (
+                                    <div className="row-between">
+                                      <span>Pembulatan</span>
+                                      <strong>{formatRupiah(order.roundingRp)}</strong>
+                                    </div>
+                                  )}
+                                  <div className="row-between">
+                                    <span>Total</span>
+                                    <strong>{formatRupiah(order.totalRp)}</strong>
+                                  </div>
+                                  <div className="row-between">
+                                    <span>Dibayar</span>
+                                    <strong>{formatRupiah(order.payment.amountRp)}</strong>
+                                  </div>
+                                  <div className="row-between">
+                                    <span>Kembalian</span>
+                                    <strong>{formatRupiah(order.changeRp)}</strong>
+                                  </div>
+                                </div>
+                                {order.notes && <p className="order-note">Catatan: {order.notes}</p>}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </section>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {view === "laporan" &&
+            (reportOrders === null ? (
+              <div className="loading-state">
+                <span className="spinner" />
+                Memuat laporan…
               </div>
             ) : (
-              <div className="product-grid">
-                {visibleProducts.map((p) => (
-                  <ProductItem key={p.id} product={p} variants={p.variants} onAdd={addToCart} />
-                ))}
-              </div>
-            )}
-          </section>
+              <SalesReport orders={reportOrders} />
+            ))}
 
-          <section className="panel">
-            <div className="panel-title">
-              <h2>Keranjang</h2>
-              {cart.length > 0 && (
+          {view === "menu" && <CatalogEditor onChanged={() => setCatalogVersion((v) => v + 1)} />}
+
+          {view === "hpp" && <HppEditor />}
+
+          {view === "stok" && <StockEditor />}
+
+          {view === "backup" && (
+            <div className="backup-grid">
+              <section className="settings-card">
+                <div className="settings-card-head">
+                  <Icon name="download" />
+                  <div>
+                    <h3>Backup JSON</h3>
+                    <p>Order, menu, HPP, stok, dan setelan dalam satu file.</p>
+                  </div>
+                </div>
+                <p className="muted" style={{ marginBottom: 12 }}>
+                  Simpan file ke penyimpanan tablet atau bagikan ke cloud. Lakukan rutin setiap tutup
+                  shift.
+                </p>
+                <button className="primary" onClick={() => void handleBackup()}>
+                  <Icon name="download" size={17} />
+                  Unduh backup
+                </button>
+                <h4 className="menu-group-title" style={{ marginTop: 16 }}>
+                  Backup terakhir
+                </h4>
+                {backups.length === 0 ? (
+                  <p className="muted">Belum ada backup tercatat.</p>
+                ) : (
+                  <div className="backup-list">
+                    {backups.map((backup) => (
+                      <div className="backup-item" key={backup.name + backup.createdAt}>
+                        <span title={backup.name}>{backup.name}</span>
+                        <span className="muted" style={{ flex: "none" }}>
+                          {backup.orderCount} order
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section className="settings-card">
+                <div className="settings-card-head">
+                  <Icon name="upload" />
+                  <div>
+                    <h3>Restore</h3>
+                    <p>Kembalikan data dari file backup.</p>
+                  </div>
+                </div>
+                <div className="danger-note" style={{ marginBottom: 12 }}>
+                  <Icon name="alert" size={17} />
+                  <span>
+                    Restore akan <strong>menimpa</strong> order yang ada di tablet ini. Pastikan file
+                    backup benar sebelum melanjutkan.
+                  </span>
+                </div>
+                <label>
+                  Pilih file backup (.json / .enc.json)
+                  <input
+                    type="file"
+                    accept="application/json,.json,.enc.json"
+                    onChange={(e) => {
+                      handleRestoreFileSmart(e.target.files?.[0]);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+              </section>
+
+              <section className="settings-card">
+                <div className="settings-card-head">
+                  <Icon name="lock" />
+                  <div>
+                    <h3>Backup terenkripsi</h3>
+                    <p>AES-GCM + PBKDF2, aman disimpan di cloud.</p>
+                  </div>
+                </div>
+                <label>
+                  Passphrase
+                  <input
+                    type="password"
+                    value={backupPass}
+                    onChange={(e) => setBackupPass(e.target.value)}
+                    placeholder="wajib untuk file .enc"
+                    autoComplete="off"
+                  />
+                </label>
+                <button onClick={() => void handleBackupEncrypted()}>
+                  <Icon name="lock" size={17} />
+                  Unduh .enc.json
+                </button>
+              </section>
+
+              <section className="settings-card">
+                <div className="settings-card-head">
+                  <Icon name="cloud" />
+                  <div>
+                    <h3>Sync ke server</h3>
+                    <p>Opsional — untuk rekap cloud / multi-perangkat.</p>
+                  </div>
+                </div>
+                <div className="sync-status">
+                  <span>
+                    Pending outbox: <strong>{pendingCount === null ? "…" : pendingCount}</strong>
+                  </span>
+                  <span>
+                    Terakhir:{" "}
+                    <strong>
+                      {syncMeta.lastSyncAt
+                        ? new Date(syncMeta.lastSyncAt).toLocaleString("id-ID")
+                        : "belum pernah"}
+                    </strong>
+                  </span>
+                  {syncMeta.lastPushed > 0 && (
+                    <span>
+                      <strong>{syncMeta.lastPushed}</strong> ter-ack
+                    </span>
+                  )}
+                </div>
+                {syncMeta.lastError && (
+                  <div className="danger-note" style={{ marginBottom: 10 }}>
+                    <Icon name="alert" size={16} />
+                    <span>Error terakhir: {syncMeta.lastError}</span>
+                  </div>
+                )}
+                <label>
+                  Endpoint
+                  <input
+                    value={syncSettings.endpoint}
+                    onChange={(e) =>
+                      setSyncSettings({ ...syncSettings, endpoint: e.target.value })
+                    }
+                    placeholder="https://api.example.invalid"
+                    inputMode="url"
+                  />
+                </label>
+                <label>
+                  API key
+                  <input
+                    type="password"
+                    value={syncSettings.apiKey}
+                    onChange={(e) => setSyncSettings({ ...syncSettings, apiKey: e.target.value })}
+                    autoComplete="off"
+                  />
+                </label>
+                <div className="row-actions" style={{ justifyContent: "flex-start" }}>
+                  <button
+                    onClick={() => {
+                      saveSyncSettings(syncSettings);
+                      setStatus({
+                        kind: "ok",
+                        msg: "Pengaturan sync disimpan.",
+                        scope: "backup",
+                      });
+                    }}
+                  >
+                    <Icon name="check" size={16} />
+                    Simpan
+                  </button>
+                  <button
+                    className="primary"
+                    disabled={syncing}
+                    onClick={() => void handleSyncNow()}
+                  >
+                    <Icon name="sync" size={16} />
+                    {syncing ? "Sync…" : "Sync sekarang"}
+                  </button>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {view === "pengaturan" && (
+            <>
+              <div className="settings-grid">
+                <section className="settings-card">
+                  <div className="settings-card-head">
+                    <Icon name="store" />
+                    <div>
+                      <h3>Toko</h3>
+                      <p>Identitas yang tampil di struk.</p>
+                    </div>
+                  </div>
+                  <label>
+                    Nama toko
+                    <input
+                      value={settingsDraft.storeName}
+                      onChange={(e) =>
+                        setSettingsDraft({ ...settingsDraft, storeName: e.target.value })
+                      }
+                      placeholder="KOPI POS"
+                      maxLength={100}
+                    />
+                  </label>
+                  <label>
+                    Nama kasir
+                    <input
+                      value={settingsDraft.cashierName}
+                      onChange={(e) =>
+                        setSettingsDraft({ ...settingsDraft, cashierName: e.target.value })
+                      }
+                      placeholder="opsional"
+                      maxLength={100}
+                    />
+                  </label>
+                </section>
+
+                <section className="settings-card">
+                  <div className="settings-card-head">
+                    <Icon name="calculator" />
+                    <div>
+                      <h3>Transaksi</h3>
+                      <p>Biaya tambahan, pembulatan, dan cetak otomatis.</p>
+                    </div>
+                  </div>
+                  <label>
+                    Biaya layanan (Rp)
+                    <input
+                      type="number"
+                      min={0}
+                      value={settingsDraft.serviceChargeRp}
+                      onChange={(e) =>
+                        setSettingsDraft({
+                          ...settingsDraft,
+                          serviceChargeRp: Math.max(0, Number(e.target.value) || 0),
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    Pembulatan total
+                    <select
+                      value={settingsDraft.roundingStep}
+                      onChange={(e) =>
+                        setSettingsDraft({
+                          ...settingsDraft,
+                          roundingStep: Number(e.target.value) as PosSettings["roundingStep"],
+                        })
+                      }
+                    >
+                      <option value={0}>Tanpa pembulatan (default)</option>
+                      <option value={100}>Ke Rp100 terdekat</option>
+                      <option value={500}>Ke Rp500 terdekat</option>
+                      <option value={1000}>Ke Rp1.000 terdekat</option>
+                    </select>
+                  </label>
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={settingsDraft.autoPrint}
+                      onChange={(e) =>
+                        setSettingsDraft({ ...settingsDraft, autoPrint: e.target.checked })
+                      }
+                    />
+                    Cetak struk otomatis setelah bayar
+                  </label>
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={settingsDraft.blockNegativeStock}
+                      onChange={(e) =>
+                        setSettingsDraft({
+                          ...settingsDraft,
+                          blockNegativeStock: e.target.checked,
+                        })
+                      }
+                    />
+                    Tolak transaksi bila stok bahan tidak cukup
+                  </label>
+                </section>
+
+                <section className="settings-card">
+                  <div className="settings-card-head">
+                    <Icon name="lock" />
+                    <div>
+                      <h3>Keamanan</h3>
+                      <p>Lindungi void dari tangan yang tidak berwenang.</p>
+                    </div>
+                  </div>
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={settingsDraft.requireVoidPin}
+                      onChange={(e) =>
+                        setSettingsDraft({ ...settingsDraft, requireVoidPin: e.target.checked })
+                      }
+                    />
+                    Minta PIN saat void
+                  </label>
+                  <label>
+                    PIN void
+                    <input
+                      type="password"
+                      value={settingsDraft.voidPin}
+                      onChange={(e) =>
+                        setSettingsDraft({ ...settingsDraft, voidPin: e.target.value.slice(0, 32) })
+                      }
+                      placeholder="isi bila PIN void aktif"
+                      autoComplete="off"
+                    />
+                  </label>
+                </section>
+
+                <section className="settings-card">
+                  <div className="settings-card-head">
+                    <Icon name="printer" />
+                    <div>
+                      <h3>Printer Bluetooth</h3>
+                      <p>Thermal 58 mm. Pasangkan lewat setelan Android.</p>
+                    </div>
+                  </div>
+                  <div className="shift-box">
+                    <span>
+                      Status:{" "}
+                      <strong>
+                        {printerState.connected
+                          ? `terhubung — ${printerState.name ?? printerState.address ?? ""}`
+                          : "belum terhubung"}
+                      </strong>
+                    </span>
+                  </div>
+                  <div className="row-actions" style={{ justifyContent: "flex-start" }}>
+                    <button disabled={printerBusy} onClick={() => void handleScanPrinters()}>
+                      <Icon name="search" size={16} />
+                      {printerBusy ? "Memindai…" : "Cari printer"}
+                    </button>
+                    {printerState.connected && (
+                      <button disabled={printerBusy} onClick={() => void handleDisconnectPrinter()}>
+                        Putuskan
+                      </button>
+                    )}
+                  </div>
+                  {printerDevices.length > 0 && (
+                    <div className="printer-list">
+                      {printerDevices.map((device) => (
+                        <div className="printer-row" key={device.address}>
+                          <span>
+                            {device.name || "(tanpa nama)"} · {device.address}
+                          </span>
+                          <button
+                            className="small"
+                            disabled={printerBusy}
+                            onClick={() => void handleConnectPrinter(device.address)}
+                          >
+                            Hubungkan
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+                <section className="settings-card">
+                  <div className="settings-card-head">
+                    <Icon name="clock" />
+                    <div>
+                      <h3>Shift</h3>
+                      <p>Rekap uang laci per sesi kasir.</p>
+                    </div>
+                  </div>
+                  {shift ? (
+                    <>
+                      <div className="shift-box">
+                        <span>
+                          Shift berjalan: <strong>{shift.cashierName || "(tanpa nama)"}</strong>
+                        </span>
+                        <span>
+                          Dibuka {new Date(shift.openedAt).toLocaleString("id-ID")}
+                        </span>
+                        {shiftSummary && (
+                          <span>
+                            {shiftSummary.orderCount} order ·{" "}
+                            <strong>{formatRupiah(shiftSummary.grandTotalRp)}</strong>
+                          </span>
+                        )}
+                      </div>
+                      <button onClick={() => void handleCloseShift()}>
+                        <Icon name="check" size={16} />
+                        Tutup shift
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="shift-box">
+                        <span>
+                          Tidak ada shift berjalan. Kasir:{" "}
+                          <strong>{posSettings.cashierName || "(belum diisi)"}</strong>
+                        </span>
+                      </div>
+                      <button
+                        className="primary"
+                        onClick={() => {
+                          setLastShiftSummary(null);
+                          setShift(openShift(posSettings.cashierName));
+                          setStatus({ kind: "ok", msg: "Shift dibuka.", scope: "pengaturan" });
+                        }}
+                      >
+                        <Icon name="clock" size={16} />
+                        Buka shift
+                      </button>
+                    </>
+                  )}
+                  {lastShiftSummary && (
+                    <p className="muted" style={{ marginTop: 10 }}>
+                      Ringkasan terakhir: {lastShiftSummary}
+                    </p>
+                  )}
+                </section>
+              </div>
+
+              <div className="sticky-save">
+                <span className="muted">
+                  Perubahan berlaku setelah tombol simpan ditekan.
+                </span>
                 <button
-                  className="secondary"
+                  className="primary"
                   onClick={() => {
-                    setCart([]);
-                    setStatus({ kind: "info", msg: "Keranjang dikosongkan.", scope: "kasir" });
+                    if (settingsDraft.requireVoidPin && settingsDraft.voidPin.trim() === "") {
+                      setStatus({
+                        kind: "error",
+                        msg: "PIN void wajib diisi bila PIN void aktif.",
+                        scope: "pengaturan",
+                      });
+                      return;
+                    }
+                    const saved = saveSettings(settingsDraft);
+                    setPosSettings(saved);
+                    setSettingsDraft(saved);
+                    setStatus({ kind: "ok", msg: "Pengaturan disimpan.", scope: "pengaturan" });
                   }}
                 >
-                  Kosongkan
+                  <Icon name="check" size={17} />
+                  Simpan pengaturan
                 </button>
-              )}
-            </div>
-
-            {cart.length === 0 ? (
-              <p className="muted">Belum ada item. Pilih menu di sebelah kiri.</p>
-            ) : (
-              cart.map((l) => (
-                <div className="cart-line" key={`${l.productId}-${l.variantId ?? "base"}`}>
-                  <div>
-                    <div className="cart-name">
-                      {l.productName}
-                      {l.variantName ? ` · ${l.variantName}` : ""}
-                    </div>
-                    <div className="cart-sub">
-                      {formatRupiah(l.unitPriceRp)} × {l.qty} ={" "}
-                      <strong>{formatRupiah(l.unitPriceRp * l.qty)}</strong>
-                    </div>
-                  </div>
-                  <div className="qty-group">
-                    <button
-                      aria-label={`Kurangi 1 ${l.productName}${l.variantName ? ` ${l.variantName}` : ""}`}
-                      onClick={() => changeQty(l.productId, l.variantId, -1)}
-                    >
-                      −
-                    </button>
-                    <span className="qty-value">{l.qty}</span>
-                    <button
-                      aria-label={`Tambah 1 ${l.productName}${l.variantName ? ` ${l.variantName}` : ""}`}
-                      onClick={() => changeQty(l.productId, l.variantId, 1)}
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-
-            <div className="divider" />
-
-            <div className="field-row">
-              <label style={{ flex: "1 1 120px", margin: 0 }}>
-                Diskon (Rp)
-                <input
-                  type="number"
-                  min={0}
-                  inputMode="numeric"
-                  value={discount}
-                  onChange={(e) => setDiscount(Math.max(0, Number(e.target.value) || 0))}
-                />
-              </label>
-              <label style={{ flex: "1 1 120px", margin: 0 }}>
-                Pajak (Rp)
-                <input
-                  type="number"
-                  min={0}
-                  inputMode="numeric"
-                  value={tax}
-                  onChange={(e) => setTax(Math.max(0, Number(e.target.value) || 0))}
-                />
-              </label>
-            </div>
-
-            {(serviceCharge > 0 || roundingCalc.roundingRp !== 0) && (
-              <p className="muted" style={{ marginTop: 8 }}>
-                {serviceCharge > 0 ? `Layanan ${formatRupiah(serviceCharge)} · ` : ""}
-                {roundingCalc.roundingRp !== 0 && cart.length > 0
-                  ? `Pembulatan −${formatRupiah(Math.abs(roundingCalc.roundingRp))}`
-                  : ""}
-              </p>
-            )}
-
-            <div className="total-box">
-              <span className="total-label">Total</span>
-              <span className="total-value">{formatRupiah(total)}</span>
-            </div>
-
-            <div className="field-row" style={{ marginTop: 10 }}>
-              <select
-                aria-label="Metode bayar"
-                value={payMethod}
-                onChange={(e) => setPayMethod(e.target.value as PaymentMethod)}
-                style={{ flex: "1 1 130px", margin: 0 }}
-              >
-                <option value="cash">Tunai</option>
-                <option value="qris_manual">QRIS manual</option>
-                <option value="other">Lainnya</option>
-              </select>
-              <input
-                aria-label="Nominal bayar"
-                type="number"
-                min={0}
-                inputMode="numeric"
-                placeholder="Bayar (Rp)"
-                value={payAmount}
-                onChange={(e) => setPayAmount(Math.max(0, Number(e.target.value) || 0))}
-                style={{ flex: "1 1 130px", margin: 0 }}
-              />
-              <button
-                className="secondary"
-                disabled={cart.length === 0}
-                onClick={() => setPayAmount(total)}
-              >
-                Uang pas
-              </button>
-            </div>
-
-            <p className="muted" style={{ marginTop: 8 }}>
-              Kembalian{" "}
-              <strong className="money">{formatRupiah(Math.max(0, payAmount - total))}</strong>
-              {payAmount > 0 && payAmount < total && (
-                <span style={{ color: "var(--pos-danger)" }}> — kurang {formatRupiah(total - payAmount)}</span>
-              )}
-            </p>
-
-            <label>
-              Catatan
-              <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="opsional" />
-            </label>
-
-            {status?.scope === "kasir" && (
-              <p
-                role={status.kind === "error" ? "alert" : undefined}
-                aria-live="polite"
-                className={`status-line is-${status.kind}`}
-              >
-                {status.msg}
-              </p>
-            )}
-
-            <button
-              style={{ width: "100%", marginTop: 10, minHeight: 52, fontSize: "1rem", fontWeight: 700 }}
-              disabled={processing || cart.length === 0 || (!dbReady && !browserReady)}
-              aria-busy={processing}
-              onClick={handleCheckout}
-            >
-              {processing ? "Memproses…" : `Bayar ${formatRupiah(total)}`}
-            </button>
-
-            {receipt && (
-              <>
-                <h3 style={{ fontSize: "0.9rem", marginTop: 16 }}>Struk terakhir</h3>
-                <pre style={{ background: "#f7f3ee", padding: 12, whiteSpace: "pre-wrap", fontSize: 12 }}>
-                  {receipt}
-                </pre>
-              </>
-            )}
-          </section>
-        </div>
-      )}
-
-      {view === "riwayat" && (
-        <div className="panel">
-          <h2>Riwayat Order</h2>
-          <button style={{ minHeight: 44, marginBottom: 8 }} onClick={handleReload}>
-            Muat ulang
-          </button>{" "}
-          <label>
-            Status:{" "}
-            <select
-              value={historyFilter}
-              onChange={(e) => setHistoryFilter(e.target.value as "all" | "completed" | "voided")}
-            >
-              <option value="all">Semua</option>
-              <option value="completed">Completed</option>
-              <option value="voided">Voided</option>
-            </select>
-          </label>
-          {status?.scope === "riwayat" && (
-            <p
-              role={status.kind === "error" ? "alert" : undefined}
-              aria-live="polite"
-              style={{ color: statusColor(status.kind) }}
-            >
-              {status.msg}
-            </p>
-          )}
-          {(() => {
-            const visible = historyFilter === "all" ? orders : orders.filter((o) => o.status === historyFilter);
-            return visible.length === 0 ? (
-              <p>{orders.length === 0 ? "Belum ada order." : "Tidak ada order dengan status ini."}</p>
-            ) : (
-              visible.map((o) => (
-              <div
-                key={o.id}
-                style={{ border: "1px solid #ddd", padding: 8, marginBottom: 8 }}
-              >
-                <p>
-                  {o.receiptNumber} - {formatRupiah(o.totalRp)} - {o.status}
-                  {o.status === "voided" && <strong> VOID</strong>}
-                </p>
-                <p style={{ fontSize: 12 }}>
-                  {new Date(o.createdAt).toLocaleString("id-ID")} -{" "}
-                  {o.payment.method === "cash" ? "Tunai" : o.payment.method === "qris_manual" ? "QRIS" : "Lainnya"} - Kembalian{" "}
-                  {formatRupiah(o.changeRp)}
-                </p>
-                {o.lines.map((l, i) => (
-                  <p key={i} style={{ fontSize: 13 }}>
-                    {l.productName}
-                    {l.variantName ? ` (${l.variantName})` : ""} x{l.qty}
-                  </p>
-                ))}
-                <button style={{ minHeight: 44 }} onClick={() => void handlePrint(o)}>
-                  Cetak / Cetak ulang
-                </button>{" "}
-                {o.status === "completed" && (
-                  <button style={{ minHeight: 44 }} onClick={() => handleVoid(o.id)}>
-                    Void
-                  </button>
-                )}
               </div>
-              ))
-            );
-          })()}
+            </>
+          )}
+          </Suspense>
+        </div>
+      </main>
+
+      {status && (
+        <div
+          className={`toast is-${status.kind}`}
+          role={status.kind === "error" ? "alert" : "status"}
+          aria-live="polite"
+        >
+          <span className="toast-icon">
+            <Icon
+              name={status.kind === "error" ? "alert" : status.kind === "ok" ? "check" : "info"}
+              size={18}
+            />
+          </span>
+          <div className="toast-msg">{status.msg}</div>
+          <button className="toast-close" aria-label="Tutup notifikasi" onClick={() => setStatus(null)}>
+            <Icon name="close" size={16} />
+          </button>
         </div>
       )}
 
-      {view === "laporan" && (
-        <div className="panel">
-          {reportOrders === null ? (
-            <p className="muted">Memuat laporan…</p>
-          ) : (
-            <SalesReport orders={reportOrders} />
-          )}
-        </div>
-      )}
-      {view === "menu" && (
-        <div className="panel">
-          <CatalogEditor onChanged={() => setCatalogVersion((v) => v + 1)} />
-        </div>
-      )}
-      {view === "hpp" && (
-        <div className="panel">
-          <HppEditor />
-        </div>
-      )}
-      {view === "stok" && (
-        <div className="panel">
-          <StockEditor />
-        </div>
-      )}
-      {view === "backup" && (
-        <div className="panel">
-          <h2>Backup & Restore</h2>
-          <button style={{ minHeight: 44 }} onClick={handleBackup}>
-            Unduh backup (JSON)
-          </button>
-          <div style={{ marginTop: 12 }}>
-            <label>
-              Restore dari file:{" "}
-              <input
-                type="file"
-                accept="application/json"
-                onChange={(e) => handleRestoreFileSmart(e.target.files?.[0])}
-              />
-            </label>
-          </div>
-          {status?.scope === "backup" && (
-            <p
-              role={status.kind === "error" ? "alert" : undefined}
-              aria-live="polite"
-              style={{ color: statusColor(status.kind) }}
-            >
-              {status.msg}
-            </p>
-          )}
-          <h3>Backup terenkripsi</h3>
-          <label>
-            Passphrase:{" "}
-            <input
-              type="password"
-              value={backupPass}
-              onChange={(e) => setBackupPass(e.target.value)}
-              placeholder="wajib untuk backup .enc"
-              autoComplete="off"
-            />
-          </label>{" "}
-          <button style={{ minHeight: 44, marginTop: 8 }} onClick={handleBackupEncrypted}>
-            Unduh backup terenkripsi
-          </button>
-          <h3>Backup terakhir</h3>
-          {backups.length === 0 ? (
-             <p>Belum ada backup.</p>
-           ) : (
-             backups.map((b) => (
-               <p key={b.name + b.createdAt} style={{ fontSize: 13 }}>
-                 {b.name} - {b.orderCount} order
-               </p>
-             ))
-           )}
-          <h3>Sync ke server (opsional)</h3>
-          <p style={{ fontSize: 13 }}>
-            Pending outbox: {pendingCount === null ? "…" : pendingCount}
-            {syncMeta.lastSyncAt
-              ? ` — sync terakhir ${new Date(syncMeta.lastSyncAt).toLocaleString("id-ID")}`
-              : " — belum pernah sync"}
-            {syncMeta.lastPushed > 0 ? ` (${syncMeta.lastPushed} ter-ack)` : ""}
-          </p>
-          {syncMeta.lastError && (
-            <p style={{ fontSize: 13, color: "red" }}>Error terakhir: {syncMeta.lastError}</p>
-          )}
-          <label>
-            Endpoint:{" "}
-            <input
-              value={syncSettings.endpoint}
-              onChange={(e) => setSyncSettings({ ...syncSettings, endpoint: e.target.value })}
-              placeholder="https://api.example.invalid"
-              style={{ width: "100%", maxWidth: 360 }}
-            />
-          </label>
-          <div style={{ marginTop: 8 }}>
-            <label>
-              API key:{" "}
-              <input
-                type="password"
-                value={syncSettings.apiKey}
-                onChange={(e) => setSyncSettings({ ...syncSettings, apiKey: e.target.value })}
-                autoComplete="off"
-              />
-            </label>
-          </div>
-          <div style={{ marginTop: 8 }}>
-            <button
-              style={{ minHeight: 44 }}
-              onClick={() => {
-                saveSyncSettings(syncSettings);
-                setStatus({ kind: "ok", msg: "Pengaturan sync disimpan.", scope: "backup" });
-              }}
-            >
-              Simpan pengaturan
-            </button>{" "}
-            <button style={{ minHeight: 44 }} disabled={syncing} onClick={handleSyncNow}>
-              {syncing ? "Sync…" : "Sync sekarang"}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {view === "pengaturan" && (
-        <div className="panel">
-          <h2>Pengaturan</h2>
-          <label>
-            Nama toko:{" "}
-            <input
-              value={settingsDraft.storeName}
-              onChange={(e) => setSettingsDraft({ ...settingsDraft, storeName: e.target.value })}
-              placeholder="KOPI POS"
-              maxLength={100}
-            />
-          </label>
-          <div style={{ marginTop: 8 }}>
-            <label>
-              Nama kasir:{" "}
-              <input
-                value={settingsDraft.cashierName}
-                onChange={(e) => setSettingsDraft({ ...settingsDraft, cashierName: e.target.value })}
-                placeholder="opsional"
-                maxLength={100}
-              />
-            </label>
-          </div>
-          <div style={{ marginTop: 8 }}>
-            <label>
-              Biaya layanan (Rp):{" "}
-              <input
-                type="number"
-                min={0}
-                value={settingsDraft.serviceChargeRp}
-                onChange={(e) =>
-                  setSettingsDraft({ ...settingsDraft, serviceChargeRp: Math.max(0, Number(e.target.value) || 0) })
-                }
-              />
-            </label>
-          </div>
-          <div style={{ marginTop: 8 }}>
-            <label>
-              Pembulatan:{" "}
-              <select
-                value={settingsDraft.roundingStep}
-                onChange={(e) =>
-                  setSettingsDraft({ ...settingsDraft, roundingStep: Number(e.target.value) as PosSettings["roundingStep"] })
-                }
-              >
-                <option value={0}>Tanpa pembulatan (DEFAULT)</option>
-                <option value={100}>Rp100</option>
-                <option value={500}>Rp500</option>
-                <option value={1000}>Rp1000</option>
-              </select>
-            </label>
-          </div>
-          <div style={{ marginTop: 8 }}>
-            <label>
-              <input
-                type="checkbox"
-                checked={settingsDraft.requireVoidPin}
-                onChange={(e) => setSettingsDraft({ ...settingsDraft, requireVoidPin: e.target.checked })}
-              />{" "}
-              Minta PIN saat void
-            </label>
-          </div>
-          <div style={{ marginTop: 8 }}>
-            <label>
-              PIN void:{" "}
-              <input
-                type="password"
-                value={settingsDraft.voidPin}
-                onChange={(e) => setSettingsDraft({ ...settingsDraft, voidPin: e.target.value.slice(0, 32) })}
-                placeholder="isi bila PIN void aktif"
-                autoComplete="off"
-              />
-            </label>
-          </div>
-          <div style={{ marginTop: 8 }}>
-            <label>
-              <input
-                type="checkbox"
-                checked={settingsDraft.autoPrint}
-                onChange={(e) => setSettingsDraft({ ...settingsDraft, autoPrint: e.target.checked })}
-              />{" "}
-              Cetak struk otomatis setelah bayar
-            </label>
-          </div>
-          <div style={{ marginTop: 8 }}>
-            <label>
-              <input
-                type="checkbox"
-                checked={settingsDraft.blockNegativeStock}
-                onChange={(e) => setSettingsDraft({ ...settingsDraft, blockNegativeStock: e.target.checked })}
-              />{" "}
-              Tolak transaksi bila stok bahan tidak cukup
-            </label>
-          </div>
-          <div style={{ marginTop: 8 }}>
-            <button
-              style={{ minHeight: 44 }}
-              onClick={() => {
-                if (settingsDraft.requireVoidPin && settingsDraft.voidPin.trim() === "") {
-                  setStatus({ kind: "error", msg: "PIN void wajib diisi bila PIN void aktif.", scope: "pengaturan" });
-                  return;
-                }
-                const saved = saveSettings(settingsDraft);
-                setPosSettings(saved);
-                setSettingsDraft(saved);
-                setStatus({ kind: "ok", msg: "Pengaturan disimpan.", scope: "pengaturan" });
-              }}
-            >
-              Simpan pengaturan
-            </button>
-          </div>
-          {status?.scope === "pengaturan" && (
-            <p
-              role={status.kind === "error" ? "alert" : undefined}
-              aria-live="polite"
-              style={{ color: statusColor(status.kind) }}
-            >
-              {status.msg}
-            </p>
-          )}
-          <h2>Printer</h2>
-          <p style={{ fontSize: 13 }}>
-            Status:{" "}
-            {printerState.connected
-              ? `terhubung — ${printerState.name ?? printerState.address ?? ""}`
-              : "belum terhubung"}
-          </p>
-          <button style={{ minHeight: 44 }} disabled={printerBusy} onClick={() => void handleScanPrinters()}>
-            {printerBusy ? "Memindai…" : "Cari printer Bluetooth"}
-          </button>{" "}
-          {printerState.connected && (
-            <button style={{ minHeight: 44 }} disabled={printerBusy} onClick={() => void handleDisconnectPrinter()}>
-              Putuskan
-            </button>
-          )}
-          {printerDevices.map((d) => (
-            <div
-              key={d.address}
-              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 6 }}
-            >
-              <span style={{ fontSize: 13 }}>
-                {d.name || "(tanpa nama)"} · {d.address}
-              </span>
+      {lastReceipt && (
+        <div
+          className="modal-backdrop"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setLastReceipt(null);
+          }}
+        >
+          <div className="modal wide" role="dialog" aria-modal="true" aria-labelledby="receipt-title">
+            <div className="modal-head">
+              <div>
+                <div className="modal-icon">
+                  <Icon name="check" size={24} />
+                </div>
+                <div className="modal-title" id="receipt-title">
+                  Pembayaran berhasil
+                </div>
+                <div className="modal-sub">
+                  Order {lastReceipt.order.receiptNumber} ·{" "}
+                  {formatRupiah(lastReceipt.order.totalRp)}
+                </div>
+              </div>
               <button
-                style={{ minHeight: 44 }}
-                disabled={printerBusy}
-                onClick={() => void handleConnectPrinter(d.address)}
+                className="modal-close"
+                aria-label="Tutup"
+                onClick={() => setLastReceipt(null)}
               >
-                Hubungkan
+                <Icon name="close" />
               </button>
             </div>
-          ))}
-          <h2>Shift</h2>
-          {shift ? (
-            <>
-              <p style={{ fontSize: 13 }}>
-                Shift berjalan: {shift.cashierName || "(tanpa nama)"} — buka{" "}
-                {new Date(shift.openedAt).toLocaleString("id-ID")}
-              </p>
-              <p style={{ fontSize: 13 }}>
-                Berjalan: {summarizeShift(shift, orders).orderCount} order —{" "}
-                {formatRupiah(summarizeShift(shift, orders).grandTotalRp)}
-              </p>
-              <button
-                style={{ minHeight: 44 }}
-                onClick={() => void handleCloseShift()}
-              >
-                Tutup shift
+
+            <div className="cart-total-row is-total">
+              <span className="total-label">Kembalian</span>
+              <span className="total-value money">
+                {formatRupiah(lastReceipt.order.changeRp)}
+              </span>
+            </div>
+
+            <details className="cart-extra" style={{ marginTop: 12 }}>
+              <summary>Lihat struk</summary>
+              <pre className="receipt-preview">{lastReceipt.text}</pre>
+            </details>
+
+            <div className="modal-actions">
+              <button onClick={() => void handlePrint(lastReceipt.order, "kasir")}>
+                <Icon name="printer" size={17} />
+                Cetak lagi
               </button>
-            </>
-          ) : (
-            <>
-              <p style={{ fontSize: 13 }}>
-                Tidak ada shift berjalan. Kasir: {posSettings.cashierName || "(belum diisi)"}
-              </p>
-              <button
-                style={{ minHeight: 44 }}
-                onClick={() => {
-                  setLastShiftSummary(null);
-                  setShift(openShift(posSettings.cashierName));
-                  setStatus({ kind: "ok", msg: "Shift dibuka.", scope: "pengaturan" });
-                }}
-              >
-                Buka shift
+              <button className="primary" onClick={() => setLastReceipt(null)}>
+                Selesai
               </button>
-            </>
-          )}
-          {lastShiftSummary && <p style={{ fontSize: 13 }}>Ringkasan terakhir: {lastShiftSummary}</p>}
+            </div>
+          </div>
         </div>
       )}
 
       {pinRequest && (
         <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="PIN void"
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.45)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 16,
-            zIndex: 1000,
+          className="modal-backdrop"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setPinRequest(null);
+              setPinInput("");
+              setPinError(null);
+            }
           }}
         >
-          <div style={{ background: "#fff", padding: 20, borderRadius: 12, width: "100%", maxWidth: 360 }}>
-            <h3 style={{ marginTop: 0 }}>PIN void</h3>
-            <p style={{ fontSize: 13 }}>Void order {pinRequest.label} butuh PIN.</p>
+          <div className="modal" role="dialog" aria-modal="true" aria-labelledby="pin-title">
+            <div className="modal-head">
+              <div>
+                <div className="modal-title" id="pin-title">
+                  PIN void
+                </div>
+                <div className="modal-sub">Void order {pinRequest.label} butuh PIN.</div>
+              </div>
+              <button
+                className="modal-close"
+                aria-label="Batal"
+                onClick={() => {
+                  setPinRequest(null);
+                  setPinInput("");
+                  setPinError(null);
+                }}
+              >
+                <Icon name="close" />
+              </button>
+            </div>
             <input
               type="password"
               inputMode="numeric"
               autoComplete="off"
               autoFocus
+              aria-label="PIN void"
               value={pinInput}
               onChange={(e) => {
                 setPinInput(e.target.value.slice(0, 32));
@@ -1447,12 +2150,15 @@ export default function App() {
               onKeyDown={(e) => {
                 if (e.key === "Enter") confirmVoidPin();
               }}
-              style={{ width: "100%", minHeight: 48, fontSize: 20, textAlign: "center", boxSizing: "border-box" }}
+              style={{ minHeight: 52, fontSize: 22, textAlign: "center", letterSpacing: "0.2em" }}
             />
-            {pinError && <p style={{ color: "#b00020", fontSize: 13 }}>{pinError}</p>}
-            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            {pinError && (
+              <p className="muted" style={{ color: "var(--danger)", marginTop: 8 }}>
+                {pinError}
+              </p>
+            )}
+            <div className="modal-actions">
               <button
-                style={{ minHeight: 44, flex: 1 }}
                 onClick={() => {
                   setPinRequest(null);
                   setPinInput("");
@@ -1461,7 +2167,7 @@ export default function App() {
               >
                 Batal
               </button>
-              <button style={{ minHeight: 44, flex: 1 }} onClick={confirmVoidPin}>
+              <button className="primary" onClick={confirmVoidPin}>
                 Lanjut
               </button>
             </div>

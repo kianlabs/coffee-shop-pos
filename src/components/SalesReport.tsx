@@ -14,8 +14,6 @@ import {
 } from "../domain/sales";
 import type { Order } from "../domain/orders";
 
-const inputStyle = { minHeight: 44, padding: "8px 10px", fontSize: 15, boxSizing: "border-box" } as const;
-
 const PRESETS: Array<{ value: Exclude<Preset, "custom">; label: string }> = [
   { value: "today", label: "Hari ini" },
   { value: "yesterday", label: "Kemarin" },
@@ -56,13 +54,11 @@ export function SalesReport({ orders }: { orders: Order[] }) {
 
   return (
     <div>
-      <h2>Laporan Penjualan</h2>
-
-      <div className="field-row" style={{ marginBottom: 12 }}>
+      <div className="report-toolbar">
         {PRESETS.map((p) => (
           <button
             key={p.value}
-            className={preset === p.value ? "" : "outline"}
+            className={`chip ${preset === p.value ? "is-active" : ""}`}
             aria-pressed={preset === p.value}
             onClick={() => setPreset(p.value)}
           >
@@ -77,7 +73,6 @@ export function SalesReport({ orders }: { orders: Order[] }) {
             setCustomStart(e.target.value);
             setPreset("custom");
           }}
-          style={inputStyle}
         />
         <input
           aria-label="Tanggal selesai"
@@ -87,11 +82,10 @@ export function SalesReport({ orders }: { orders: Order[] }) {
             setCustomEnd(e.target.value);
             setPreset("custom");
           }}
-          style={inputStyle}
         />
       </div>
 
-      <p className="muted" style={{ marginTop: 0 }}>
+      <p className="muted" style={{ marginBottom: 12 }}>
         {formatRangeLabel(start, end)} · {summary.orderCount} transaksi
       </p>
 
@@ -103,12 +97,13 @@ export function SalesReport({ orders }: { orders: Order[] }) {
         </div>
         <div className="stat-card">
           <div className="stat-label">Laba kotor</div>
-          <div className="stat-value" style={{ color: summary.grossProfitRp < 0 ? "#b00020" : undefined }}>
+          <div
+            className="stat-value"
+            style={{ color: summary.grossProfitRp < 0 ? "var(--danger)" : undefined }}
+          >
             {formatRupiah(summary.grossProfitRp)}
           </div>
-          <div className="stat-sub">
-            margin {formatPct(summary.profitMarginPct)} dari omzet
-          </div>
+          <div className="stat-sub">margin {formatPct(summary.profitMarginPct)} dari omzet</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">HPP terjual</div>
@@ -119,7 +114,8 @@ export function SalesReport({ orders }: { orders: Order[] }) {
           <div className="stat-label">Diskon / pajak / layanan</div>
           <div className="stat-value">{formatRupiah(summary.totalDiscountRp)}</div>
           <div className="stat-sub">
-            pajak {formatRupiah(summary.totalTaxRp)} · layanan {formatRupiah(summary.totalServiceRp)}
+            pajak {formatRupiah(summary.totalTaxRp)} · layanan{" "}
+            {formatRupiah(summary.totalServiceRp)}
           </div>
         </div>
         <div className="stat-card">
@@ -130,57 +126,71 @@ export function SalesReport({ orders }: { orders: Order[] }) {
       </div>
 
       <div className="report-row">
-        <section className="panel">
-          <h3 style={{ marginTop: 0 }}>Produk terlaris</h3>
+        <section className="card">
+          <div className="card-head">
+            <div>
+              <h3 className="card-title">Produk terlaris</h3>
+              <p className="card-sub">10 menu dengan omzet tertinggi di rentang ini.</p>
+            </div>
+          </div>
           {top.length === 0 ? (
             <p className="muted">Belum ada penjualan di rentang ini.</p>
           ) : (
-            <table className="report-table">
-              <thead>
-                <tr>
-                  <th>Menu</th>
-                  <th className="num">Qty</th>
-                  <th className="num">Omzet</th>
-                  <th className="num">Laba</th>
-                </tr>
-              </thead>
-              <tbody>
-                {top.map((t) => (
-                  <tr key={t.productId}>
-                    <td>{t.productName}</td>
-                    <td className="num">{t.qty}</td>
-                    <td className="num">{formatRupiah(t.grossRp)}</td>
-                    <td className="num">{formatRupiah(t.profitRp)}</td>
+            <div className="table-wrap">
+              <table className="report-table">
+                <thead>
+                  <tr>
+                    <th>Menu</th>
+                    <th className="num">Qty</th>
+                    <th className="num">Omzet</th>
+                    <th className="num">Laba</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {top.map((t) => (
+                    <tr key={t.productId}>
+                      <td>{t.productName}</td>
+                      <td className="num">{t.qty}</td>
+                      <td className="num">{formatRupiah(t.grossRp)}</td>
+                      <td className="num">{formatRupiah(t.profitRp)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
 
-        <section className="panel">
-          <h3 style={{ marginTop: 0 }}>Metode bayar</h3>
+        <section className="card">
+          <div className="card-head">
+            <div>
+              <h3 className="card-title">Metode bayar</h3>
+              <p className="card-sub">Nominal transaksi bersih, bukan uang diterima.</p>
+            </div>
+          </div>
           {pay.length === 0 ? (
             <p className="muted">Belum ada penjualan di rentang ini.</p>
           ) : (
-            <table className="report-table">
-              <thead>
-                <tr>
-                  <th>Metode</th>
-                  <th className="num">Transaksi</th>
-                  <th className="num">Nominal</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pay.map((p) => (
-                  <tr key={p.method}>
-                    <td>{paymentLabel(p.method as Parameters<typeof paymentLabel>[0])}</td>
-                    <td className="num">{p.orderCount}</td>
-                    <td className="num">{formatRupiah(p.totalRp)}</td>
+            <div className="table-wrap">
+              <table className="report-table">
+                <thead>
+                  <tr>
+                    <th>Metode</th>
+                    <th className="num">Transaksi</th>
+                    <th className="num">Nominal</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {pay.map((p) => (
+                    <tr key={p.method}>
+                      <td>{paymentLabel(p.method as Parameters<typeof paymentLabel>[0])}</td>
+                      <td className="num">{p.orderCount}</td>
+                      <td className="num">{formatRupiah(p.totalRp)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
       </div>

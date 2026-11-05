@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { formatRupiah } from "../domain/money";
 import { formatPct, marginFor, type HppMode, type VariantHppMode } from "../domain/hppResolve";
 import { loadHppProducts, saveHppDrafts, type HppDraft, type HppProductView } from "../data/productRepo";
+import { isNativePlatform } from "../data/db";
+import { Icon } from "./Icon";
 
 type Draft = { mode: string; manualRp: number };
 
@@ -30,12 +32,11 @@ function draftHpp(mode: string, manualRp: number, recipePerUnitRp: number | null
   return 0;
 }
 
-const inputStyle = { minHeight: 44, padding: "8px 10px", fontSize: 15 } as const;
-
 export function HppEditor() {
+  const native = isNativePlatform();
   const [rows, setRows] = useState<HppProductView[]>([]);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(native);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -66,11 +67,15 @@ export function HppEditor() {
   }
 
   useEffect(() => {
+    if (!native) return;
     void reload();
-  }, []);
+  }, [native]);
 
   function patchDraft(key: string, patch: Partial<Draft>) {
-    setDrafts((prev) => ({ ...prev, [key]: { ...(prev[key] ?? { mode: "manual", manualRp: 0 }), ...patch } }));
+    setDrafts((prev) => ({
+      ...prev,
+      [key]: { ...(prev[key] ?? { mode: "manual", manualRp: 0 }), ...patch },
+    }));
     setInfo(null);
   }
 
@@ -84,7 +89,12 @@ export function HppEditor() {
       for (const v of p.variants) {
         const vd = drafts[variantKey(v.id)];
         if (vd && (vd.mode !== v.mode || vd.manualRp !== v.manualRp)) {
-          list.push({ kind: "variant", id: v.id, mode: vd.mode as VariantHppMode, manualRp: vd.manualRp });
+          list.push({
+            kind: "variant",
+            id: v.id,
+            mode: vd.mode as VariantHppMode,
+            manualRp: vd.manualRp,
+          });
         }
       }
     }
@@ -120,38 +130,53 @@ export function HppEditor() {
   }
 
   if (loading) {
-    return <p>Memuat HPP…</p>;
+    return (
+      <div className="loading-state">
+        <span className="spinner" />
+        Memuat HPP…
+      </div>
+    );
+  }
+
+  if (!native) {
+    return (
+      <div className="empty-state">
+        <Icon name="calculator" size={32} />
+        <h3>HPP hanya tersedia di aplikasi Android</h3>
+        <p>
+          Layar ini membaca database SQLite tablet. Di browser (mode pratinjau), data HPP tidak
+          tersedia. Buka aplikasi Android untuk mengatur HPP dan margin.
+        </p>
+      </div>
+    );
   }
 
   return (
     <div>
-      <h2>HPP &amp; Margin</h2>
-      <p style={{ fontSize: 13, color: "#555", marginTop: 0 }}>
-        Isi HPP per produk sesuai hitungan Anda (mis. kopi susu 6.000). Pilih <strong>Manual</strong> untuk mengisi
-        sendiri, <strong>Resep</strong> untuk dihitung otomatis dari bahan, atau <strong>Tanpa HPP</strong> bila tidak
-        dilacak. HPP dikunci saat transaksi, jadi laporan laba lama tidak berubah ketika harga bahan naik.
+      <p className="page-desc" style={{ marginBottom: 14 }}>
+        Isi HPP per produk sesuai hitungan Anda. Pilih <strong>Manual</strong> untuk mengisi sendiri,{" "}
+        <strong>Resep</strong> untuk dihitung otomatis dari bahan, atau <strong>Tanpa HPP</strong>{" "}
+        bila tidak dilacak. HPP dikunci saat transaksi, jadi laporan laba lama tidak berubah ketika
+        harga bahan naik.
       </p>
 
-      <div
-        style={{
-          display: "flex",
-          gap: 16,
-          flexWrap: "wrap",
-          fontSize: 13,
-          padding: "10px 12px",
-          background: "#f6f6f6",
-          borderRadius: 8,
-          marginBottom: 12,
-        }}
-      >
-        <span>Produk: <strong>{stats.total}</strong></span>
-        <span>Belum ada HPP: <strong>{stats.kosong}</strong></span>
-        <span style={{ color: stats.rugi > 0 ? "#b00020" : undefined }}>
-          HPP &gt; harga jual: <strong>{stats.rugi}</strong>
+      <div className="hpp-stats">
+        <span className="badge">Produk: {stats.total}</span>
+        <span className={`badge ${stats.kosong > 0 ? "badge-warn" : "badge-success"}`}>
+          Belum ada HPP: {stats.kosong}
+        </span>
+        <span className={`badge ${stats.rugi > 0 ? "badge-danger" : "badge-success"}`}>
+          HPP &gt; harga jual: {stats.rugi}
         </span>
       </div>
 
-      {rows.length === 0 && <p>Belum ada produk aktif.</p>}
+      {rows.length === 0 && (
+        <div className="empty-state">
+          <Icon name="calculator" size={32} />
+          <h3>Belum ada produk aktif</h3>
+          <p>Tambahkan menu terlebih dahulu di layar Menu &amp; Harga.</p>
+        </div>
+      )}
 
       {rows.map((p) => {
         const d = drafts[productKey(p.id)] ?? { mode: p.mode, manualRp: p.manualRp };
@@ -166,24 +191,22 @@ export function HppEditor() {
               : null;
 
         return (
-          <div
-            key={p.id}
-            style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 10 }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <div key={p.id} className="hpp-card">
+            <div className="hpp-head">
               <div>
-                <div style={{ fontWeight: 600 }}>{p.name}</div>
-                <div style={{ fontSize: 12, color: "#666" }}>
+                <div className="hpp-name">{p.name}</div>
+                <div className="hpp-meta">
                   {p.categoryName} · harga jual {formatRupiah(p.basePriceRp)}
-                  {p.recipePerUnitRp !== null ? ` · resep ${formatRupiah(p.recipePerUnitRp)}` : ""}
+                  {p.recipePerUnitRp !== null
+                    ? ` · resep ${formatRupiah(p.recipePerUnitRp)}`
+                    : ""}
                 </div>
               </div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <div className="hpp-controls">
                 <select
                   aria-label={`Mode HPP ${p.name}`}
                   value={d.mode}
                   onChange={(e) => patchDraft(productKey(p.id), { mode: e.target.value })}
-                  style={inputStyle}
                 >
                   {PRODUCT_MODES.map((m) => (
                     <option key={m.value} value={m.value}>
@@ -204,74 +227,72 @@ export function HppEditor() {
                       manualRp: Math.max(0, Math.trunc(Number(e.target.value) || 0)),
                     })
                   }
-                  style={{ ...inputStyle, width: 130, textAlign: "right" }}
                 />
               </div>
             </div>
 
-            <div style={{ marginTop: 8, fontSize: 13 }}>
+            <div className="hpp-summary">
               HPP dipakai <strong>{formatRupiah(hpp)}</strong> · laba/unit{" "}
-              <strong style={{ color: margin.profitRp < 0 ? "#b00020" : undefined }}>
+              <strong className={margin.profitRp < 0 ? "is-loss" : ""}>
                 {formatRupiah(margin.profitRp)}
               </strong>{" "}
               · margin <strong>{formatPct(margin.marginPct)}</strong>
-              {note && <span style={{ color: "#a15c00" }}> · {note}</span>}
+              {note && <span className="hpp-note"> · {note}</span>}
             </div>
 
             {p.variants.length > 0 && (
               <div style={{ marginTop: 10 }}>
                 <button
-                  style={{ minHeight: 40 }}
+                  className="small"
                   onClick={() => setExpanded((prev) => ({ ...prev, [p.id]: !isOpen }))}
                   aria-expanded={isOpen}
                 >
                   {isOpen ? "Sembunyikan" : "Atur"} varian ({p.variants.length})
                 </button>
                 {isOpen && (
-                  <div style={{ marginTop: 8, paddingLeft: 12, borderLeft: "3px solid #eee" }}>
+                  <div className="hpp-variants">
                     {p.variants.map((v) => {
                       const vd = drafts[variantKey(v.id)] ?? { mode: v.mode, manualRp: v.manualRp };
-                      const vMode: HppMode = vd.mode === "inherit" ? (d.mode as HppMode) : (vd.mode as HppMode);
+                      const vMode: HppMode =
+                        vd.mode === "inherit" ? (d.mode as HppMode) : (vd.mode as HppMode);
                       const vManual = vd.mode === "inherit" ? d.manualRp : vd.manualRp;
                       const vHpp = draftHpp(vMode, vManual, v.recipePerUnitRp ?? p.recipePerUnitRp);
                       const vPrice = p.basePriceRp + v.priceDeltaRp;
                       const vMargin = marginFor(vPrice, vHpp);
                       return (
-                        <div key={v.id} style={{ marginBottom: 10 }}>
-                          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                            <span style={{ minWidth: 110, fontWeight: 500 }}>{v.name}</span>
-                            <select
-                              aria-label={`Mode HPP varian ${p.name} ${v.name}`}
-                              value={vd.mode}
-                              onChange={(e) => patchDraft(variantKey(v.id), { mode: e.target.value })}
-                              style={inputStyle}
-                            >
-                              {VARIANT_MODES.map((m) => (
-                                <option key={m.value} value={m.value}>
-                                  {m.label}
-                                </option>
-                              ))}
-                            </select>
-                            <input
-                              aria-label={`HPP manual varian ${p.name} ${v.name}`}
-                              type="number"
-                              min={0}
-                              step={100}
-                              inputMode="numeric"
-                              value={vd.manualRp}
-                              disabled={vd.mode !== "manual"}
-                              onChange={(e) =>
-                                patchDraft(variantKey(v.id), {
-                                  manualRp: Math.max(0, Math.trunc(Number(e.target.value) || 0)),
-                                })
-                              }
-                              style={{ ...inputStyle, width: 130, textAlign: "right" }}
-                            />
-                            <span style={{ fontSize: 13 }}>
-                              jual {formatRupiah(vPrice)} · HPP {formatRupiah(vHpp)} · margin{" "}
-                              {formatPct(vMargin.marginPct)}
-                            </span>
-                          </div>
+                        <div key={v.id} className="hpp-variant-row">
+                          <span className="hpp-variant-name">{v.name}</span>
+                          <select
+                            aria-label={`Mode HPP varian ${p.name} ${v.name}`}
+                            value={vd.mode}
+                            onChange={(e) => patchDraft(variantKey(v.id), { mode: e.target.value })}
+                            style={{ width: "auto", minWidth: 130 }}
+                          >
+                            {VARIANT_MODES.map((m) => (
+                              <option key={m.value} value={m.value}>
+                                {m.label}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            aria-label={`HPP manual varian ${p.name} ${v.name}`}
+                            type="number"
+                            min={0}
+                            step={100}
+                            inputMode="numeric"
+                            value={vd.manualRp}
+                            disabled={vd.mode !== "manual"}
+                            onChange={(e) =>
+                              patchDraft(variantKey(v.id), {
+                                manualRp: Math.max(0, Math.trunc(Number(e.target.value) || 0)),
+                              })
+                            }
+                            style={{ width: 120, textAlign: "right" }}
+                          />
+                          <span className="hpp-meta">
+                            jual {formatRupiah(vPrice)} · HPP {formatRupiah(vHpp)} · margin{" "}
+                            {formatPct(vMargin.marginPct)}
+                          </span>
                         </div>
                       );
                     })}
@@ -283,34 +304,33 @@ export function HppEditor() {
         );
       })}
 
-      <div
-        style={{
-          position: "sticky",
-          bottom: 0,
-          background: "#fff",
-          borderTop: "1px solid #ddd",
-          padding: "10px 0",
-          marginTop: 12,
-        }}
-      >
+      <div className="sticky-save">
+        <span className="muted">
+          {dirty.length > 0
+            ? `${dirty.length} perubahan belum disimpan.`
+            : "Semua perubahan sudah tersimpan."}
+        </span>
         <button
-          style={{ minHeight: 48, minWidth: 200, fontWeight: 600 }}
+          className="primary"
           disabled={dirty.length === 0 || saving}
           onClick={() => void handleSave()}
         >
+          <Icon name="check" size={17} />
           {saving ? "Menyimpan…" : `Simpan perubahan${dirty.length > 0 ? ` (${dirty.length})` : ""}`}
         </button>
       </div>
 
       {error && (
-        <p role="alert" style={{ color: "#b00020" }}>
-          {error}
-        </p>
+        <div className="danger-note" style={{ marginTop: 14 }} role="alert">
+          <Icon name="alert" size={17} />
+          <span>{error}</span>
+        </div>
       )}
       {info && (
-        <p aria-live="polite" style={{ color: "#1b5e20" }}>
-          {info}
-        </p>
+        <div className="banner" style={{ marginTop: 14 }} aria-live="polite">
+          <Icon name="check" size={17} />
+          <span>{info}</span>
+        </div>
       )}
     </div>
   );
