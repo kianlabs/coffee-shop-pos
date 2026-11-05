@@ -121,6 +121,18 @@ a {
   outline-offset: 2px;
 }
 
+/* Rail navigasi berlatar gelap: outline gelap tidak terlihat, pakai warna terang. */
+.nav-item:focus-visible {
+  outline-color: #e9b384;
+  outline-offset: -2px;
+}
+
+/* Ringkasan <details> adalah kontrol interaktif; pastikan state fokus jelas. */
+details > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* --- Kontrol dasar ------------------------------------------------------ */
 button {
   appearance: none;
@@ -824,6 +836,89 @@ label.check input {
   }
 }
 
+/* Skeleton layar admin (lazy-loaded). */
+.skeleton-state {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.skeleton-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.skeleton-grid.is-stats {
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+}
+
+.skeleton-grid.is-list {
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.skeleton-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 92px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.skeleton-card.is-row {
+  min-height: 64px;
+}
+
+.skeleton {
+  display: block;
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    var(--surface-3) 0%,
+    #ece4da 45%,
+    var(--surface-3) 90%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.3s ease-in-out infinite;
+}
+
+.skeleton-line.is-title {
+  width: 180px;
+  max-width: 50%;
+  height: 20px;
+}
+
+.skeleton-line.is-sm {
+  height: 10px;
+}
+
+.skeleton-pill {
+  width: 96px;
+  height: 32px;
+  border-radius: 999px;
+}
+
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
 .banner {
   display: flex;
   gap: 10px;
@@ -944,6 +1039,7 @@ label.check input {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  height: 100%;
   min-height: 126px;
   padding: 12px;
   border: 1px solid var(--line);
@@ -964,6 +1060,9 @@ label.check input {
 
 .product-card h3 {
   display: -webkit-box;
+  flex: none;
+  /* Dua baris judul selalu disediakan supaya harga/aksi antar kartu rata. */
+  min-height: 2.34em;
   overflow: hidden;
   font-size: 0.9rem;
   font-weight: 650;
@@ -972,8 +1071,14 @@ label.check input {
   -webkit-box-orient: vertical;
 }
 
-.product-price {
+.product-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   margin-top: auto;
+}
+
+.product-price {
   color: var(--text);
   font-size: 1rem;
   font-weight: 750;
@@ -1064,7 +1169,7 @@ label.check input {
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  padding: 6px 16px;
+  padding: 4px 16px;
 }
 
 .cart-empty {
@@ -1091,7 +1196,7 @@ label.check input {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 10px 0;
+  padding: 8px 0;
   border-bottom: 1px dashed var(--line);
 }
 
@@ -1175,16 +1280,16 @@ label.check input {
 
 .cart-foot {
   flex: none;
-  padding: 12px 16px calc(14px + env(safe-area-inset-bottom));
+  padding: 10px 14px calc(12px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--line);
   background: var(--surface-2);
 }
 
 .cart-totals {
   display: grid;
-  gap: 4px;
-  margin-bottom: 10px;
-  font-size: 0.8rem;
+  gap: 2px;
+  margin-bottom: 4px;
+  font-size: 0.76rem;
   color: var(--text-2);
 }
 
@@ -1196,14 +1301,14 @@ label.check input {
 }
 
 .cart-total-row.is-total {
-  margin-top: 4px;
-  padding-top: 8px;
+  margin-top: 2px;
+  padding-top: 5px;
   border-top: 1px solid var(--line);
   color: var(--text);
 }
 
 .cart-total-row.is-total .total-value {
-  font-size: 1.5rem;
+  font-size: 1.35rem;
   font-weight: 800;
   letter-spacing: -0.03em;
 }
@@ -1221,13 +1326,17 @@ label.check input {
 }
 
 .pay-methods {
-  margin-bottom: 8px;
+  margin: 0 0 6px;
+}
+
+.pay-methods button {
+  min-height: 44px;
 }
 
 .quick-cash {
   display: flex;
   gap: 5px;
-  margin: 8px 0;
+  margin: 6px 0;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -1238,8 +1347,8 @@ label.check input {
 
 .quick-cash button {
   flex: none;
-  min-height: 34px;
-  padding: 0 10px;
+  min-height: 44px;
+  padding: 0 11px;
   border-radius: 8px;
   background: var(--surface);
   color: var(--text-2);
@@ -1255,14 +1364,14 @@ label.check input {
   align-items: baseline;
   justify-content: space-between;
   gap: 10px;
-  margin-top: 8px;
-  font-size: 0.8rem;
+  margin-top: 4px;
+  font-size: 0.78rem;
   color: var(--text-2);
 }
 
 .change-row strong {
   color: var(--text);
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1273,7 +1382,7 @@ label.check input {
 .pay-btn {
   width: 100%;
   min-height: 54px;
-  margin-top: 10px;
+  margin-top: 8px;
   font-size: 0.98rem;
   font-weight: 750;
 }
@@ -1288,6 +1397,87 @@ label.check input {
 
 .drawer-backdrop {
   display: none;
+}
+
+.pay-amount-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pay-amount-label {
+  flex: none;
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.pay-amount-input {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.cart-details-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin: 4px 0 2px;
+}
+
+.cart-details-row .cart-extra {
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.cart-details-row .cart-extra[open],
+.cart-details-row:has(.cart-extra[open]) .cart-extra {
+  grid-column: 1 / -1;
+}
+
+.cart-details-row .cart-extra > summary {
+  min-height: 44px;
+  padding: 0 10px;
+  gap: 6px;
+  border-radius: 8px;
+  color: var(--text-2);
+}
+
+.cart-details-row .cart-extra[open] > summary {
+  border-bottom: 1px dashed var(--line);
+  border-radius: 8px 8px 0 0;
+}
+
+.cart-extra-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cart-extra-flag {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--brand);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.cart-extra-body {
+  padding: 8px 10px 10px;
+}
+
+.cart-extra-body label {
+  margin-bottom: 0;
 }
 
 .cart-extra {
@@ -2291,10 +2481,38 @@ label.check input {
     gap: 0;
     width: 100%;
     height: auto;
-    padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
-    overflow-x: auto;
-    overflow-y: hidden;
+    padding: 6px 0 calc(6px + env(safe-area-inset-bottom));
+    overflow: hidden;
     border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  /* Gradient tepi: penanda bahwa masih ada tujuan nav di luar layar. */
+  .nav-rail::before,
+  .nav-rail::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 2;
+    width: 26px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.18s ease;
+  }
+
+  .nav-rail::before {
+    left: 0;
+    background: linear-gradient(to right, #171412 30%, rgba(23, 20, 18, 0));
+  }
+
+  .nav-rail::after {
+    right: 0;
+    background: linear-gradient(to left, #171412 30%, rgba(23, 20, 18, 0));
+  }
+
+  .nav-rail.has-more-left::before,
+  .nav-rail.has-more-right::after {
+    opacity: 1;
   }
 
   .brand {
@@ -2304,6 +2522,19 @@ label.check input {
   .nav-list {
     flex-direction: row;
     width: 100%;
+    min-width: 0;
+    padding: 0 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    scroll-padding-inline: 28px;
+    scroll-behavior: smooth;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .nav-list::-webkit-scrollbar {
+    display: none;
   }
 
   .nav-item {
@@ -2311,6 +2542,12 @@ label.check input {
     min-height: 54px;
     padding: 5px 2px;
     font-size: 0.58rem;
+    scroll-margin-inline: 28px;
+  }
+
+  .nav-item[aria-current="page"] {
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+      inset 0 -2px 0 #e9b384;
   }
 
   .nav-item svg {
@@ -2394,5 +2631,19 @@ label.check input {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  /* Skeleton & spinner tidak beranimasi: tampil sebagai blok statis. */
+  .skeleton {
+    animation: none;
+    background: var(--surface-3);
+  }
+
+  .spinner {
+    animation: none;
+  }
+
+  .nav-list {
+    scroll-behavior: auto;
   }
 }

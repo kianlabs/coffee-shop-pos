@@ -73,13 +73,54 @@ const SalesReport = lazy(() =>
   import("./components/SalesReport").then((m) => ({ default: m.SalesReport })),
 );
 
-function ViewFallback() {
+type SkeletonKind = "cards" | "list" | "report";
+
+/**
+ * Placeholder ringan untuk layar admin yang di-lazy-load. Bentuknya meniru
+ * grid kartu supaya transisi ke konten asli tidak "melompat", dan label teks
+ * tetap tersedia untuk pembaca layar.
+ */
+function ViewSkeleton({
+  label,
+  kind = "cards",
+}: {
+  label: string;
+  kind?: SkeletonKind;
+}) {
+  const rows = kind === "report" ? 4 : kind === "list" ? 5 : 6;
   return (
-    <div className="loading-state">
-      <span className="spinner" />
-      Memuat layar…
+    <div className="skeleton-state" role="status" aria-live="polite" aria-busy="true">
+      <span className="sr-only">{label}</span>
+      <div className="skeleton-toolbar" aria-hidden="true">
+        <span className="skeleton skeleton-line is-title" />
+        <span className="skeleton skeleton-pill" />
+      </div>
+      <div
+        className={`skeleton-grid ${kind === "report" ? "is-stats" : ""} ${
+          kind === "list" ? "is-list" : ""
+        }`}
+        aria-hidden="true"
+      >
+        {Array.from({ length: rows }, (_, index) => (
+          <div className={`skeleton-card ${kind === "list" ? "is-row" : ""}`} key={index}>
+            <span className="skeleton skeleton-line" style={{ width: index % 2 ? "62%" : "78%" }} />
+            <span className="skeleton skeleton-line is-sm" style={{ width: index % 3 ? "40%" : "55%" }} />
+            {kind === "list" && (
+              <span className="skeleton skeleton-line is-sm" style={{ width: "68%" }} />
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
+}
+
+function ViewFallback({ view }: { view: View }) {
+  if (view === "laporan") return <ViewSkeleton label="Memuat laporan…" kind="report" />;
+  if (view === "menu") return <ViewSkeleton label="Memuat menu…" kind="list" />;
+  if (view === "hpp") return <ViewSkeleton label="Memuat HPP…" kind="list" />;
+  if (view === "stok") return <ViewSkeleton label="Memuat stok…" kind="list" />;
+  return <ViewSkeleton label="Memuat layar…" />;
 }
 
 type CartLine = {
@@ -256,6 +297,9 @@ export default function App() {
   viewRef.current = view;
   const dbReadyRef = useRef(dbReady);
   dbReadyRef.current = dbReady;
+  const navListRef = useRef<HTMLDivElement | null>(null);
+  const navItemRefs = useRef<Partial<Record<View, HTMLButtonElement | null>>>({});
+  const [navEdges, setNavEdges] = useState({ left: false, right: false });
 
   // Migrasi setelan lama: PIN void plaintext -> hash PBKDF2 (sekali saat buka).
   useEffect(() => {
@@ -309,6 +353,42 @@ export default function App() {
       window.removeEventListener("offline", down);
     };
   }, []);
+
+  // Navigasi bawah HP bisa di-scroll horizontal. Hitung apakah masih ada item
+  // tersembunyi di kiri/kanan supaya CSS bisa menampilkan gradient tepi.
+  useEffect(() => {
+    const list = navListRef.current;
+    if (!list) return;
+    const update = () => {
+      const max = list.scrollWidth - list.clientWidth;
+      setNavEdges({
+        left: list.scrollLeft > 2,
+        right: max > 2 && list.scrollLeft < max - 2,
+      });
+    };
+    update();
+    list.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      list.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+
+  // Saat pindah layar, bawa item nav yang aktif ke area terlihat — tanpa ini
+  // Backup/Setelan tetap tersembunyi di luar layar HP.
+  useEffect(() => {
+    const item = navItemRefs.current[view];
+    if (!item) return;
+    const reduceMotion =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    item.scrollIntoView({
+      block: "nearest",
+      inline: "center",
+      behavior: reduceMotion ? "auto" : "smooth",
+    });
+  }, [view]);
 
   // Toast feedback hilang sendiri supaya tidak menutupi layar kasir.
   useEffect(() => {
@@ -1094,17 +1174,25 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <nav className="nav-rail" aria-label="Navigasi utama">
+      <nav
+        className={`nav-rail ${navEdges.left ? "has-more-left" : ""} ${
+          navEdges.right ? "has-more-right" : ""
+        }`}
+        aria-label="Navigasi utama"
+      >
         <div className="brand">
           <div className="brand-mark">
             <Icon name="coffee" size={24} />
           </div>
           <span className="brand-text">Kopi POS</span>
         </div>
-        <div className="nav-list">
+        <div className="nav-list" ref={navListRef}>
           {NAV_ITEMS.map((item) => (
             <button
               key={item.view}
+              ref={(el) => {
+                navItemRefs.current[item.view] = el;
+              }}
               className="nav-item"
               aria-current={view === item.view ? "page" : undefined}
               onClick={() => {
@@ -1159,7 +1247,7 @@ export default function App() {
         </header>
 
         <div className="content">
-          <Suspense fallback={<ViewFallback />}>
+          <Suspense fallback={<ViewFallback view={view} />}>
           {view === "kasir" && (
             <div className="pos-layout">
               <section className="catalog-panel" aria-label="Daftar menu">
@@ -1348,31 +1436,66 @@ export default function App() {
                     )}
                   </div>
 
-                  <details className="cart-extra">
-                    <summary>Diskon &amp; pajak</summary>
-                    <div className="field-row" style={{ marginTop: 8 }}>
-                      <label style={{ flex: "1 1 100px", marginBottom: 0 }}>
-                        Diskon (Rp)
-                        <input
-                          type="number"
-                          min={0}
-                          inputMode="numeric"
-                          value={discount}
-                          onChange={(e) => setDiscount(Math.max(0, Number(e.target.value) || 0))}
-                        />
-                      </label>
-                      <label style={{ flex: "1 1 100px", marginBottom: 0 }}>
-                        Pajak (Rp)
-                        <input
-                          type="number"
-                          min={0}
-                          inputMode="numeric"
-                          value={tax}
-                          onChange={(e) => setTax(Math.max(0, Number(e.target.value) || 0))}
-                        />
-                      </label>
-                    </div>
-                  </details>
+                  {/* Diskon/pajak dan catatan dilipat supaya daftar item tetap
+                      terlihat di layar 1280x800 / 1024x768. */}
+                  <div className="cart-details-row">
+                    <details className="cart-extra cart-adjust">
+                      <summary>
+                        <span className="cart-extra-label">Diskon &amp; pajak</span>
+                        {(discount > 0 || tax > 0) && (
+                          <span className="cart-extra-flag">aktif</span>
+                        )}
+                      </summary>
+                      <div className="cart-extra-body">
+                        <div className="field-row">
+                          <label style={{ flex: "1 1 100px", marginBottom: 0 }}>
+                            Diskon (Rp)
+                            <input
+                              type="number"
+                              min={0}
+                              inputMode="numeric"
+                              value={discount}
+                              onChange={(e) =>
+                                setDiscount(Math.max(0, Number(e.target.value) || 0))
+                              }
+                            />
+                          </label>
+                          <label style={{ flex: "1 1 100px", marginBottom: 0 }}>
+                            Pajak (Rp)
+                            <input
+                              type="number"
+                              min={0}
+                              inputMode="numeric"
+                              value={tax}
+                              onChange={(e) => setTax(Math.max(0, Number(e.target.value) || 0))}
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    </details>
+
+                    <details className="cart-extra cart-note">
+                      <summary>
+                        <span className="cart-extra-label">
+                          Catatan
+                          {notes.trim() !== ""
+                            ? `: ${notes.trim().slice(0, 16)}${notes.trim().length > 16 ? "…" : ""}`
+                            : ""}
+                        </span>
+                      </summary>
+                      <div className="cart-extra-body">
+                        <label>
+                          Catatan pesanan
+                          <input
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                            placeholder="opsional"
+                            maxLength={1000}
+                          />
+                        </label>
+                      </div>
+                    </details>
+                  </div>
 
                   <div className="cart-total-row is-total">
                     <span className="total-label">Total</span>
@@ -1403,19 +1526,23 @@ export default function App() {
                     </button>
                   </div>
 
-                  <label style={{ marginBottom: 0 }}>
-                    Dibayar (Rp)
+                  <div className="pay-amount-row">
+                    <label className="pay-amount-label" htmlFor="pay-amount">
+                      Dibayar (Rp)
+                    </label>
                     <input
+                      id="pay-amount"
+                      className="pay-amount-input"
                       type="number"
                       min={0}
                       inputMode="numeric"
                       value={payAmount}
                       onChange={(e) => setPayAmount(Math.max(0, Number(e.target.value) || 0))}
                     />
-                  </label>
+                  </div>
 
                   {quickCash.length > 0 && (
-                    <div className="quick-cash" aria-label="Nominal cepat">
+                    <div className="quick-cash" role="group" aria-label="Nominal cepat">
                       {quickCash.map((value) => (
                         <button key={value} onClick={() => setPayAmount(value)}>
                           {value === total ? "Uang pas" : formatRupiah(value)}
@@ -1425,26 +1552,15 @@ export default function App() {
                   )}
 
                   <div className="change-row">
-                    <span>Kembalian</span>
+                    <span>{payAmount < total ? "Kurang" : "Kembalian"}</span>
                     <strong className={payAmount < total ? "is-short" : ""}>
-                      {formatRupiah(Math.max(0, payAmount - total))}
+                      {formatRupiah(
+                        payAmount < total
+                          ? Math.max(0, total - payAmount)
+                          : Math.max(0, payAmount - total),
+                      )}
                     </strong>
                   </div>
-                  {payAmount > 0 && payAmount < total && (
-                    <p className="muted" style={{ color: "var(--danger)", marginTop: 4 }}>
-                      Kurang {formatRupiah(total - payAmount)}
-                    </p>
-                  )}
-
-                  <label style={{ marginTop: 8, marginBottom: 0 }}>
-                    Catatan
-                    <input
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      placeholder="opsional"
-                      maxLength={1000}
-                    />
-                  </label>
 
                   <button
                     className="primary pay-btn"
@@ -1664,10 +1780,7 @@ export default function App() {
 
           {view === "laporan" &&
             (reportOrders === null ? (
-              <div className="loading-state">
-                <span className="spinner" />
-                Memuat laporan…
-              </div>
+              <ViewSkeleton label="Memuat laporan…" kind="report" />
             ) : (
               <SalesReport orders={reportOrders} />
             ))}

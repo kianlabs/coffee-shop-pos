@@ -21,31 +21,35 @@ export const ProductItem = memo(function ProductItem({
   return (
     <article className="product-card">
       <h3 title={product.name}>{product.name}</h3>
-      <div className="product-price">{formatRupiah(product.basePriceRp)}</div>
-      {variants.length === 0 ? (
-        <button
-          className="add-btn"
-          onClick={() => onAdd(product, null)}
-          aria-label={`Tambah ${product.name}`}
-        >
-          <Icon name="plus" size={15} />
-          Tambah
-        </button>
-      ) : (
-        <div className="variant-list" aria-label={`Varian ${product.name}`}>
-          {variants.map((variant) => (
-            <button
-              key={variant.id}
-              className="variant-btn"
-              onClick={() => onAdd(product, variant)}
-              aria-label={`Tambah ${product.name} ${variant.name}`}
-            >
-              <span>{variant.name}</span>
-              <span className="money">{formatRupiah(unitPriceFor(product, variant))}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      {/* Harga + aksi dikelompokkan di kaki kartu supaya sejajar antar kartu
+          dalam satu baris, termasuk saat tetangganya punya varian. */}
+      <div className="product-actions">
+        <div className="product-price">{formatRupiah(product.basePriceRp)}</div>
+        {variants.length === 0 ? (
+          <button
+            className="add-btn"
+            onClick={() => onAdd(product, null)}
+            aria-label={`Tambah ${product.name}`}
+          >
+            <Icon name="plus" size={15} />
+            Tambah
+          </button>
+        ) : (
+          <div className="variant-list" aria-label={`Varian ${product.name}`}>
+            {variants.map((variant) => (
+              <button
+                key={variant.id}
+                className="variant-btn"
+                onClick={() => onAdd(product, variant)}
+                aria-label={`Tambah ${product.name} ${variant.name}`}
+              >
+                <span>{variant.name}</span>
+                <span className="money">{formatRupiah(unitPriceFor(product, variant))}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </article>
   );
 });
