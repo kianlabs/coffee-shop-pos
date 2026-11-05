@@ -245,6 +245,15 @@ async function main() {
     check("satu order tersimpan", storedOrder !== null);
     const orderCount = await evalJs(`JSON.parse(localStorage.getItem('pos.orders.v1') || '{"orders":[]}').orders.length`);
     check("tidak ada order ganda", orderCount === 1, `dapat ${orderCount}`);
+    check(
+      "tombol refund tampil",
+      await evalJs(`[...document.querySelectorAll('button')].some((b) => b.textContent.includes('Refund'))`),
+    );
+    check(
+      "tombol void tampil",
+      await evalJs(`[...document.querySelectorAll('button')].some((b) => b.textContent.includes('Void'))`),
+    );
+    check("filter refund ada di UI", await evalJs(`[...document.querySelectorAll('.chip')].some((c) => c.textContent.trim() === 'Refund')`));
 
     console.log("\n[4] layout 390x844");
     await setViewport(390, 844, true);
