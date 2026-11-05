@@ -96,6 +96,8 @@ function buildOrderLines(lines: OrderLineInput[], discountRp: Rupiah): OrderLine
   }));
 }
 
+export type OrderStatus = Order["status"];
+
 const ORDER_STATUSES: readonly string[] = ["completed", "voided", "refunded"];
 
 export function validateOrderStatus(status: string): string | null {
@@ -106,6 +108,29 @@ export function validateOrderStatus(status: string): string | null {
     return `Status order tidak dikenal: ${status}.`;
   }
   return null;
+}
+
+/**
+ * Validasi transisi status order: hanya order completed yang boleh
+ * di-void atau di-refund. Transisi dari voided/refunded ke status lain tidak diizinkan.
+ */
+export function canTransitionOrderStatus(
+  current: OrderStatus,
+  target: OrderStatus,
+): { allowed: boolean; error: string | null } {
+  if (current === target) {
+    return { allowed: false, error: `Order sudah berstatus ${current}.` };
+  }
+  if (current !== "completed") {
+    return {
+      allowed: false,
+      error: "Order sudah di-void/refund atau tidak ditemukan.",
+    };
+  }
+  if (target !== "voided" && target !== "refunded") {
+    return { allowed: false, error: `Transisi status ke ${target} tidak diizinkan.` };
+  }
+  return { allowed: true, error: null };
 }
 
 export function validateCheckout(input: CheckoutInput): string | null {

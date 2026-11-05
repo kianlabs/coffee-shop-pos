@@ -9,7 +9,7 @@ Terakhir diperbarui: 5 November 2026.
 
 | Fitur | Bukti |
 |-------|-------|
-| Kasir offline (tambah keranjang, diskon, pajak, layanan, pembulatan, bayar, kembalian) | `npm run build` + `npm test` (88 assertion) |
+| Kasir offline (tambah keranjang, diskon, pajak, layanan, pembulatan, bayar, kembalian) | `npm run build` + `npm test` (103 assertion) |
 | Menu & harga diisi sendiri oleh user (katalog kosong di awal) | `src/components/CatalogEditor.tsx`, `src/data/catalogRepo.ts` |
 | Katalog dibaca dari database, bukan daftar hardcoded | `loadCatalog()` di `App.tsx` |
 | Checkout atomik: order + item + pembayaran + stok + snapshot HPP dalam transaksi manual yang diserialkan | `src/data/orderRepository.ts#checkoutAtomicAsync`, `src/data/tx.ts` |
@@ -20,6 +20,8 @@ Terakhir diperbarui: 5 November 2026.
 | Snapshot HPP terkunci saat transaksi | `order_items.hpp_unit_rp`, `hpp_source`, `hpp_detail_json` |
 | Stok berkurang saat jual, kembali saat void (idempoten) | unique index `uq_stock_movements_ref`, `prepareVoidReversal()` |
 | Void atomik & tahan balapan ganda | conditional status update (`WHERE id = ? AND status = 'completed'`) |
+| Refund penuh atomik: status refunded, pembayaran refunded, pengembalian stok idempoten | `orderRepository.ts#refundOrderAsync`, `orderStore.ts#refund` |
+| Refund atomik & tahan balapan ganda | `refundOrderAsync`: conditional status update + `order_refund` reversal marker, indicator stabilisasi status. Indikasi lintasan void vs refund terpisah lewat `reference_type` (`order_void`/`order_refund`) |
 | Per-connection SQLite PRAGMAs (FK on, busy_timeout 5000, WAL di native) | `src/data/db.ts#applyConnectionPragmas` |
 | Pembelian bahan + koreksi stok dari aplikasi | `src/components/StockEditor.tsx` |
 | Konversi satuan input (kg↔g, l↔ml) tanpa mengubah satuan dasar tersimpan | `src/domain/units.ts`, `StockEditor.tsx` |

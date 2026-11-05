@@ -12,6 +12,8 @@ export type SalesSummary = {
   totalServiceRp: number;
   voidedCount: number;
   voidedTotalRp: number;
+  refundedCount: number;
+  refundedTotalRp: number;
   totalHppRp: number;
   grossProfitRp: number;
   profitMarginPct: number | null;
@@ -103,6 +105,8 @@ export function summarizeSales(all: Order[], start: Date, end: Date): SalesSumma
   let totalServiceRp = 0;
   let voidedCount = 0;
   let voidedTotalRp = 0;
+  let refundedCount = 0;
+  let refundedTotalRp = 0;
   let totalHppRp = 0;
   let grossProfitRp = 0;
 
@@ -110,6 +114,11 @@ export function summarizeSales(all: Order[], start: Date, end: Date): SalesSumma
     if (o.status === "voided") {
       voidedCount += 1;
       voidedTotalRp += o.totalRp;
+      continue;
+    }
+    if (o.status === "refunded") {
+      refundedCount += 1;
+      refundedTotalRp += o.totalRp;
       continue;
     }
     if (o.status !== "completed") continue;
@@ -137,6 +146,8 @@ export function summarizeSales(all: Order[], start: Date, end: Date): SalesSumma
     totalServiceRp,
     voidedCount,
     voidedTotalRp,
+    refundedCount,
+    refundedTotalRp,
     totalHppRp,
     grossProfitRp,
     profitMarginPct: grandTotalRp > 0 ? Math.round((grossProfitRp / grandTotalRp) * 1000) / 10 : null,

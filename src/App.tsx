@@ -259,10 +259,14 @@ export default function App() {
   const [settingsDraft, setSettingsDraft] = useState<PosSettings>(() => getSettings());
   const [shift, setShift] = useState<Shift | null>(() => loadStoredShift());
   const [lastShiftSummary, setLastShiftSummary] = useState<string | null>(null);
-  const [historyFilter, setHistoryFilter] = useState<"all" | "completed" | "voided">("all");
+  const [historyFilter, setHistoryFilter] = useState<"all" | "completed" | "voided" | "refunded">("all");
   const [historyQuery, setHistoryQuery] = useState("");
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
-  const [pinRequest, setPinRequest] = useState<{ orderId: string; label: string } | null>(null);
+  const [pinRequest, setPinRequest] = useState<{
+    action: "void" | "refund";
+    orderId: string;
+    label: string;
+  } | null>(null);
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState<string | null>(null);
   const [pinAttempts, setPinAttempts] = useState(0);
@@ -675,6 +679,26 @@ export default function App() {
     }
   }
 
+  async function performRefund(orderId: string, label: string) {
+    if (
+      !window.confirm(
+        `Refund order ${label}? Stok akan dikembalikan dan order ditandai refunded (permanen).`,
+      )
+    ) {
+      return;
+    }
+    try {
+      setOrders(await repo.refund(orderId));
+      setStatus({ kind: "ok", msg: `Order ${label} berhasil di-refund.`, scope: "riwayat" });
+    } catch (e) {
+      setStatus({
+        kind: "error",
+        msg: e instanceof Error ? e.message : "Refund gagal.",
+        scope: "riwayat",
+      });
+    }
+  }
+
   async function handleVoid(orderId: string) {
     const label = orders.find((o) => o.id === orderId)?.receiptNumber ?? orderId;
     // PIN lewat modal, bukan window.prompt: prompt tidak menyamarkan input dan
@@ -691,10 +715,31 @@ export default function App() {
       setPinInput("");
       setPinError(null);
       setPinAttempts(0);
-      setPinRequest({ orderId, label });
+      setPinRequest({ action: "void", orderId, label });
       return;
     }
     await performVoid(orderId, label);
+  }
+
+  async function handleRefund(orderId: string) {
+    const label = orders.find((o) => o.id === orderId)?.receiptNumber ?? orderId;
+    // Refund memakai PIN pengaman yang sama dengan void bila proteksi PIN aktif.
+    if (posSettings.requireVoidPin) {
+      if (posSettings.voidPinHash === "" || posSettings.voidPinSalt === "") {
+        setStatus({
+          kind: "error",
+          msg: "PIN void aktif tapi belum diisi di Pengaturan.",
+          scope: "riwayat",
+        });
+        return;
+      }
+      setPinInput("");
+      setPinError(null);
+      setPinAttempts(0);
+      setPinRequest({ action: "refund", orderId, label });
+      return;
+    }
+    await performRefund(orderId, label);
   }
 
   async function confirmVoidPin() {
@@ -707,8 +752,9 @@ export default function App() {
         setPinAttempts(next);
         setPinInput("");
         if (next >= 3) {
+          const actionText = pinRequest.action === "refund" ? "refund" : "void";
           setPinRequest(null);
-          setStatus({ kind: "error", msg: "PIN salah 3x — void dibatalkan.", scope: "riwayat" });
+          setStatus({ kind: "error", msg: `PIN salah 3x — ${actionText} dibatalkan.`, scope: "riwayat" });
           return;
         }
         setPinError(`PIN salah. Sisa ${3 - next} percobaan.`);
@@ -718,7 +764,11 @@ export default function App() {
       setPinRequest(null);
       setPinInput("");
       setPinError(null);
-      await performVoid(req.orderId, req.label);
+      if (req.action === "refund") {
+        await performRefund(req.orderId, req.label);
+      } else {
+        await performVoid(req.orderId, req.label);
+      }
     } catch {
       setPinError("PIN tidak bisa diverifikasi. Coba lagi.");
     } finally {
@@ -1621,6 +1671,7 @@ export default function App() {
                       ["all", "Semua"],
                       ["completed", "Selesai"],
                       ["voided", "Void"],
+                      ["refunded", "Refund"],
                     ] as const
                   ).map(([value, label]) => (
                     <button
@@ -1667,7 +1718,9 @@ export default function App() {
                                       ? "Selesai"
                                       : order.status === "voided"
                                         ? "Void"
-                                        : order.status}
+                                        : order.status === "refunded"
+                                          ? "Refund"
+                                          : order.status}
                                   </span>
                                 </div>
                                 <div className="order-meta">
@@ -1701,10 +1754,16 @@ export default function App() {
                                 Cetak
                               </button>
                               {order.status === "completed" && (
-                                <button className="danger small" onClick={() => handleVoid(order.id)}>
-                                  <Icon name="trash" size={15} />
-                                  Void
-                                </button>
+                                <>
+                                  <button className="warn small" onClick={() => void handleRefund(order.id)}>
+                                    <Icon name="refresh" size={15} />
+                                    Refund
+                                  </button>
+                                  <button className="danger small" onClick={() => handleVoid(order.id)}>
+                                    <Icon name="trash" size={15} />
+                                    Void
+                                  </button>
+                                </>
                               )}
                             </div>
                             {expanded && (
@@ -2316,9 +2375,11 @@ export default function App() {
             <div className="modal-head">
               <div>
                 <div className="modal-title" id="pin-title">
-                  PIN void
+                  {pinRequest.action === "refund" ? "PIN refund" : "PIN void"}
                 </div>
-                <div className="modal-sub">Void order {pinRequest.label} butuh PIN.</div>
+                <div className="modal-sub">
+                  {pinRequest.action === "refund" ? "Refund" : "Void"} order {pinRequest.label} butuh PIN.
+                </div>
               </div>
               <button
                 className="modal-close"
@@ -2338,7 +2399,7 @@ export default function App() {
               inputMode="numeric"
               autoComplete="off"
               autoFocus
-              aria-label="PIN void"
+              aria-label={pinRequest.action === "refund" ? "PIN refund" : "PIN void"}
               value={pinInput}
               disabled={pinVerifying}
               onChange={(e) => {

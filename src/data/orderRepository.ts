@@ -4,6 +4,7 @@ import { getDb } from "./db";
 import {
   STOCK_DEDUCTION_ENABLED,
   prepareConsumption,
+  prepareRefundReversal,
   prepareVoidReversal,
   v2TablesExist,
   type ConsumptionPlan,
@@ -472,6 +473,69 @@ export async function voidOrderAsync(orderId: string): Promise<Order[]> {
   });
 }
 
+export async function refundOrderAsync(orderId: string): Promise<Order[]> {
+  const db = await getDb();
+  return runSerializedWrite(async () => {
+    const now = new Date().toISOString();
+    await withTransaction(db, async () => {
+      // Transisi status kondisional: WHERE id = ? AND status = 'completed'.
+      // Dua refund/void bersamaan hanya boleh satu yang menang.
+      // `changes === 0` berarti sudah di-void/refund atau tidak ditemukan.
+      const claim = await db.run(
+        "UPDATE orders SET status = 'refunded', updated_at = ? WHERE id = ? AND status = 'completed';",
+        [now, orderId],
+      );
+      const changed = typeof claim.changes?.changes === "number" ? claim.changes.changes : 0;
+      if (changed !== 1) {
+        throw new Error("Order sudah di-void/refund atau tidak ditemukan.");
+      }
+
+      const txn: SqlStatement[] = [
+        {
+          statement:
+            "INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, before_json, after_json, reason, created_at) VALUES (?, NULL, 'order.refunded', 'order', ?, NULL, ?, NULL, ?);",
+          values: [`${orderId}-refund-${Date.now()}`, orderId, JSON.stringify({ orderId }), now],
+        },
+        {
+          statement:
+            "INSERT INTO sync_outbox (id, event_type, aggregate_type, aggregate_id, payload_json, schema_version, status, attempt_count, next_attempt_at, last_error, created_at, acknowledged_at) VALUES (?, 'order.refunded', 'order', ?, ?, 1, 'pending', 0, NULL, NULL, ?, NULL);",
+          values: [`${orderId}-refund-evt`, orderId, JSON.stringify({ orderId }), now],
+        },
+      ];
+      if (await tableSqlAllows(db, "payments", "refunded")) {
+        txn.push({
+          statement: "UPDATE payments SET status = 'refunded' WHERE order_id = ?;",
+          values: [orderId],
+        });
+      }
+      // Reversal stok refund: stok yang sudah terpotong dikembalikan lewat movement `return_in`
+      // di transaksi yang sama.
+      //
+      // Keputusan skema ID & reference movement:
+      // Movement id memakai skema terpisah `mv-refund-${orderId}-${ingredientId}` dan
+      // reference_type `order_refund` (bukan menduplikasi void) agar catatan mutasi stok
+      // di ledger & audit terbedakan dengan jelas.
+      // Pencegahan double-return: selain dijamin oleh conditional status update di atas
+      // (hanya status 'completed' yang bisa di-refund), `prepareRefundReversal` juga
+      // memeriksa `reference_type IN ('order_void', 'order_refund')` sehingga order yang sudah
+      // pernah dibalik stoknya tidak akan pernah membalik stok untuk kedua kalinya.
+      if (STOCK_DEDUCTION_ENABLED) {
+        if (await v2TablesExist(db)) {
+          try {
+            const reversal = await prepareRefundReversal(db, orderId, now, null);
+            txn.push(...reversal.statements);
+          } catch (e) {
+            const reason = e instanceof Error ? e.message : "gagal membalik stok";
+            throw new Error(`Gagal membalik stok refund: ${reason}`);
+          }
+        }
+      }
+      await execStatements(db, txn);
+    });
+    return loadAllOrders(db);
+  });
+}
+
 type CatalogTable = { table: string; columns: string[] };
 
 /**
@@ -825,6 +889,12 @@ export async function importBackupJsonAsync(json: string): Promise<number> {
         statement:
           "INSERT INTO sync_outbox (id, event_type, aggregate_type, aggregate_id, payload_json, schema_version, status, attempt_count, next_attempt_at, last_error, created_at, acknowledged_at) VALUES (?, 'order.voided', 'order', ?, ?, 1, 'pending', 0, NULL, NULL, ?, NULL);",
         values: [`${o.id}-void-evt`, o.id, JSON.stringify({ orderId: o.id }), o.createdAt],
+      });
+    } else if (o.status === "refunded") {
+      txn.push({
+        statement:
+          "INSERT INTO sync_outbox (id, event_type, aggregate_type, aggregate_id, payload_json, schema_version, status, attempt_count, next_attempt_at, last_error, created_at, acknowledged_at) VALUES (?, 'order.refunded', 'order', ?, ?, 1, 'pending', 0, NULL, NULL, ?, NULL);",
+        values: [`${o.id}-refund-evt`, o.id, JSON.stringify({ orderId: o.id }), o.createdAt],
       });
     }
   }

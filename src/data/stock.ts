@@ -394,8 +394,8 @@ export type VoidReversalPlan = { statements: Statement[]; restoredLines: number 
 
 /**
  * Kebalikan dari konsumsi: tulis movement `return_in` dan kembalikan stok.
- * Idempoten — kalau reversal untuk order ini sudah pernah ditulis, hasilnya
- * kosong (dijaga juga oleh unique index V5).
+ * Idempoten — kalau reversal untuk order ini sudah pernah ditulis (baik void maupun refund),
+ * hasilnya kosong (dijaga juga oleh unique index V5).
  */
 export async function prepareVoidReversal(
   db: SQLiteDBConnection,
@@ -405,7 +405,7 @@ export async function prepareVoidReversal(
 ): Promise<VoidReversalPlan> {
   if (!orderId) throw new Error("orderId wajib diisi.");
   const already = await db.query(
-    "SELECT COUNT(*) AS c FROM stock_movements WHERE reference_type = 'order_void' AND reference_id = ?;",
+    "SELECT COUNT(*) AS c FROM stock_movements WHERE reference_type IN ('order_void', 'order_refund') AND reference_id = ?;",
     [orderId],
   );
   const alreadyRow = rowsOf(already)[0];
@@ -428,6 +428,61 @@ export async function prepareVoidReversal(
     statements.push({
       statement:
         "INSERT OR IGNORE INTO stock_movements (id, ingredient_id, product_id, qty, movement_type, reference_type, reference_id, reason, actor, created_at) VALUES (?, ?, NULL, ?, 'return_in', 'order_void', ?, 'void order', ?, ?);",
+      values: [movementId, ingredientId, back, orderId, actor, now],
+    });
+    statements.push({
+      statement:
+        "UPDATE ingredients SET stock_qty = ROUND(stock_qty + ?, 3) WHERE id = ? AND EXISTS (SELECT 1 FROM stock_movements WHERE id = ?);",
+      values: [back, ingredientId, movementId],
+    });
+    restoredLines += 1;
+  }
+  return { statements, restoredLines };
+}
+
+/**
+ * Kebalikan dari konsumsi untuk refund: tulis movement `return_in` dan kembalikan stok.
+ *
+ * Keputusan skema ID & reference movement:
+ * Reversal refund menggunakan prefix ID `mv-refund-${orderId}-${ingredientId}` dan
+ * `reference_type = 'order_refund'` (bukan menduplikasi `order_void`) agar riwayat mutasi
+ * stok di ledger membedakan dengan jelas antara pembatalan void vs pengembalian refund.
+ * Pencegahan double-return stok dijamin di dua lapis:
+ * 1. Di level status order: transisi status menggunakan klausa atomik `WHERE id = ? AND status = 'completed'`.
+ * 2. Di level stok: query penjaga `WHERE reference_type IN ('order_void', 'order_refund') AND reference_id = ?`
+ *    memastikan tidak ada reversal ganda sekalipun order pernah diproses sebelumnya.
+ */
+export async function prepareRefundReversal(
+  db: SQLiteDBConnection,
+  orderId: string,
+  now: string,
+  actor: string | null = null,
+): Promise<VoidReversalPlan> {
+  if (!orderId) throw new Error("orderId wajib diisi.");
+  const already = await db.query(
+    "SELECT COUNT(*) AS c FROM stock_movements WHERE reference_type IN ('order_void', 'order_refund') AND reference_id = ?;",
+    [orderId],
+  );
+  const alreadyRow = rowsOf(already)[0];
+  if (Number(alreadyRow?.c ?? 0) > 0) {
+    return { statements: [], restoredLines: 0 };
+  }
+
+  const res = await db.query(
+    "SELECT ingredient_id AS ingredient_id, qty AS qty FROM stock_movements WHERE reference_type = 'order' AND reference_id = ? AND movement_type = 'sale_consumption';",
+    [orderId],
+  );
+  const statements: Statement[] = [];
+  let restoredLines = 0;
+  for (const row of rowsOf(res)) {
+    const ingredientId = String(row.ingredient_id ?? "");
+    const consumed = Number(row.qty);
+    if (!ingredientId || !Number.isFinite(consumed) || consumed === 0) continue;
+    const back = roundQty(-consumed);
+    const movementId = `mv-refund-${orderId}-${ingredientId}`;
+    statements.push({
+      statement:
+        "INSERT OR IGNORE INTO stock_movements (id, ingredient_id, product_id, qty, movement_type, reference_type, reference_id, reason, actor, created_at) VALUES (?, ?, NULL, ?, 'return_in', 'order_refund', ?, 'refund order', ?, ?);",
       values: [movementId, ingredientId, back, orderId, actor, now],
     });
     statements.push({

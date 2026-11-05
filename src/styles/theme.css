@@ -220,6 +220,17 @@ button.danger:hover:not(:disabled) {
   border-color: transparent;
 }
 
+button.warn {
+  background: var(--warning-bg);
+  border-color: transparent;
+  color: var(--warning);
+}
+
+button.warn:hover:not(:disabled) {
+  background: #ffe8b3;
+  border-color: transparent;
+}
+
 button.danger-solid {
   background: var(--danger);
   border-color: var(--danger);

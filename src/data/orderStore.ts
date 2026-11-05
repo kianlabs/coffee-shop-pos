@@ -151,6 +151,24 @@ export function voidOrder(orderId: string): Order[] {
   return next;
 }
 
+export function refund(orderId: string): Order[] {
+  const orders = loadOrders();
+  const target = orders.find((o) => o.id === orderId);
+  if (!target) {
+    throw new Error("Order sudah di-void/refund atau tidak ditemukan.");
+  }
+  if (target.status !== "completed") {
+    throw new Error("Order sudah di-void/refund atau tidak ditemukan.");
+  }
+  const next = orders.map((o) =>
+    o.id === orderId ? { ...o, status: "refunded" as const } : o,
+  );
+  saveOrders(next);
+  return next;
+}
+
+export const refundOrder = refund;
+
 export function exportBackupJson(): string {
   return JSON.stringify(
     { schemaVersion: 1, exportedAt: new Date().toISOString(), orders: loadOrders() },

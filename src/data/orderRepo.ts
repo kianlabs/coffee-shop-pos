@@ -6,6 +6,7 @@ import {
   importBackupJsonAsync,
   loadAllOrdersAsync,
   loadOrdersAsync,
+  refundOrderAsync,
   voidOrderAsync,
   type BackupRecord,
 } from "./orderRepository";
@@ -16,6 +17,7 @@ import {
   importBackupJson,
   listBackups,
   loadOrders,
+  refund,
   voidOrder,
 } from "./orderStore";
 
@@ -30,6 +32,7 @@ export interface OrderRepo {
   loadAll(): Promise<Order[]>;
   checkout(input: CheckoutInput): Promise<{ order: Order; duplicate: boolean }>;
   void(id: string): Promise<Order[]>;
+  refund(id: string): Promise<Order[]>;
   exportJson(): Promise<string>;
   importJson(json: string): Promise<number>;
   listBackups(): BackupRecord[];
@@ -46,6 +49,7 @@ export const browserRepo: OrderRepo = {
   loadAll: () => Promise.resolve(loadOrders()),
   checkout: (input) => Promise.resolve(checkoutAtomic(input)),
   void: (id) => Promise.resolve(voidOrder(id)),
+  refund: (id) => Promise.resolve(refund(id)),
   exportJson: () => Promise.resolve(exportBackupJson()),
   importJson: (json) => Promise.resolve(importBackupJson(json).count),
   listBackups: () => listBackups(),
@@ -58,6 +62,7 @@ export const sqliteRepo: OrderRepo = {
   loadAll: () => loadAllOrdersAsync(),
   checkout: (input) => checkoutAtomicAsync(input),
   void: (id) => voidOrderAsync(id),
+  refund: (id) => refundOrderAsync(id),
   exportJson: () => exportBackupJsonAsync(),
   importJson: (json) => importBackupJsonAsync(json),
   listBackups: () => listBackups(),

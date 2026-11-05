@@ -247,6 +247,80 @@ check("versi baru bertambah 1", recipeDomain.nextRecipeVersion(1), 2);
 check("versi bertambah dari v5 jadi v6", recipeDomain.nextRecipeVersion(5), 6);
 check("pembulatan qty 3 desimal", recipeDomain.roundRecipeQty(1.23456), 1.235);
 
+console.log("\n[11] refund");
+{
+  const transit = orders.canTransitionOrderStatus("completed", "refunded");
+  check("completed -> refunded diizinkan", transit.allowed, true);
+  const transitVoid = orders.canTransitionOrderStatus("completed", "voided");
+  check("completed -> voided diizinkan", transitVoid.allowed, true);
+  const noVoidToRefund = orders.canTransitionOrderStatus("voided", "refunded");
+  check("voided -> refunded ditolak", noVoidToRefund.allowed, false);
+  const noRefundToVoid = orders.canTransitionOrderStatus("refunded", "voided");
+  check("refunded -> voided ditolak", noRefundToVoid.allowed, false);
+  const noRefundToCompleted = orders.canTransitionOrderStatus("refunded", "completed");
+  check("refunded -> completed ditolak", noRefundToCompleted.allowed, false);
+  const sameStatus = orders.canTransitionOrderStatus("refunded", "refunded");
+  check("refunded -> refunded ditolak", sameStatus.allowed, false);
+
+  const t0 = new Date("2026-11-05T10:00:00.000Z");
+  const row = (id, createdAt, status, totalRp, hppPerItem) => ({
+    id,
+    receiptNumber: "R-" + id,
+    idempotencyKey: id,
+    status,
+    lines: [
+      {
+        productId: "p1",
+        variantId: null,
+        productName: "Kopi",
+        variantName: null,
+        unitPriceRp: 15000,
+        qty: 2,
+        lineTotalRp: 30000,
+        discountRp: 0,
+        netTotalRp: 30000,
+        hppTotal: hppPerItem,
+      },
+    ],
+    subtotalRp: 30000,
+    discountRp: 0,
+    taxRp: 0,
+    serviceChargeRp: 0,
+    roundingRp: 0,
+    totalRp,
+    payment: { method: "cash", amountRp: totalRp, paidAt: createdAt },
+    changeRp: 0,
+    notes: null,
+    createdAt,
+  });
+  const sample = [
+    row("a", "2026-11-05T09:00:00.000Z", "completed", 30000, 12000),
+    row("b", "2026-11-05T10:00:00.000Z", "completed", 25000, 10000),
+    row("c", "2026-11-04T09:00:00.000Z", "completed", 40000, 15000),
+    row("d", "2026-11-05T11:00:00.000Z", "voided", 20000, 8000),
+    row("e", "2026-11-05T12:00:00.000Z", "refunded", 35000, 10000),
+  ];
+  const start = sales.startOfDay(t0);
+  const end = sales.endOfDay(t0);
+  const sum = sales.summarizeSales(sample, start, end);
+  check("orderCount tetap 2 (hanya completed)", sum.orderCount, 2);
+  check("omzet mengecualikan order refunded", sum.grandTotalRp, 55000);
+  check("HPP mengecualikan order refunded", sum.totalHppRp, 22000);
+  check("laba mengecualikan order refunded", sum.grossProfitRp, 38000);
+  check("1 refund tercatat", sum.refundedCount, 1);
+  check("total refund Rp35.000", sum.refundedTotalRp, 35000);
+
+  const tp = sales.topProducts(sample, start, end);
+  check("top products mengecualikan order refunded", tp[0].qty, 4);
+
+  const pb = sales.paymentBreakdown(sample, start, end);
+  check("payment breakdown mengecualikan order refunded", pb[0].totalRp, 55000);
+
+  const shiftTest = { id: "s-ref", cashierName: "K", openedAt: "2026-11-05T08:00:00.000Z", closedAt: null, openCashRp: 0 };
+  const shiftSum = shifts.summarizeShift(shiftTest, [row("e", "2026-11-05T09:00:00.000Z", "refunded", 35000, 10000)]);
+  check("rekap shift mengecualikan order refunded", [shiftSum.orderCount, shiftSum.grandTotalRp], [0, 0]);
+}
+
 rmSync(OUT, { recursive: true, force: true });
 console.log(`\n=== ${fail === 0 ? `SEMUA LULUS (${pass})` : `${fail} GAGAL dari ${pass + fail}`} ===`);
 process.exit(fail === 0 ? 0 : 1);
