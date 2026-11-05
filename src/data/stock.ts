@@ -260,8 +260,9 @@ export async function consumeForOrder(
       });
     }
     txn.push({
-      statement: "UPDATE order_items SET hpp_total_rp = ?, recipe_version_snapshot = ? WHERE id = ?;",
-      values: [snap.hppTotalRp, recipe.version, line.orderItemId],
+      statement:
+        "UPDATE order_items SET hpp_total_rp = ?, hpp_unit_rp = ?, hpp_source = 'recipe', recipe_version_snapshot = ? WHERE id = ? AND hpp_source <> 'manual';",
+      values: [snap.hppTotalRp, hpp.perUnitRp, recipe.version, line.orderItemId],
     });
     await conn.executeTransaction(txn, false);
     consumedItems += 1;

@@ -24,6 +24,7 @@ Status: **draft / baseline**, based on currently confirmed client requirements. 
 - `docs/checkout-flow.md` — checkout transaction flow
 - `docs/offline-sync-flow.md` — outbox sync flow
 - `docs/printer-flow.md` — Bluetooth printer and logo flow
+- `docs/hpp.md` — user-editable HPP (manual / recipe / none) and margin
 - `docs/backup-recovery.md` — backup/recovery baseline
 - `docs/open-decisions.md` — decisions that must be confirmed
 - `database/sqlite-schema.sql` — proposed SQLite schema

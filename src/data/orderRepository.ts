@@ -2,6 +2,7 @@ import type { SQLiteDBConnection } from "@capacitor-community/sqlite";
 import { createCompletedOrder, validateCheckout, type CheckoutInput, type Order } from "../domain/orders";
 import { getDb } from "./db";
 import { STOCK_DEDUCTION_ENABLED, consumeForOrder, v2TablesExist } from "./stock";
+import { hppKey, resolveCheckoutHpp, type CheckoutHpp } from "./productRepo";
 
 export type { BackupRecord } from "./orderStore";
 export { downloadBackup, listBackups } from "./orderStore";
@@ -180,6 +181,25 @@ export async function checkoutAtomicAsync(
   }
   const order = createCompletedOrder(input, new Date());
   const now = order.createdAt;
+
+  // Snapshot HPP per baris SEBELUM insert: manual (diisi user), resep (dihitung
+  // dari bahan), atau none. Kegagalan resolusi tidak boleh menggagalkan
+  // penjualan — dicatat sebagai source 'none' + alasan di detail_json.
+  let hppMap = new Map<string, CheckoutHpp>();
+  try {
+    hppMap = await resolveCheckoutHpp(db, order.lines);
+  } catch (e) {
+    const reason = e instanceof Error ? e.message : "gagal membaca konfigurasi HPP";
+    for (const l of order.lines) {
+      hppMap.set(hppKey(l.productId, l.variantId), {
+        unitHppRp: 0,
+        source: "none",
+        recipeVersion: null,
+        detailJson: JSON.stringify({ error: reason }),
+      });
+    }
+  }
+
   const txn: { statement: string; values?: unknown[] }[] = [
     {
       statement:
@@ -201,10 +221,17 @@ export async function checkoutAtomicAsync(
     },
     ...order.lines.flatMap((l, idx) => {
       const itemId = `${order.id}-item-${idx}`;
+      const hpp = hppMap.get(hppKey(l.productId, l.variantId)) ?? {
+        unitHppRp: 0,
+        source: "none" as const,
+        recipeVersion: null,
+        detailJson: null,
+      };
+      const hppTotalRp = hpp.unitHppRp * l.qty;
       return [
         {
           statement:
-            "INSERT INTO order_items (id, order_id, product_id, variant_id, product_name_snapshot, variant_name_snapshot, quantity, unit_price_rp, discount_rp, line_total_rp, hpp_total_rp, recipe_version_snapshot, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 0, NULL, ?);",
+            "INSERT INTO order_items (id, order_id, product_id, variant_id, product_name_snapshot, variant_name_snapshot, quantity, unit_price_rp, discount_rp, line_total_rp, hpp_total_rp, recipe_version_snapshot, created_at, hpp_unit_rp, hpp_source, hpp_detail_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?);",
           values: [
             itemId,
             order.id,
@@ -215,7 +242,12 @@ export async function checkoutAtomicAsync(
             l.qty,
             l.unitPriceRp,
             l.lineTotalRp,
+            hppTotalRp,
+            hpp.recipeVersion,
             now,
+            hpp.unitHppRp,
+            hpp.source,
+            hpp.detailJson,
           ],
         },
       ];

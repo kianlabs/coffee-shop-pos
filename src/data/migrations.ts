@@ -1,5 +1,5 @@
 export const DB_NAME = "coffee_shop_pos";
-export const DB_VERSION = 3;
+export const DB_VERSION = 4;
 
 export const UPGRADE_V1: string[] = [
   `PRAGMA foreign_keys = ON;`,
@@ -197,4 +197,36 @@ export const UPGRADE_V2: string[] = [
  */
 export const UPGRADE_V3: string[] = [
   `ALTER TABLE orders ADD COLUMN rounding_rp INTEGER NOT NULL DEFAULT 0;`,
+];
+
+/**
+ * UPGRADE_V4 — HPP yang bisa diatur user.
+ *
+ * Sebelumnya HPP hanya bisa dari resep (ingredients → recipes). Banyak warung
+ * kopi tidak mau mencatat resep; mereka tahu "HPP kopi susu = 6.000". V4
+ * menambah mode per produk/varian:
+ *   manual  → user mengisi hpp_manual_rp sendiri
+ *   recipe  → dihitung dari resep aktif (perilaku V2)
+ *   none    → tidak dilacak
+ * Varian: `inherit` (default) ikut produk, atau override sendiri.
+ *
+ * order_items menyimpan snapshot HPP saat transaksi (hpp_unit_rp, hpp_source,
+ * hpp_detail_json) supaya laporan laba historis tidak berubah saat harga
+ * bahan naik. hpp_total_rp (V1) tetap = hpp_unit_rp × quantity.
+ *
+ * Sama seperti V3: SQLite tidak punya `ADD COLUMN IF NOT EXISTS`, jadi
+ * `ensureV4Columns()` di db.ts mengecek PRAGMA table_info dulu. Daftar ini
+ * dipakai untuk fresh install (upgrade statement Capacitor) sekaligus
+ * dokumentasi kolom.
+ */
+export const UPGRADE_V4: string[] = [
+  `ALTER TABLE products ADD COLUMN hpp_mode TEXT NOT NULL DEFAULT 'manual';`,
+  `ALTER TABLE products ADD COLUMN hpp_manual_rp INTEGER NOT NULL DEFAULT 0;`,
+  `ALTER TABLE products ADD COLUMN hpp_updated_at TEXT;`,
+  `ALTER TABLE product_variants ADD COLUMN hpp_mode TEXT NOT NULL DEFAULT 'inherit';`,
+  `ALTER TABLE product_variants ADD COLUMN hpp_manual_rp INTEGER NOT NULL DEFAULT 0;`,
+  `ALTER TABLE product_variants ADD COLUMN hpp_updated_at TEXT;`,
+  `ALTER TABLE order_items ADD COLUMN hpp_unit_rp INTEGER NOT NULL DEFAULT 0;`,
+  `ALTER TABLE order_items ADD COLUMN hpp_source TEXT NOT NULL DEFAULT 'none';`,
+  `ALTER TABLE order_items ADD COLUMN hpp_detail_json TEXT;`,
 ];

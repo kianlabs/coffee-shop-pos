@@ -16,6 +16,7 @@ import { printReceipt, renderReceiptText } from "./data/receipt";
 import { applyRounding, getSettings, saveSettings, type PosSettings } from "./data/settings";
 import { closeShift, openShift, summarizeShift, type Shift } from "./domain/shifts";
 import { ProductItem } from "./components/ProductItem";
+import { HppEditor } from "./components/HppEditor";
 
 type CartLine = {
   productId: string;
@@ -26,12 +27,12 @@ type CartLine = {
   qty: number;
 };
 
-type View = "kasir" | "riwayat" | "backup" | "pengaturan";
+type View = "kasir" | "riwayat" | "hpp" | "backup" | "pengaturan";
 
 type Status = {
   kind: "error" | "ok" | "info";
   msg: string;
-  scope: "kasir" | "riwayat" | "backup" | "pengaturan";
+  scope: "kasir" | "riwayat" | "hpp" | "backup" | "pengaturan";
 };
 
 function newIdempotencyKey(): string {
@@ -514,6 +515,13 @@ export default function App() {
           Riwayat ({orders.length})
         </button>{" "}
         <button
+          aria-current={view === "hpp" ? "page" : undefined}
+          style={{ minHeight: 40, fontWeight: view === "hpp" ? "bold" : undefined }}
+          onClick={() => setView("hpp")}
+        >
+          HPP
+        </button>{" "}
+        <button
           aria-current={view === "backup" ? "page" : undefined}
           style={{ minHeight: 40, fontWeight: view === "backup" ? "bold" : undefined }}
           onClick={() => setView("backup")}
@@ -738,6 +746,7 @@ export default function App() {
         </>
       )}
 
+      {view === "hpp" && <HppEditor />}
       {view === "backup" && (
         <>
           <h2>Backup & Restore</h2>

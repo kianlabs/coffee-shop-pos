@@ -1,5 +1,9 @@
 -- Coffee Shop POS — proposed SQLite schema
 -- Draft only. Review with client and test migrations before production.
+--
+-- SUMBER KEBENARAN: `src/data/migrations.ts` (UPGRADE_V1..V4). File ini adalah
+-- blueprint awal; beberapa tabel di sini belum ada di implementasi (mis.
+-- units_of_measure) dan sebaliknya. Selalu cocokkan dengan migrations.ts.
 PRAGMA foreign_keys = ON;
 PRAGMA journal_mode = WAL;
 PRAGMA synchronous = FULL;
@@ -19,6 +23,10 @@ CREATE TABLE IF NOT EXISTS products (
     name TEXT NOT NULL,
     description TEXT,
     base_price_rp INTEGER NOT NULL CHECK (base_price_rp >= 0),
+    -- HPP yang bisa diatur user (v4): 'manual' | 'recipe' | 'none'
+    hpp_mode TEXT NOT NULL DEFAULT 'manual',
+    hpp_manual_rp INTEGER NOT NULL DEFAULT 0 CHECK (hpp_manual_rp >= 0),
+    hpp_updated_at TEXT,
     is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
@@ -30,6 +38,10 @@ CREATE TABLE IF NOT EXISTS product_variants (
     product_id TEXT NOT NULL REFERENCES products(id),
     name TEXT NOT NULL,
     price_delta_rp INTEGER NOT NULL DEFAULT 0,
+    -- HPP varian (v4): 'inherit' | 'manual' | 'recipe' | 'none'
+    hpp_mode TEXT NOT NULL DEFAULT 'inherit',
+    hpp_manual_rp INTEGER NOT NULL DEFAULT 0 CHECK (hpp_manual_rp >= 0),
+    hpp_updated_at TEXT,
     is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
     UNIQUE(product_id, name)
 );
@@ -112,6 +124,10 @@ CREATE TABLE IF NOT EXISTS order_items (
     line_total_rp INTEGER NOT NULL CHECK (line_total_rp >= 0),
     hpp_total_rp INTEGER NOT NULL DEFAULT 0 CHECK (hpp_total_rp >= 0),
     recipe_version_snapshot INTEGER,
+    -- Snapshot HPP saat transaksi (v4). Tidak boleh dihitung ulang saat lapor.
+    hpp_unit_rp INTEGER NOT NULL DEFAULT 0 CHECK (hpp_unit_rp >= 0),
+    hpp_source TEXT NOT NULL DEFAULT 'none',
+    hpp_detail_json TEXT,
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);

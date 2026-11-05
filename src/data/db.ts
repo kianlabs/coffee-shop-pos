@@ -4,7 +4,7 @@ import {
   SQLiteConnection,
   type SQLiteDBConnection,
 } from "@capacitor-community/sqlite";
-import { DB_NAME, DB_VERSION, UPGRADE_V1, UPGRADE_V2, UPGRADE_V3 } from "./migrations";
+import { DB_NAME, DB_VERSION, UPGRADE_V1, UPGRADE_V2, UPGRADE_V3, UPGRADE_V4 } from "./migrations";
 import { CATEGORIES, PRODUCTS, VARIANTS } from "../domain/catalog";
 
 let sqlite: SQLiteConnection | null = null;
@@ -38,6 +38,7 @@ async function openConnection(): Promise<SQLiteDBConnection> {
       { toVersion: 1, statements: UPGRADE_V1 },
       { toVersion: 2, statements: UPGRADE_V2 },
       { toVersion: 3, statements: UPGRADE_V3 },
+      { toVersion: 4, statements: UPGRADE_V4 },
     ],
   }).catch(() => undefined);
   const exists = await sql.isConnection(DB_NAME, false).catch(() => ({ result: false }));
@@ -47,6 +48,7 @@ async function openConnection(): Promise<SQLiteDBConnection> {
   conn = opened;
   await opened.open();
   await ensureV3Columns(opened);
+  await ensureV4Columns(opened);
   await seedCatalog(opened);
   return opened;
 }
@@ -111,6 +113,38 @@ async function ensureV3Columns(db: SQLiteDBConnection): Promise<void> {
   } catch {
     // Best-effort: void payment tetap opsional via tableSqlAllows di repository.
   }
+}
+
+async function ensureColumn(
+  db: SQLiteDBConnection,
+  table: string,
+  column: string,
+  ddl: string,
+): Promise<void> {
+  if (await tableHasColumn(db, table, column)) {
+    return;
+  }
+  try {
+    await db.execute(`ALTER TABLE ${table} ADD COLUMN ${ddl};`);
+  } catch {
+    // Balapan dengan upgrade path Capacitor atau kolom sudah ada.
+  }
+}
+
+/**
+ * V4: HPP yang bisa diatur user (manual / resep / tanpa HPP) + snapshot HPP
+ * per baris order. Idempotent: dipanggil setiap kali koneksi dibuka.
+ */
+async function ensureV4Columns(db: SQLiteDBConnection): Promise<void> {
+  await ensureColumn(db, "products", "hpp_mode", `hpp_mode TEXT NOT NULL DEFAULT 'manual'`);
+  await ensureColumn(db, "products", "hpp_manual_rp", `hpp_manual_rp INTEGER NOT NULL DEFAULT 0`);
+  await ensureColumn(db, "products", "hpp_updated_at", `hpp_updated_at TEXT`);
+  await ensureColumn(db, "product_variants", "hpp_mode", `hpp_mode TEXT NOT NULL DEFAULT 'inherit'`);
+  await ensureColumn(db, "product_variants", "hpp_manual_rp", `hpp_manual_rp INTEGER NOT NULL DEFAULT 0`);
+  await ensureColumn(db, "product_variants", "hpp_updated_at", `hpp_updated_at TEXT`);
+  await ensureColumn(db, "order_items", "hpp_unit_rp", `hpp_unit_rp INTEGER NOT NULL DEFAULT 0`);
+  await ensureColumn(db, "order_items", "hpp_source", `hpp_source TEXT NOT NULL DEFAULT 'none'`);
+  await ensureColumn(db, "order_items", "hpp_detail_json", `hpp_detail_json TEXT`);
 }
 
 export function getDb(): Promise<SQLiteDBConnection> {
