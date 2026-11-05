@@ -8,11 +8,20 @@ export interface PrinterPort {
   name(): string;
 }
 
+export type PrinterDevice = { name: string; address: string; bonded: boolean };
+export type PrinterStatus = { connected: boolean; address: string | null; name: string | null };
+
 type CapacitorPrinterPlugin = {
   /** Terima base64 ESC/POS, teruskan ke printer thermal via kode native. */
-  print: (args: { data: string }) => Promise<unknown>;
-  /** Opsional: cetak raster logo (PNG base64 tanpa prefix). Ada di plugin v1. */
-  printLogo?: (args: { dataPngBase64: string }) => Promise<unknown>;
+  print: (args: { data: string }) => Promise<{ bytes?: number }>;
+  /** Cetak raster logo (PNG base64 tanpa prefix data:). */
+  printLogo?: (args: { dataPngBase64: string }) => Promise<{ width?: number; height?: number }>;
+  /** Daftar printer Bluetooth yang sudah dipasangkan (bonded). */
+  listDevices?: () => Promise<{ devices?: PrinterDevice[] }>;
+  /** Buka koneksi RFCOMM ke printer. */
+  connect?: (args: { address: string }) => Promise<{ connected?: boolean; name?: string; address?: string }>;
+  disconnect?: () => Promise<unknown>;
+  status?: () => Promise<PrinterStatus>;
 };
 
 function capacitorPrinter(): CapacitorPrinterPlugin | null {
@@ -28,6 +37,41 @@ function capacitorPrinter(): CapacitorPrinterPlugin | null {
 /** True bila bridge native printer (Capacitor PrinterPlugin) terpasang. */
 export function isNativePrinterPresent(): boolean {
   return capacitorPrinter() !== null;
+}
+
+export async function listPrinterDevices(): Promise<PrinterDevice[]> {
+  const plugin = capacitorPrinter();
+  if (!plugin?.listDevices) return [];
+  const res = await plugin.listDevices();
+  return Array.isArray(res?.devices) ? res.devices : [];
+}
+
+export async function connectPrinter(address: string): Promise<PrinterStatus> {
+  const plugin = capacitorPrinter();
+  if (!plugin?.connect) {
+    throw new Error("Printer native belum mendukung koneksi Bluetooth.");
+  }
+  const res = await plugin.connect({ address });
+  return {
+    connected: res?.connected === true,
+    address: res?.address ?? address,
+    name: res?.name ?? null,
+  };
+}
+
+export async function disconnectPrinter(): Promise<void> {
+  const plugin = capacitorPrinter();
+  if (plugin?.disconnect) {
+    await plugin.disconnect();
+  }
+}
+
+export async function printerStatus(): Promise<PrinterStatus> {
+  const plugin = capacitorPrinter();
+  if (!plugin?.status) {
+    return { connected: false, address: null, name: null };
+  }
+  return plugin.status();
 }
 
 function printViaHiddenIframe(text: string, title: string): void {
@@ -60,14 +104,16 @@ function printViaHiddenIframe(text: string, title: string): void {
   if (win) win.print();
   window.setTimeout(() => iframe.remove(), 1000);
 }
+
 function delay(ms: number): Promise<void> {
   return new Promise<void>((resolve) => {
     setTimeout(resolve, ms);
   });
 }
+
 /**
  * Printer browser: cetak via iframe tersembunyi same-origin + window.print().
- * Selalu tersedia di browser desktop; tanpa hardware pun jalan.
+ * Hanya dipakai kalau bridge native tidak ada.
  */
 export class WebPrinter implements PrinterPort {
   name(): string {
@@ -75,8 +121,6 @@ export class WebPrinter implements PrinterPort {
   }
 
   isAvailable(): boolean {
-    // DEFAULT: WebPrinter = fallback saat native tak ada (!isNative).
-    // Tetap true agar tombol Cetak selalu bisa ditekan.
     return !isNativePrinterPresent();
   }
 
@@ -94,30 +138,93 @@ export class WebPrinter implements PrinterPort {
 
 // ESC/POS: INIT + teks + feed + CUT.
 const ESC_INIT = [0x1b, 0x40];
+const ESC_FEED = [0x0a, 0x0a, 0x0a];
 const ESC_CUT = [0x1d, 0x56, 0x42, 0x00];
 
 /**
- * DEFAULT: pemetaan CP437 seadanya — cukup untuk struk Indonesia.
- * `Rp` sudah ASCII (tanpa perubahan); `─`→`-`, `é`→`e`.
- * Karakter di luar 0-255 diganti `?` agar byte tetap valid.
+ * Karakter Latin-1 yang punya posisi berbeda di CP437. Di luar tabel ini,
+ * karakter > 0xFF diganti '?' agar byte tetap valid untuk printer.
+ */
+const CP437_MAP: Record<string, number> = {
+  é: 0x82,
+  â: 0x83,
+  ä: 0x84,
+  à: 0x85,
+  å: 0x86,
+  ç: 0x87,
+  ê: 0x88,
+  ë: 0x89,
+  è: 0x8a,
+  ï: 0x8b,
+  î: 0x8c,
+  ì: 0x8d,
+  Ä: 0x8e,
+  Å: 0x8f,
+  ô: 0x93,
+  ö: 0x94,
+  ò: 0x95,
+  û: 0x96,
+  ù: 0x97,
+  ÿ: 0x98,
+  Ö: 0x99,
+  Ü: 0x9a,
+  ñ: 0xa4,
+  Ñ: 0xa5,
+  "±": 0xf1,
+  "÷": 0xf6,
+  "≈": 0xf7,
+  "°": 0xf8,
+  "·": 0xfa,
+  "─": 0xc4,
+  "│": 0xb3,
+};
+
+/**
+ * Sanitasi teks untuk printer thermal:
+ * - buang byte kontrol (ESC 0x1B, GS 0x1D, dll) supaya isi struk tidak bisa
+ *   menyuntik perintah printer (mis. `ESC p` membuka laci kas).
+ * - newline dipertahankan, tab diganti spasi.
+ * - karakter di luar CP437 jadi '?'.
  */
 export function toCp437ish(text: string): Uint8Array {
-  const normalized = text.replace(/─/g, "-").replace(/é/g, "e").replace(/è/g, "e");
-  const bytes = new Uint8Array(normalized.length);
-  for (let i = 0; i < normalized.length; i += 1) {
-    const code = normalized.charCodeAt(i);
-    bytes[i] = code <= 0xff ? code : 0x3f; // 0x3F = '?'
+  const bytes: number[] = [];
+  for (const ch of text) {
+    if (ch === "\n") {
+      bytes.push(0x0a);
+      continue;
+    }
+    if (ch === "\t") {
+      bytes.push(0x20);
+      continue;
+    }
+    const code = ch.codePointAt(0) ?? 0x3f;
+    if (code < 0x20 || code === 0x7f) {
+      // Byte kontrol: jangan pernah diteruskan ke printer.
+      bytes.push(0x20);
+      continue;
+    }
+    const mapped = CP437_MAP[ch];
+    if (mapped !== undefined) {
+      bytes.push(mapped);
+      continue;
+    }
+    bytes.push(code <= 0xff ? code : 0x3f);
   }
-  return bytes;
+  return new Uint8Array(bytes);
 }
 
-/** DEFAULT: susunan byte struk — INIT, teks + newline, CUT. */
+/** Susunan byte struk — INIT, teks, feed, CUT. */
 export function buildEscPosBytes(text: string): Uint8Array {
   const body = toCp437ish(text.endsWith("\n") ? text : `${text}\n`);
-  const out = new Uint8Array(ESC_INIT.length + body.length + ESC_CUT.length);
-  out.set(ESC_INIT, 0);
-  out.set(body, ESC_INIT.length);
-  out.set(ESC_CUT, ESC_INIT.length + body.length);
+  const out = new Uint8Array(ESC_INIT.length + body.length + ESC_FEED.length + ESC_CUT.length);
+  let offset = 0;
+  out.set(ESC_INIT, offset);
+  offset += ESC_INIT.length;
+  out.set(body, offset);
+  offset += body.length;
+  out.set(ESC_FEED, offset);
+  offset += ESC_FEED.length;
+  out.set(ESC_CUT, offset);
   return out;
 }
 
@@ -133,15 +240,17 @@ export function bytesToBase64(bytes: Uint8Array): string {
 async function sendToNative(base64Data: string): Promise<void> {
   const plugin = capacitorPrinter();
   if (!plugin) {
-    throw new Error("Printer native belum terpasang — pakai WebPrinter.");
+    throw new Error("Printer native belum terpasang.");
   }
   await plugin.print({ data: base64Data });
 }
 
 /**
- * Printer ESC/POS via bridge native (Capacitor `PrinterPlugin`).
- * JANGAN buat plugin native asli di sini — file ini hanya bridge-ready:
- * tanpa plugin terpasang, print() throw dengan pesan jelas.
+ * Printer ESC/POS via bridge native. TIDAK ada fallback diam-diam: kalau
+ * printer belum tersambung, print() gagal dengan pesan yang bisa ditampilkan
+ * ke kasir. Fallback ke WebPrinter hanya terjadi bila plugin native tidak ada
+ * sama sekali (diputuskan di `activePrinter()`), supaya satu struk tidak
+ * tercetak dua kali.
  */
 export class EscPosPrinter implements PrinterPort {
   name(): string {
@@ -168,7 +277,7 @@ export function activePrinter(): PrinterPort {
 
 // Logo raster: `public/assets/logo.png` (disajikan sebagai `assets/logo.png`,
 // PNG monokrom ≤384px untuk 58mm) dibaca via fetch → base64 lalu dikirim ke
-// `PrinterPlugin.printLogo` bila tersedia. Tanpa file/plugin: fallback "[LOGO]".
+// `PrinterPlugin.printLogo`.
 export const LOGO_PLACEHOLDER = "[LOGO]";
 export const LOGO_ASSET_PATH = "assets/logo.png";
 
@@ -184,7 +293,8 @@ export async function loadLogoPngBase64(assetPath: string = LOGO_ASSET_PATH): Pr
   }
 }
 
-export async function printLogoPlaceholder(port?: PrinterPort): Promise<void> {
+/** Cetak logo raster; fallback ke teks `[LOGO]` hanya bila PNG tidak ada. */
+export async function printLogo(port?: PrinterPort): Promise<void> {
   const p = port ?? activePrinter();
   const native = capacitorPrinter();
   if (native && typeof native.printLogo === "function") {
@@ -194,13 +304,5 @@ export async function printLogoPlaceholder(port?: PrinterPort): Promise<void> {
       return;
     }
   }
-  return p.print(LOGO_PLACEHOLDER);
+  await p.print(LOGO_PLACEHOLDER);
 }
-
-/**
- * PLUGIN NATIVE (Android): `PrinterPlugin` v1.
- * - Lokasi: `android/app/src/main/java/com/kianlabs/coffeeshoppos/PrinterPlugin.java`
- * - Terdaftar di `MainActivity` via `registerPlugin(PrinterPlugin.class)`.
- * - Metode: `print({data})` (ESC/POS base64, BT/USB) + `printLogo({dataPngBase64})`.
- * - Belum ada hardware? `activePrinter()` otomatis fallback WebPrinter.
- */

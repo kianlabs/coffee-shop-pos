@@ -8,7 +8,7 @@ import {
   v2TablesExist,
   type ConsumptionPlan,
 } from "./stock";
-import { getSettings } from "./settings";
+import { getSettings, saveSettings, type PosSettings } from "./settings";
 import { hppKey, resolveCheckoutHpp, type CheckoutHpp } from "./productRepo";
 
 export type { BackupRecord } from "./orderStore";
@@ -407,11 +407,90 @@ export async function voidOrderAsync(orderId: string): Promise<Order[]> {
   return loadAllOrders(db);
 }
 
+type CatalogTable = { table: string; columns: string[] };
+
+/**
+ * Tabel master yang ikut backup. Urutan array = urutan INSERT (induk dulu);
+ * urutan DELETE memakai kebalikannya. Kolom dibatasi allowlist supaya nama
+ * kolom dari file backup tidak pernah masuk ke SQL.
+ */
+const CATALOG_TABLES: CatalogTable[] = [
+  {
+    table: "categories",
+    columns: ["id", "name", "sort_order", "is_active", "created_at", "updated_at"],
+  },
+  {
+    table: "products",
+    columns: [
+      "id",
+      "category_id",
+      "name",
+      "description",
+      "base_price_rp",
+      "is_active",
+      "created_at",
+      "updated_at",
+      "hpp_mode",
+      "hpp_manual_rp",
+      "hpp_updated_at",
+    ],
+  },
+  {
+    table: "product_variants",
+    columns: ["id", "product_id", "name", "price_delta_rp", "is_active", "hpp_mode", "hpp_manual_rp", "hpp_updated_at"],
+  },
+  { table: "ingredients", columns: ["id", "name", "base_unit", "stock_qty", "created_at"] },
+  {
+    table: "ingredient_cost_history",
+    columns: ["id", "ingredient_id", "cost_per_unit_rp", "effective_at", "created_at"],
+  },
+  { table: "recipes", columns: ["id", "product_id", "variant_id", "version", "is_active", "created_at"] },
+  { table: "recipe_items", columns: ["id", "recipe_id", "ingredient_id", "qty_per_unit"] },
+];
+
+type CatalogDump = Record<string, Record<string, unknown>[]>;
+
+async function dumpCatalog(db: SQLiteDBConnection): Promise<CatalogDump> {
+  const out: CatalogDump = {};
+  for (const t of CATALOG_TABLES) {
+    const res = await db.query(`SELECT * FROM ${t.table};`).catch(() => ({ values: [] }));
+    out[t.table] = Array.isArray(res.values) ? (res.values as Record<string, unknown>[]) : [];
+  }
+  return out;
+}
+
+function catalogInsertStatements(dump: CatalogDump): { statement: string; values?: unknown[] }[] {
+  const statements: { statement: string; values?: unknown[] }[] = [];
+  for (const t of CATALOG_TABLES) {
+    const rows = Array.isArray(dump[t.table]) ? dump[t.table] : [];
+    for (const row of rows) {
+      const cols = t.columns.filter((c) => row[c] !== undefined);
+      if (cols.length === 0) continue;
+      statements.push({
+        statement: `INSERT OR REPLACE INTO ${t.table} (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")});`,
+        values: cols.map((c) => row[c]),
+      });
+    }
+  }
+  return statements;
+}
+
+function catalogDeleteStatements(): { statement: string }[] {
+  return [...CATALOG_TABLES].reverse().map((t) => ({ statement: `DELETE FROM ${t.table};` }));
+}
+
 export async function exportBackupJsonAsync(): Promise<string> {
   const db = await getDb();
   const orders = await loadAllOrders(db);
+  const catalog = await dumpCatalog(db);
   return JSON.stringify(
-    { schemaVersion: 1, exportedAt: new Date().toISOString(), orders },
+    {
+      schemaVersion: 2,
+      exportedAt: new Date().toISOString(),
+      posSettings: getSettings(),
+      catalog,
+      orders,
+    },
     null,
     2,
   );
@@ -519,8 +598,18 @@ export async function importBackupJsonAsync(json: string): Promise<number> {
   } catch {
     throw new Error("Format backup tidak valid.");
   }
-  const env = parsed as { schemaVersion?: unknown; orders?: unknown };
-  if (!env || typeof env !== "object" || env.schemaVersion !== 1 || !Array.isArray(env.orders)) {
+  const env = parsed as {
+    schemaVersion?: unknown;
+    orders?: unknown;
+    catalog?: unknown;
+    posSettings?: unknown;
+  };
+  if (
+    !env ||
+    typeof env !== "object" ||
+    (env.schemaVersion !== 1 && env.schemaVersion !== 2) ||
+    !Array.isArray(env.orders)
+  ) {
     throw new Error("Format backup tidak valid.");
   }
   if (env.orders.length > MAX_BACKUP_ORDERS) {
@@ -534,11 +623,18 @@ export async function importBackupJsonAsync(json: string): Promise<number> {
     // order_items; tanpa baris ini restore selalu gagal "FOREIGN KEY constraint
     // failed" begitu ada satu order yang memakai resep.
     { statement: "DELETE FROM order_item_cost_snapshots;" },
+    { statement: "DELETE FROM stock_movements;" },
     { statement: "DELETE FROM payments;" },
     { statement: "DELETE FROM order_items;" },
     { statement: "DELETE FROM sync_outbox;" },
     { statement: "DELETE FROM orders;" },
   ];
+  // Backup v2 membawa master data (produk, varian, bahan, resep, HPP) dan
+  // setelan. Tanpa ini hasil restore bukan POS yang bisa langsung dipakai.
+  if (env.schemaVersion === 2 && env.catalog && typeof env.catalog === "object") {
+    txn.push(...catalogDeleteStatements());
+    txn.push(...catalogInsertStatements(env.catalog as CatalogDump));
+  }
   for (const o of orders) {
     txn.push({
       statement:
@@ -583,5 +679,8 @@ export async function importBackupJsonAsync(json: string): Promise<number> {
     ],
   });
   await db.executeTransaction(txn, false);
+  if (env.schemaVersion === 2 && env.posSettings && typeof env.posSettings === "object") {
+    saveSettings(env.posSettings as PosSettings);
+  }
   return orders.length;
 }

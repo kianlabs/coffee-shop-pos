@@ -12,7 +12,7 @@ import {
 } from "./data/sync";
 import { decryptJson, encryptJson, isEncryptedBackup } from "./data/cryptoBackup";
 import { activePrinter } from "./data/printer";
-import { printReceipt, renderReceiptText } from "./data/receipt";
+import { renderReceiptText } from "./data/receipt";
 import { applyRounding, getSettings, saveSettings, type PosSettings } from "./data/settings";
 import { closeShift, openShift, summarizeShift, type Shift } from "./domain/shifts";
 import { ProductItem } from "./components/ProductItem";
@@ -43,8 +43,48 @@ function newIdempotencyKey(): string {
   return `key-${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
 }
 
+const CART_STORAGE_KEY = "pos.cart.v1";
+const SHIFT_STORAGE_KEY = "pos.shift.v1";
+
+/** Pulihkan keranjang dari storage; data rusak diabaikan, bukan crash. */
+function loadStoredCart(): CartLine[] {
+  try {
+    const raw = localStorage.getItem(CART_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((l): l is CartLine => {
+      if (!l || typeof l !== "object") return false;
+      const o = l as Record<string, unknown>;
+      return typeof o.productId === "string" && typeof o.qty === "number" && o.qty > 0;
+    });
+  } catch {
+    return [];
+  }
+}
+
+function loadStoredShift(): Shift | null {
+  try {
+    const raw = localStorage.getItem(SHIFT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    const o = parsed as Record<string, unknown>;
+    if (typeof o.id !== "string" || typeof o.openedAt !== "string") return null;
+    return {
+      id: o.id,
+      cashierName: typeof o.cashierName === "string" ? o.cashierName : "",
+      openedAt: o.openedAt,
+      closedAt: typeof o.closedAt === "string" ? o.closedAt : null,
+      openCashRp: typeof o.openCashRp === "number" ? o.openCashRp : 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export default function App() {
-  const [cart, setCart] = useState<CartLine[]>([]);
+  const [cart, setCart] = useState<CartLine[]>(() => loadStoredCart());
   const [categoryId, setCategoryId] = useState<string>(CATEGORIES[0].id);
   const [discount, setDiscount] = useState<number>(0);
   const [tax, setTax] = useState<number>(0);
@@ -67,9 +107,16 @@ export default function App() {
   const [backupPass, setBackupPass] = useState<string>("");
   // --- Pengaturan + shift (WorkflowSlice; state tambahan, handler inti tak diubah) ---
   const [posSettings, setPosSettings] = useState<PosSettings>(() => getSettings());
-  const [shift, setShift] = useState<Shift | null>(null);
+  // Draft terpisah: mengetik di Pengaturan tidak boleh langsung mengubah total
+  // di layar kasir sebelum tombol Simpan ditekan.
+  const [settingsDraft, setSettingsDraft] = useState<PosSettings>(() => getSettings());
+  const [shift, setShift] = useState<Shift | null>(() => loadStoredShift());
   const [lastShiftSummary, setLastShiftSummary] = useState<string | null>(null);
   const [historyFilter, setHistoryFilter] = useState<"all" | "completed" | "voided">("all");
+  const [pinRequest, setPinRequest] = useState<{ orderId: string; label: string } | null>(null);
+  const [pinInput, setPinInput] = useState("");
+  const [pinError, setPinError] = useState<string | null>(null);
+  const [pinAttempts, setPinAttempts] = useState(0);
 
   const [orders, setOrders] = useState<Order[]>([]);
 
@@ -77,6 +124,27 @@ export default function App() {
   viewRef.current = view;
   const dbReadyRef = useRef(dbReady);
   dbReadyRef.current = dbReady;
+
+  // Keranjang & shift bertahan saat WebView di-kill / HP kehabisan baterai.
+  useEffect(() => {
+    try {
+      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+    } catch {
+      // Storage penuh: keranjang tetap hidup di memori.
+    }
+  }, [cart]);
+
+  useEffect(() => {
+    try {
+      if (shift) {
+        localStorage.setItem(SHIFT_STORAGE_KEY, JSON.stringify(shift));
+      } else {
+        localStorage.removeItem(SHIFT_STORAGE_KEY);
+      }
+    } catch {
+      // Idem: kegagalan storage tidak boleh menghentikan kasir.
+    }
+  }, [shift]);
 
   // Satu-satunya effect load: initial (ordersVersion 0) selalu jalan sampai
   // dbReady; reload berikutnya (restore) dijaga dbReady agar tak menembak DB
@@ -122,8 +190,8 @@ export default function App() {
   // (cart, discount, tax, serviceCharge, rounding, payMethod); double-click
   // pakai key yang sama sehingga backend menandai duplikat, bukan order baru.
   const cartHash = useMemo(
-    () => `${JSON.stringify(cart)}|${discount}|${tax}|${serviceCharge}|${roundingCalc.roundingRp}|${posSettings.roundingStep}|${payMethod}`,
-    [cart, discount, tax, serviceCharge, roundingCalc.roundingRp, posSettings.roundingStep, payMethod],
+    () => `${JSON.stringify(cart)}|${discount}|${tax}|${serviceCharge}|${roundingCalc.roundingRp}|${posSettings.roundingStep}|${payMethod}|${payAmount}|${notes.trim()}`,
+    [cart, discount, tax, serviceCharge, roundingCalc.roundingRp, posSettings.roundingStep, payMethod, payAmount, notes],
   );
   const cartKeyRef = useRef<{ hash: string; key: string } | null>(null);
 
@@ -226,6 +294,26 @@ export default function App() {
           : `Order ${order.receiptNumber} tersimpan. Kembalian ${formatRupiah(order.changeRp)}.`,
         scope: "kasir",
       });
+      // Cetak otomatis setelah commit: struk gagal tidak membatalkan penjualan.
+      if (posSettings.autoPrint) {
+        const port = activePrinter();
+        port
+          .print(
+            renderReceiptText(order, {
+              storeName: posSettings.storeName,
+              cashierName: posSettings.cashierName,
+            }),
+          )
+          .catch((err: unknown) => {
+            setStatus({
+              kind: "error",
+              msg: `Order tersimpan, tapi struk gagal dicetak: ${
+                err instanceof Error ? err.message : "printer tidak merespons"
+              }`,
+              scope: "kasir",
+            });
+          });
+      }
     } catch (e) {
       setStatus({
         kind: "error",
@@ -237,19 +325,7 @@ export default function App() {
     }
   }
 
-  async function handleVoid(orderId: string) {
-    const label = orders.find((o) => o.id === orderId)?.receiptNumber ?? orderId;
-    // Gate PIN void (WorkflowSlice; handler inti repo.void tidak diubah).
-    if (posSettings.requireVoidPin) {
-      const entered = window.prompt(`Void order ${label} butuh PIN void:`);
-      if (entered === null) {
-        return;
-      }
-      if (posSettings.voidPin === "" || entered !== posSettings.voidPin) {
-        setStatus({ kind: "error", msg: "PIN void salah — void dibatalkan.", scope: "riwayat" });
-        return;
-      }
-    }
+  async function performVoid(orderId: string, label: string) {
     if (!window.confirm(`Void order ${label}? Tindakan permanen.`)) {
       return;
     }
@@ -263,6 +339,49 @@ export default function App() {
         scope: "riwayat",
       });
     }
+  }
+
+  async function handleVoid(orderId: string) {
+    const label = orders.find((o) => o.id === orderId)?.receiptNumber ?? orderId;
+    // PIN lewat modal, bukan window.prompt: prompt tidak menyamarkan input dan
+    // tidak bisa dibatasi percobaannya.
+    if (posSettings.requireVoidPin) {
+      if (posSettings.voidPin === "") {
+        setStatus({
+          kind: "error",
+          msg: "PIN void aktif tapi belum diisi di Pengaturan.",
+          scope: "riwayat",
+        });
+        return;
+      }
+      setPinInput("");
+      setPinError(null);
+      setPinAttempts(0);
+      setPinRequest({ orderId, label });
+      return;
+    }
+    await performVoid(orderId, label);
+  }
+
+  function confirmVoidPin() {
+    if (!pinRequest) return;
+    if (pinInput !== posSettings.voidPin) {
+      const next = pinAttempts + 1;
+      setPinAttempts(next);
+      setPinInput("");
+      if (next >= 3) {
+        setPinRequest(null);
+        setStatus({ kind: "error", msg: "PIN salah 3x — void dibatalkan.", scope: "riwayat" });
+        return;
+      }
+      setPinError(`PIN salah. Sisa ${3 - next} percobaan.`);
+      return;
+    }
+    const req = pinRequest;
+    setPinRequest(null);
+    setPinInput("");
+    setPinError(null);
+    void performVoid(req.orderId, req.label);
   }
 
   /**
@@ -294,37 +413,30 @@ export default function App() {
     }
   }
 
-  // Cetak via PrinterPort aktif; gagal (mis. popup diblokir / native belum
-  // terpasang) → fallback printReceipt lama. Reprint aman: order sama,
-  // tanpa order baru.
-  async function handlePrint(order: Order) {
+  // Cetak lewat SATU jalur saja. Kalau printer native gagal, jangan diam-diam
+  // fallback ke iframe — itu bisa menghasilkan dua struk untuk satu transaksi.
+  async function handlePrint(order: Order, scope: "kasir" | "riwayat" = "riwayat"): Promise<boolean> {
     const label = order.receiptNumber;
     const receiptOpts = { storeName: posSettings.storeName, cashierName: posSettings.cashierName };
+    const port = activePrinter();
     try {
-      await activePrinter().print(renderReceiptText(order, receiptOpts));
-      setStatus({ kind: "ok", msg: `Struk ${label} dikirim ke printer.`, scope: "riwayat" });
+      await port.print(renderReceiptText(order, receiptOpts));
+      setStatus({ kind: "ok", msg: `Struk ${label} terkirim ke ${port.name()}.`, scope });
+      return true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Cetak gagal.";
-      try {
-        printReceipt(order);
-        setStatus({
-          kind: "info",
-          msg: `Printer utama gagal (${msg}) — dipakai cetak browser. Cetak ulang aman, order tetap ${label}.`,
-          scope: "riwayat",
-        });
-      } catch {
-        setStatus({
-          kind: "error",
-          msg: `Cetak gagal: ${msg} Cetak ulang aman — order tetap ${label}, tanpa order baru.`,
-          scope: "riwayat",
-        });
-      }
+      setStatus({
+        kind: "error",
+        msg: `Cetak gagal: ${msg} Order ${label} tetap tersimpan — cetak ulang tidak membuat order baru.`,
+        scope,
+      });
+      return false;
     }
   }
 
   async function handleReload() {
     try {
-      setOrders(await repo.load());
+      setOrders(await repo.load(200));
       setDbReady(true);
       setBrowserReady(true);
     } catch (e) {
@@ -530,41 +642,52 @@ export default function App() {
   }
 
   return (
-    <div style={{ maxWidth: 720, margin: "0 auto", padding: 16, fontFamily: "sans-serif" }}>
+    <div
+      style={{
+        maxWidth: 1100,
+        margin: "0 auto",
+        paddingTop: "max(16px, env(safe-area-inset-top))",
+        paddingBottom: "max(16px, env(safe-area-inset-bottom))",
+        paddingLeft: "max(16px, env(safe-area-inset-left))",
+        paddingRight: "max(16px, env(safe-area-inset-right))",
+        boxSizing: "border-box",
+        fontFamily: "sans-serif",
+      }}
+    >
       <h1>Kopi POS - Kasir</h1>
       <p>Kasir Siap - Offline Mode</p>
       <nav style={{ marginBottom: 16 }}>
         <button
           aria-current={view === "kasir" ? "page" : undefined}
-          style={{ minHeight: 40, fontWeight: view === "kasir" ? "bold" : undefined }}
+          style={{ minHeight: 44, fontWeight: view === "kasir" ? "bold" : undefined }}
           onClick={() => setView("kasir")}
         >
           Kasir
         </button>{" "}
         <button
           aria-current={view === "riwayat" ? "page" : undefined}
-          style={{ minHeight: 40, fontWeight: view === "riwayat" ? "bold" : undefined }}
+          style={{ minHeight: 44, fontWeight: view === "riwayat" ? "bold" : undefined }}
           onClick={() => setView("riwayat")}
         >
           Riwayat ({orders.length})
         </button>{" "}
         <button
           aria-current={view === "hpp" ? "page" : undefined}
-          style={{ minHeight: 40, fontWeight: view === "hpp" ? "bold" : undefined }}
+          style={{ minHeight: 44, fontWeight: view === "hpp" ? "bold" : undefined }}
           onClick={() => setView("hpp")}
         >
           HPP
         </button>{" "}
         <button
           aria-current={view === "backup" ? "page" : undefined}
-          style={{ minHeight: 40, fontWeight: view === "backup" ? "bold" : undefined }}
+          style={{ minHeight: 44, fontWeight: view === "backup" ? "bold" : undefined }}
           onClick={() => setView("backup")}
         >
           Backup
         </button>{" "}
         <button
           aria-current={view === "pengaturan" ? "page" : undefined}
-          style={{ minHeight: 40, fontWeight: view === "pengaturan" ? "bold" : undefined }}
+          style={{ minHeight: 44, fontWeight: view === "pengaturan" ? "bold" : undefined }}
           onClick={() => setView("pengaturan")}
         >
           Pengaturan
@@ -579,7 +702,7 @@ export default function App() {
                 aria-current={c.id === categoryId ? "true" : undefined}
                 style={{
                   marginRight: 8,
-                  minHeight: 40,
+                  minHeight: 44,
                   fontWeight: c.id === categoryId ? "bold" : undefined,
                 }}
                 onClick={() => setCategoryId(c.id)}
@@ -598,7 +721,20 @@ export default function App() {
             />
           ))}
 
-          <h2>Keranjang</h2>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h2 style={{ marginBottom: 0 }}>Keranjang</h2>
+            {cart.length > 0 && (
+              <button
+                style={{ minHeight: 44 }}
+                onClick={() => {
+                  setCart([]);
+                  setStatus({ kind: "info", msg: "Keranjang dikosongkan.", scope: "kasir" });
+                }}
+              >
+                Kosongkan
+              </button>
+            )}
+          </div>
           {cart.length === 0 ? (
             <p>Keranjang kosong</p>
           ) : (
@@ -611,14 +747,14 @@ export default function App() {
                 </span>{" "}
                 <button
                   aria-label={`Tambah 1 ${l.productName}${l.variantName ? ` ${l.variantName}` : ""}`}
-                  style={{ minWidth: 40, minHeight: 40 }}
+                  style={{ minWidth: 40, minHeight: 44 }}
                   onClick={() => changeQty(l.productId, l.variantId, 1)}
                 >
                   +
                 </button>{" "}
                 <button
                   aria-label={`Kurangi 1 ${l.productName}${l.variantName ? ` ${l.variantName}` : ""}`}
-                  style={{ minWidth: 40, minHeight: 40 }}
+                  style={{ minWidth: 40, minHeight: 44 }}
                   onClick={() => changeQty(l.productId, l.variantId, -1)}
                 >
                   -
@@ -671,10 +807,20 @@ export default function App() {
             <input
               type="number"
               min={0}
+              inputMode="numeric"
               value={payAmount}
               onChange={(e) => setPayAmount(Math.max(0, Number(e.target.value) || 0))}
             />
-          </label>
+          </label>{" "}
+          <button style={{ minHeight: 44 }} disabled={cart.length === 0} onClick={() => setPayAmount(total)}>
+            Uang pas
+          </button>
+          <p style={{ fontSize: 14 }}>
+            Kembalian: <strong>{formatRupiah(Math.max(0, payAmount - total))}</strong>
+            {payAmount > 0 && payAmount < total && (
+              <span style={{ color: "#b00020" }}> — kurang {formatRupiah(total - payAmount)}</span>
+            )}
+          </p>
           <div style={{ marginTop: 8 }}>
             <label>
               Catatan:{" "}
@@ -697,7 +843,7 @@ export default function App() {
           )}
           <button
             disabled={processing || cart.length === 0 || (!dbReady && !browserReady)}
-            style={{ minHeight: 40 }}
+            style={{ minHeight: 44 }}
             onClick={handleCheckout}
           >
             {processing ? "Memproses..." : `Bayar ${formatRupiah(total)}`}
@@ -717,7 +863,7 @@ export default function App() {
       {view === "riwayat" && (
         <>
           <h2>Riwayat Order</h2>
-          <button style={{ minHeight: 40, marginBottom: 8 }} onClick={handleReload}>
+          <button style={{ minHeight: 44, marginBottom: 8 }} onClick={handleReload}>
             Muat ulang
           </button>{" "}
           <label>
@@ -765,11 +911,11 @@ export default function App() {
                     {l.variantName ? ` (${l.variantName})` : ""} x{l.qty}
                   </p>
                 ))}
-                <button style={{ minHeight: 40 }} onClick={() => void handlePrint(o)}>
+                <button style={{ minHeight: 44 }} onClick={() => void handlePrint(o)}>
                   Cetak / Cetak ulang
                 </button>{" "}
                 {o.status === "completed" && (
-                  <button style={{ minHeight: 40 }} onClick={() => handleVoid(o.id)}>
+                  <button style={{ minHeight: 44 }} onClick={() => handleVoid(o.id)}>
                     Void
                   </button>
                 )}
@@ -784,7 +930,7 @@ export default function App() {
       {view === "backup" && (
         <>
           <h2>Backup & Restore</h2>
-          <button style={{ minHeight: 40 }} onClick={handleBackup}>
+          <button style={{ minHeight: 44 }} onClick={handleBackup}>
             Unduh backup (JSON)
           </button>
           <div style={{ marginTop: 12 }}>
@@ -817,7 +963,7 @@ export default function App() {
               autoComplete="off"
             />
           </label>{" "}
-          <button style={{ minHeight: 40, marginTop: 8 }} onClick={handleBackupEncrypted}>
+          <button style={{ minHeight: 44, marginTop: 8 }} onClick={handleBackupEncrypted}>
             Unduh backup terenkripsi
           </button>
           <h3>Backup terakhir</h3>
@@ -863,7 +1009,7 @@ export default function App() {
           </div>
           <div style={{ marginTop: 8 }}>
             <button
-              style={{ minHeight: 40 }}
+              style={{ minHeight: 44 }}
               onClick={() => {
                 saveSyncSettings(syncSettings);
                 setStatus({ kind: "ok", msg: "Pengaturan sync disimpan.", scope: "backup" });
@@ -871,7 +1017,7 @@ export default function App() {
             >
               Simpan pengaturan
             </button>{" "}
-            <button style={{ minHeight: 40 }} disabled={syncing} onClick={handleSyncNow}>
+            <button style={{ minHeight: 44 }} disabled={syncing} onClick={handleSyncNow}>
               {syncing ? "Sync…" : "Sync sekarang"}
             </button>
           </div>
@@ -884,8 +1030,8 @@ export default function App() {
           <label>
             Nama toko:{" "}
             <input
-              value={posSettings.storeName}
-              onChange={(e) => setPosSettings({ ...posSettings, storeName: e.target.value })}
+              value={settingsDraft.storeName}
+              onChange={(e) => setSettingsDraft({ ...settingsDraft, storeName: e.target.value })}
               placeholder="KOPI POS"
               maxLength={100}
             />
@@ -894,8 +1040,8 @@ export default function App() {
             <label>
               Nama kasir:{" "}
               <input
-                value={posSettings.cashierName}
-                onChange={(e) => setPosSettings({ ...posSettings, cashierName: e.target.value })}
+                value={settingsDraft.cashierName}
+                onChange={(e) => setSettingsDraft({ ...settingsDraft, cashierName: e.target.value })}
                 placeholder="opsional"
                 maxLength={100}
               />
@@ -907,9 +1053,9 @@ export default function App() {
               <input
                 type="number"
                 min={0}
-                value={posSettings.serviceChargeRp}
+                value={settingsDraft.serviceChargeRp}
                 onChange={(e) =>
-                  setPosSettings({ ...posSettings, serviceChargeRp: Math.max(0, Number(e.target.value) || 0) })
+                  setSettingsDraft({ ...settingsDraft, serviceChargeRp: Math.max(0, Number(e.target.value) || 0) })
                 }
               />
             </label>
@@ -918,9 +1064,9 @@ export default function App() {
             <label>
               Pembulatan:{" "}
               <select
-                value={posSettings.roundingStep}
+                value={settingsDraft.roundingStep}
                 onChange={(e) =>
-                  setPosSettings({ ...posSettings, roundingStep: Number(e.target.value) as PosSettings["roundingStep"] })
+                  setSettingsDraft({ ...settingsDraft, roundingStep: Number(e.target.value) as PosSettings["roundingStep"] })
                 }
               >
                 <option value={0}>Tanpa pembulatan (DEFAULT)</option>
@@ -934,8 +1080,8 @@ export default function App() {
             <label>
               <input
                 type="checkbox"
-                checked={posSettings.requireVoidPin}
-                onChange={(e) => setPosSettings({ ...posSettings, requireVoidPin: e.target.checked })}
+                checked={settingsDraft.requireVoidPin}
+                onChange={(e) => setSettingsDraft({ ...settingsDraft, requireVoidPin: e.target.checked })}
               />{" "}
               Minta PIN saat void
             </label>
@@ -945,22 +1091,44 @@ export default function App() {
               PIN void:{" "}
               <input
                 type="password"
-                value={posSettings.voidPin}
-                onChange={(e) => setPosSettings({ ...posSettings, voidPin: e.target.value.slice(0, 32) })}
+                value={settingsDraft.voidPin}
+                onChange={(e) => setSettingsDraft({ ...settingsDraft, voidPin: e.target.value.slice(0, 32) })}
                 placeholder="isi bila PIN void aktif"
                 autoComplete="off"
               />
             </label>
           </div>
           <div style={{ marginTop: 8 }}>
+            <label>
+              <input
+                type="checkbox"
+                checked={settingsDraft.autoPrint}
+                onChange={(e) => setSettingsDraft({ ...settingsDraft, autoPrint: e.target.checked })}
+              />{" "}
+              Cetak struk otomatis setelah bayar
+            </label>
+          </div>
+          <div style={{ marginTop: 8 }}>
+            <label>
+              <input
+                type="checkbox"
+                checked={settingsDraft.blockNegativeStock}
+                onChange={(e) => setSettingsDraft({ ...settingsDraft, blockNegativeStock: e.target.checked })}
+              />{" "}
+              Tolak transaksi bila stok bahan tidak cukup
+            </label>
+          </div>
+          <div style={{ marginTop: 8 }}>
             <button
-              style={{ minHeight: 40 }}
+              style={{ minHeight: 44 }}
               onClick={() => {
-                if (posSettings.requireVoidPin && posSettings.voidPin.trim() === "") {
+                if (settingsDraft.requireVoidPin && settingsDraft.voidPin.trim() === "") {
                   setStatus({ kind: "error", msg: "PIN void wajib diisi bila PIN void aktif.", scope: "pengaturan" });
                   return;
                 }
-                setPosSettings(saveSettings(posSettings));
+                const saved = saveSettings(settingsDraft);
+                setPosSettings(saved);
+                setSettingsDraft(saved);
                 setStatus({ kind: "ok", msg: "Pengaturan disimpan.", scope: "pengaturan" });
               }}
             >
@@ -988,7 +1156,7 @@ export default function App() {
                 {formatRupiah(summarizeShift(shift, orders).grandTotalRp)}
               </p>
               <button
-                style={{ minHeight: 40 }}
+                style={{ minHeight: 44 }}
                 onClick={() => void handleCloseShift()}
               >
                 Tutup shift
@@ -1000,7 +1168,7 @@ export default function App() {
                 Tidak ada shift berjalan. Kasir: {posSettings.cashierName || "(belum diisi)"}
               </p>
               <button
-                style={{ minHeight: 40 }}
+                style={{ minHeight: 44 }}
                 onClick={() => {
                   setLastShiftSummary(null);
                   setShift(openShift(posSettings.cashierName));
@@ -1013,6 +1181,60 @@ export default function App() {
           )}
           {lastShiftSummary && <p style={{ fontSize: 13 }}>Ringkasan terakhir: {lastShiftSummary}</p>}
         </>
+      )}
+
+      {pinRequest && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="PIN void"
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+            zIndex: 1000,
+          }}
+        >
+          <div style={{ background: "#fff", padding: 20, borderRadius: 12, width: "100%", maxWidth: 360 }}>
+            <h3 style={{ marginTop: 0 }}>PIN void</h3>
+            <p style={{ fontSize: 13 }}>Void order {pinRequest.label} butuh PIN.</p>
+            <input
+              type="password"
+              inputMode="numeric"
+              autoComplete="off"
+              autoFocus
+              value={pinInput}
+              onChange={(e) => {
+                setPinInput(e.target.value.slice(0, 32));
+                setPinError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") confirmVoidPin();
+              }}
+              style={{ width: "100%", minHeight: 48, fontSize: 20, textAlign: "center", boxSizing: "border-box" }}
+            />
+            {pinError && <p style={{ color: "#b00020", fontSize: 13 }}>{pinError}</p>}
+            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+              <button
+                style={{ minHeight: 44, flex: 1 }}
+                onClick={() => {
+                  setPinRequest(null);
+                  setPinInput("");
+                  setPinError(null);
+                }}
+              >
+                Batal
+              </button>
+              <button style={{ minHeight: 44, flex: 1 }} onClick={confirmVoidPin}>
+                Lanjut
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

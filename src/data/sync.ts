@@ -4,17 +4,28 @@ import { getDb } from "./db";
  * Client sync untuk sync_outbox -> POST /v1/sync/events (lihat api/openapi.yaml).
  * Local checkout TIDAK PERNAH bergantung pada modul ini (fire-and-forget saja).
  *
+ * Kebijakan (detail: docs/offline-sync-flow.md):
+ * - Satu sync dalam satu waktu: `syncNow()` memakai lock modul, pemanggil kedua
+ *   menerima promise yang sama (tidak ada request ganda dari interval + tombol).
+ * - `fetch` selalu dibatasi timeout (SYNC_TIMEOUT_MS) dan bisa dibatalkan lewat `signal`.
+ * - 2xx / 409 / `duplicate: true` -> acknowledged (tidak dikirim ulang).
+ * - 429 / 5xx / 408 / network / timeout -> retry: attempt_count+1 + next_attempt_at (backoff).
+ * - 400 / 401 / 403 / 404 / 422 -> status `failed` (terminal, TIDAK di-retry otomatis).
+ *   Setelah endpoint/API key diperbaiki, panggil `requeueFailedEvents()`.
+ * - event_id yang dikirim adalah UUID murni (openapi: format uuid), diturunkan
+ *   deterministik dari sync_outbox.id agar retry tetap idempoten di server.
+ *
  * DEFAULT (aman, mudah diganti):
  * - DEFAULT_ENDPOINT = "https://api.example.invalid" — syncNow MENOLAK kirim
  *   selama endpoint masih *.example.invalid. Ganti via panel Sync di App
- *   (tersimpan di localStorage `pos.sync.v1`) atau konstanta di bawah.
+ *   (tersimpan di localStorage `pos.sync.v1`).
  * - Backoff: 30 detik * 2^attempt, dibatasi 1 jam (BACKOFF_BASE_SEC/MAX).
  * - Batch: max 100 event per sync (SYNC_BATCH_LIMIT).
  */
 
 // ---------------------------------------------------------------------------
 // Konstanta DEFAULT — ganti di sini bila kontrak server berubah.
-// ----------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 
 /** DEFAULT: endpoint placeholder yang tidak akan pernah dikirimi data nyata. */
 export const DEFAULT_SYNC_ENDPOINT = "https://api.example.invalid";
@@ -25,6 +36,9 @@ export const SYNC_SETTINGS_KEY = "pos.sync.v1";
 /** Kunci metadata status sync terakhir di localStorage. */
 export const SYNC_META_KEY = "pos.sync.meta.v1";
 
+/** Batas waktu satu request push (ms). */
+export const SYNC_TIMEOUT_MS = 15_000;
+
 const SYNC_BATCH_LIMIT = 100;
 const BACKOFF_BASE_SEC = 30;
 const BACKOFF_MAX_SEC = 3600;
@@ -34,9 +48,13 @@ const BACKOFF_MAX_SEC = 3600;
 // ----------------------------------------------------------------------------
 
 export type SyncOutboxEvent = {
-  /** sync_outbox.id — dipakai sebagai event_id (idempoten di server). */
+  /** sync_outbox.id — id lokal, TIDAK dikirim ke server. */
   id: string;
+  /** UUID murni yang dikirim sebagai event_id (kunci idempotensi server). */
+  eventId: string;
   eventType: string;
+  aggregateType: string;
+  aggregateId: string;
   schemaVersion: number;
   /** ISO date-time dari sync_outbox.created_at — dipakai occurred_at. */
   occurredAt: string;
@@ -45,6 +63,7 @@ export type SyncOutboxEvent = {
 
 export type SyncSettings = {
   endpoint: string;
+  /** Disimpan plaintext di localStorage (WebView offline, tanpa dependency tambahan). */
   apiKey: string;
   deviceId: string;
 };
@@ -57,14 +76,39 @@ export type SyncMeta = {
 
 export type SyncResult = {
   pushed: number;
+  /** Id lokal (sync_outbox.id) yang di-ack, bukan UUID server. */
   acked: string[];
   rejected: { event_id: string; code: string; message: string }[];
+  /** Id lokal yang ditandai `failed` pada putaran ini. */
+  failed: string[];
   pending: number;
+  duplicate: boolean;
 };
+
+/** Error konfigurasi lokal (endpoint kosong/default/non-https) — bukan salah event. */
+export class SyncConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SyncConfigError";
+  }
+}
+
+/** Error HTTP dari server, dengan klasifikasi retry. */
+export class SyncHttpError extends Error {
+  readonly status: number;
+  readonly retryable: boolean;
+
+  constructor(message: string, status: number, retryable: boolean) {
+    super(message);
+    this.name = "SyncHttpError";
+    this.status = status;
+    this.retryable = retryable;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Settings (localStorage; device_id random tersimpan, dibuat sekali)
-// ----------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 
 function newDeviceId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -136,6 +180,40 @@ export function saveSyncMeta(m: SyncMeta): void {
 }
 
 // ---------------------------------------------------------------------------
+// event_id: UUID murni & deterministik dari id lokal
+// ---------------------------------------------------------------------------
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * Turunkan UUID v4-shaped dari id lokal (FNV-1a 128-bit, 4 seed).
+ * Deterministik: id lokal sama -> UUID sama -> retry tidak menduplikasi data.
+ * JANGAN ubah algoritma ini tanpa migrasi; nilai ini kunci idempotensi server.
+ */
+export function eventIdFor(localId: string): string {
+  if (UUID_RE.test(localId)) return localId.toLowerCase();
+  const seeds = [0x811c9dc5, 0x01000193, 0x9e3779b9, 0x85ebca6b];
+  const bytes: number[] = [];
+  for (const seed of seeds) {
+    let h = seed >>> 0;
+    for (let i = 0; i < localId.length; i++) {
+      h ^= localId.charCodeAt(i);
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
+    h ^= h >>> 16;
+    h = Math.imul(h, 0x85ebca6b) >>> 0;
+    h ^= h >>> 13;
+    h = Math.imul(h, 0xc2b2ae35) >>> 0;
+    h ^= h >>> 16;
+    bytes.push((h >>> 24) & 0xff, (h >>> 16) & 0xff, (h >>> 8) & 0xff, h & 0xff);
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x40; // versi 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // varian RFC 4122
+  const hex = bytes.map((b) => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+// ---------------------------------------------------------------------------
 // Outbox: baca langsung dari SQLite (sumber real).
 // Backend browser (localStorage) tidak punya outbox -> pending 0.
 // ----------------------------------------------------------------------------
@@ -143,6 +221,8 @@ export function saveSyncMeta(m: SyncMeta): void {
 type OutboxRow = {
   id: string;
   event_type: string;
+  aggregate_type: string;
+  aggregate_id: string;
   schema_version: number;
   payload_json: string;
   created_at: string;
@@ -164,7 +244,8 @@ export async function readPendingOutbox(limit = SYNC_BATCH_LIMIT): Promise<SyncO
   let res;
   try {
     res = await db.query(
-      `SELECT id, event_type, schema_version, payload_json, created_at FROM sync_outbox
+      `SELECT id, event_type, aggregate_type, aggregate_id, schema_version, payload_json, created_at
+       FROM sync_outbox
        WHERE status = 'pending' AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
        ORDER BY created_at ASC LIMIT ?;`,
       [now, limit],
@@ -186,7 +267,10 @@ export async function readPendingOutbox(limit = SYNC_BATCH_LIMIT): Promise<SyncO
     }
     out.push({
       id: r.id,
+      eventId: eventIdFor(r.id),
       eventType: r.event_type,
+      aggregateType: typeof r.aggregate_type === "string" ? r.aggregate_type : "order",
+      aggregateId: typeof r.aggregate_id === "string" ? r.aggregate_id : "",
       schemaVersion: Number.isInteger(r.schema_version) ? r.schema_version : 1,
       occurredAt: r.created_at,
       payload,
@@ -195,7 +279,7 @@ export async function readPendingOutbox(limit = SYNC_BATCH_LIMIT): Promise<SyncO
   return out;
 }
 
-/** Hitung semua baris pending (untuk badge status), tanpa batas batch. */
+/** Hitung baris pending (untuk badge status), tanpa batas batch. */
 export async function countPendingOutbox(): Promise<number> {
   let db;
   try {
@@ -214,67 +298,199 @@ export async function countPendingOutbox(): Promise<number> {
   }
 }
 
+/** Hitung baris `failed` (terminal) — untuk diagnosa di panel Sync. */
+export async function countFailedOutbox(): Promise<number> {
+  let db;
+  try {
+    db = await getDb();
+  } catch {
+    return 0;
+  }
+  try {
+    const res = await db.query(`SELECT COUNT(*) AS c FROM sync_outbox WHERE status = 'failed';`);
+    const row = res.values?.[0] as { c?: number } | undefined;
+    return typeof row?.c === "number" ? row.c : 0;
+  } catch {
+    return 0;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Push + ack (kompatibel api/openapi.yaml POST /v1/sync/events)
-// ----------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 
 export function isDefaultEndpoint(endpoint: string): boolean {
   return endpoint.trim().replace(/\/+$/, "") === DEFAULT_SYNC_ENDPOINT;
 }
 
-type PushResponse = {
+/**
+ * Endpoint wajib https://. Pengecualian: http:// hanya untuk localhost
+ * (mock server dev). API key dikirim sebagai Bearer token — jangan pernah
+ * menulisnya ke console/log.
+ */
+export function isEndpointAllowed(endpoint: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(endpoint.trim());
+  } catch {
+    return false;
+  }
+  if (url.protocol === "https:") return true;
+  if (url.protocol !== "http:") return false;
+  const host = url.hostname.toLowerCase();
+  return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
+}
+
+export type PushResponse = {
   acknowledged_event_ids: string[];
   rejected: { event_id: string; code: string; message: string }[];
+  duplicate: boolean;
 };
+
+export type PushOptions = {
+  /** Signal eksternal (mis. batalkan saat komponen unmount). */
+  signal?: AbortSignal;
+  /** Override timeout; default SYNC_TIMEOUT_MS. */
+  timeoutMs?: number;
+};
+
+/** fetch dengan timeout + signal eksternal. */
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  opts: PushOptions,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutMs = opts.timeoutMs ?? SYNC_TIMEOUT_MS;
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  const outer = opts.signal;
+  const onAbort = () => controller.abort();
+  if (outer) {
+    if (outer.aborted) controller.abort();
+    else outer.addEventListener("abort", onAbort, { once: true });
+  }
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (e) {
+    if (timedOut) {
+      throw new Error(`Sync timeout setelah ${Math.round(timeoutMs / 1000)} detik.`);
+    }
+    if (outer?.aborted) throw new Error("Sync dibatalkan.");
+    throw e;
+  } finally {
+    clearTimeout(timer);
+    outer?.removeEventListener("abort", onAbort);
+  }
+}
+
+async function readServerMessage(res: Response): Promise<string> {
+  try {
+    const text = await res.text();
+    if (!text) return "";
+    const parsed: unknown = JSON.parse(text);
+    if (typeof parsed === "object" && parsed !== null) {
+      const obj = parsed as Record<string, unknown>;
+      if (typeof obj.message === "string") return obj.message.slice(0, 300);
+      if (typeof obj.error === "object" && obj.error !== null) {
+        const err = obj.error as Record<string, unknown>;
+        if (typeof err.message === "string") return err.message.slice(0, 300);
+      }
+    }
+    return "";
+  } catch {
+    return "";
+  }
+}
 
 export async function pushEvents(
   endpoint: string,
   apiKey: string,
   deviceId: string,
   events: SyncOutboxEvent[],
+  opts: PushOptions = {},
 ): Promise<PushResponse> {
   const base = endpoint.trim().replace(/\/+$/, "");
   if (!base) {
-    throw new Error("Endpoint sync belum diisi.");
+    throw new SyncConfigError("Endpoint sync belum diisi.");
   }
   if (isDefaultEndpoint(base)) {
-    throw new Error(
+    throw new SyncConfigError(
       "Endpoint sync masih default (api.example.invalid) — ganti dengan URL server dulu.",
     );
   }
-  const res = await fetch(`${base}/v1/sync/events`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
-    },
-    body: JSON.stringify({
-      device_id: deviceId,
-      events: events.map((e) => ({
-        event_id: e.id,
-        event_type: e.eventType,
-        schema_version: e.schemaVersion,
-        occurred_at: e.occurredAt,
-        payload: e.payload,
-      })),
-    }),
-  });
-  if (res.status === 401) {
-    throw new Error("Sync ditolak (401): API key salah atau hilang.");
+  if (!isEndpointAllowed(base)) {
+    throw new SyncConfigError(
+      "Endpoint sync wajib https:// (http:// hanya diizinkan untuk localhost).",
+    );
   }
+  const res = await fetchWithTimeout(
+    `${base}/v1/sync/events`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        // API key TIDAK pernah dicetak ke log/console.
+        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+      },
+      body: JSON.stringify({
+        device_id: deviceId,
+        events: events.map((e) => ({
+          event_id: e.eventId,
+          event_type: e.eventType,
+          aggregate_type: e.aggregateType,
+          aggregate_id: e.aggregateId,
+          schema_version: e.schemaVersion,
+          occurred_at: e.occurredAt,
+          payload: e.payload,
+        })),
+      }),
+    },
+    opts,
+  );
+
   if (res.status === 409) {
-    throw new Error("Sync konflik (409): perlu rekonsiliasi manual di server.");
+    // Server mengenali event sebagai duplikat/konflik yang sudah tersimpan.
+    return {
+      acknowledged_event_ids: events.map((e) => e.eventId),
+      rejected: [],
+      duplicate: true,
+    };
   }
   if (!res.ok) {
-    throw new Error(`Sync gagal (HTTP ${res.status}).`);
+    const detail = await readServerMessage(res);
+    const suffix = detail ? `: ${detail}` : "";
+    if (res.status === 401) {
+      throw new SyncHttpError(`Sync ditolak (401): API key salah atau hilang${suffix}`, 401, false);
+    }
+    if (res.status === 429) {
+      throw new SyncHttpError(`Sync dibatasi server (429)${suffix}`, 429, true);
+    }
+    if (res.status >= 500 || res.status === 408 || res.status === 425) {
+      throw new SyncHttpError(`Sync gagal sementara (HTTP ${res.status})${suffix}`, res.status, true);
+    }
+    // 400/403/404/422 dan 4xx lain: payload tidak akan pernah diterima.
+    throw new SyncHttpError(`Sync ditolak permanen (HTTP ${res.status})${suffix}`, res.status, false);
   }
-  const body: unknown = await res.json().catch(() => null);
+
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    // 2xx tanpa body valid: status commit tidak pasti -> aman untuk retry (idempoten).
+    throw new SyncHttpError("Respons server tidak valid (bukan JSON).", res.status, true);
+  }
   const obj = (typeof body === "object" && body !== null ? body : {}) as Record<string, unknown>;
   return {
     acknowledged_event_ids: Array.isArray(obj.acknowledged_event_ids)
       ? (obj.acknowledged_event_ids as unknown[]).filter((x): x is string => typeof x === "string")
       : [],
     rejected: Array.isArray(obj.rejected) ? (obj.rejected as PushResponse["rejected"]) : [],
+    duplicate: obj.duplicate === true,
   };
 }
 
@@ -286,7 +502,7 @@ export async function markAcked(ids: string[]): Promise<void> {
   // UPDATE satu-per-satu agar kompatibel dengan binding positional SQLite.
   for (const id of ids) {
     await db.run(
-      `UPDATE sync_outbox SET status = 'acknowledged', acknowledged_at = ?, last_error = NULL WHERE id = ?;`,
+      `UPDATE sync_outbox SET status = 'acknowledged', acknowledged_at = ?, last_error = NULL, next_attempt_at = NULL WHERE id = ?;`,
       [now, id],
     );
   }
@@ -318,51 +534,135 @@ export async function markRetry(ids: string[], message: string): Promise<void> {
   }
 }
 
+/** Tandai event gagal permanen (4xx non-retryable). Tidak di-retry otomatis. */
+export async function markFailed(ids: string[], message: string): Promise<void> {
+  if (ids.length === 0) return;
+  const db = await getDb();
+  for (const id of ids) {
+    await db.run(
+      `UPDATE sync_outbox SET status = 'failed', last_error = ?, next_attempt_at = NULL WHERE id = ?;`,
+      [message.slice(0, 500), id],
+    );
+  }
+}
+
+/**
+ * Kembalikan event `failed` menjadi `pending` (attempt direset).
+ * Dipanggil manual setelah endpoint/API key diperbaiki.
+ */
+export async function requeueFailedEvents(): Promise<void> {
+  const db = await getDb();
+  await db.run(
+    `UPDATE sync_outbox SET status = 'pending', attempt_count = 0, next_attempt_at = NULL, last_error = NULL
+     WHERE status = 'failed';`,
+  );
+}
+
 // ---------------------------------------------------------------------------
-// Orkestrasi satu putaran sync (dipanggil tombol manual + interval App).
+// Orkestrasi satu putaran sync (tombol manual + interval App).
 // ----------------------------------------------------------------------------
 
-export async function syncNow(settings?: SyncSettings): Promise<SyncResult> {
+/** Lock modul: hanya satu sync berjalan; pemanggil lain menerima promise yang sama. */
+let inFlight: Promise<SyncResult> | null = null;
+
+export function isSyncInFlight(): boolean {
+  return inFlight !== null;
+}
+
+export function syncNow(settings?: SyncSettings): Promise<SyncResult> {
+  if (inFlight) return inFlight;
+  inFlight = runSync(settings).finally(() => {
+    inFlight = null;
+  });
+  return inFlight;
+}
+
+function isLocalConfigError(e: unknown): boolean {
+  return e instanceof SyncConfigError;
+}
+
+function isRetryable(e: unknown): boolean {
+  if (e instanceof SyncHttpError) return e.retryable;
+  if (e instanceof SyncConfigError) return false;
+  // TypeError = fetch gagal (offline/DNS/CORS); timeout sudah jadi Error biasa.
+  return true;
+}
+
+async function runSync(settings?: SyncSettings): Promise<SyncResult> {
   const s = settings ?? loadSyncSettings();
   const events = await readPendingOutbox();
   if (events.length === 0) {
     const meta = loadSyncMeta();
     saveSyncMeta({ ...meta, lastSyncAt: new Date().toISOString(), lastError: null, lastPushed: 0 });
-    return { pushed: 0, acked: [], rejected: [], pending: await countPendingOutbox() };
+    return {
+      pushed: 0,
+      acked: [],
+      rejected: [],
+      failed: [],
+      pending: await countPendingOutbox(),
+      duplicate: false,
+    };
   }
+
+  const localByEventId = new Map(events.map((e) => [e.eventId, e.id] as const));
+  const allLocalIds = events.map((e) => e.id);
+
   let resp: PushResponse;
   try {
     resp = await pushEvents(s.endpoint, s.apiKey, s.deviceId, events);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Sync gagal.";
-    // Endpoint default / offline bukan kesalahan DB: jangan naikkan attempt agar
-    // tidak membanjiri next_attempt_at; cukup catat ke meta.
-    const isLocalGuard =
-      msg.includes("masih default") || (e instanceof TypeError && /fetch|network|offline/i.test(String(e)));
-    if (!isLocalGuard) {
-      await markRetry(
-        events.map((ev) => ev.id),
-        msg,
-      ).catch(() => undefined);
+    // Guard konfigurasi lokal bukan salah event: jangan ubah status outbox.
+    if (isLocalConfigError(e)) {
+      saveSyncMeta({ lastSyncAt: loadSyncMeta().lastSyncAt, lastError: msg, lastPushed: 0 });
+      throw e instanceof Error ? e : new Error(msg);
+    }
+    if (isRetryable(e)) {
+      await markRetry(allLocalIds, msg).catch(() => undefined);
+    } else {
+      await markFailed(allLocalIds, msg).catch(() => undefined);
     }
     saveSyncMeta({ lastSyncAt: loadSyncMeta().lastSyncAt, lastError: msg, lastPushed: 0 });
     throw e instanceof Error ? e : new Error(msg);
   }
-  const acked = resp.acknowledged_event_ids.filter((id) => events.some((e) => e.id === id));
+
+  // Server boleh membalas `duplicate: true` tanpa daftar ack -> anggap semua ack.
+  const ackIds =
+    resp.duplicate && resp.acknowledged_event_ids.length === 0
+      ? events.map((e) => e.eventId)
+      : resp.acknowledged_event_ids;
+  const acked = ackIds
+    .map((id) => localByEventId.get(id))
+    .filter((id): id is string => typeof id === "string");
   await markAcked(acked).catch(() => undefined);
-  const rejectedIds = resp.rejected.map((r) => r.event_id);
-  // Event yang tidak di-ack dan tidak di-reject: anggap belum terkirim -> retry.
-  const unacked = events.map((e) => e.id).filter((id) => !acked.includes(id) && !rejectedIds.includes(id));
+
+  const rejectedLocal: string[] = [];
+  for (const r of resp.rejected) {
+    const localId = localByEventId.get(r.event_id);
+    if (!localId) continue;
+    rejectedLocal.push(localId);
+    // Ditolak eksplisit oleh server: payload sama tidak akan pernah diterima.
+    await markFailed([localId], `${r.code}: ${r.message}`.slice(0, 500)).catch(() => undefined);
+  }
+
+  const ackedSet = new Set(acked);
+  const rejectedSet = new Set(rejectedLocal);
+  const unacked = allLocalIds.filter((id) => !ackedSet.has(id) && !rejectedSet.has(id));
   if (unacked.length > 0) {
     await markRetry(unacked, "Tidak di-ack server, coba lagi.").catch(() => undefined);
   }
-  if (rejectedIds.length > 0) {
-    await markRetry(rejectedIds, "Ditolak server (lihat log), coba lagi.").catch(() => undefined);
-  }
+
   saveSyncMeta({
     lastSyncAt: new Date().toISOString(),
     lastError: null,
     lastPushed: acked.length,
   });
-  return { pushed: events.length, acked, rejected: resp.rejected, pending: await countPendingOutbox() };
+  return {
+    pushed: events.length,
+    acked,
+    rejected: resp.rejected,
+    failed: rejectedLocal,
+    pending: await countPendingOutbox(),
+    duplicate: resp.duplicate,
+  };
 }

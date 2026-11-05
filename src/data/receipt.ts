@@ -34,6 +34,17 @@ function fitWidth(text: string): string {
   return `${text.slice(0, WIDTH - 3)}...`;
 }
 
+function itemLine(name: string, variantName: string | null, qty: number): string {
+  const suffix = `${variantName ? ` (${variantName})` : ""} x${qty}`;
+  const room = Math.max(4, WIDTH - suffix.length);
+  const head = truncateName(name, room);
+  const full = `${head}${suffix}`;
+  // Kalau varian + qty saja sudah melebihi lebar kertas, potong dari kiri
+  // supaya angka qty (bukti jumlah) tidak pernah hilang.
+  if (full.length <= WIDTH) return full;
+  return full.slice(full.length - WIDTH);
+}
+
 export function paymentLabel(method: PaymentMethod): string {
   if (method === "cash") return "Tunai";
   if (method === "qris_manual") return "QRIS";
@@ -60,7 +71,7 @@ export function renderReceiptText(order: Order, opts?: ReceiptOptions): string {
     rows.push(center(opts.logoText.slice(0, WIDTH)));
   }
   const shopName = opts?.storeName?.trim() ? opts.storeName.trim().slice(0, WIDTH) : SHOP_NAME;
-  rows.push(shopName.padStart(20));
+  rows.push(center(shopName));
   if (order.status === "voided") {
     rows.push(center("*** VOID ***"));
   }
@@ -74,9 +85,7 @@ export function renderReceiptText(order: Order, opts?: ReceiptOptions): string {
   }
   rows.push("-".repeat(WIDTH));
   for (const l of order.lines) {
-    const variant = l.variantName ? ` (${l.variantName})` : "";
-    const name = truncateName(l.productName);
-    rows.push(fitWidth(`${name}${variant} x${l.qty}`));
+    rows.push(itemLine(l.productName, l.variantName, l.qty));
     rows.push(line(`  @${formatRupiah(l.unitPriceRp)}`, formatRupiah(l.lineTotalRp)));
   }
   rows.push("-".repeat(WIDTH));

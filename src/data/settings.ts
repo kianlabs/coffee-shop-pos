@@ -9,6 +9,8 @@ export type PosSettings = {
   storeName: string;
   /** true = checkout ditolak bila stok bahan tidak cukup (default: tetap jalan). */
   blockNegativeStock: boolean;
+  /** true = struk langsung dicetak setelah transaksi tersimpan. */
+  autoPrint: boolean;
 };
 
 /** DEFAULT: semua nilai aman — tanpa biaya tambahan, tanpa pembulatan, tanpa PIN. */
@@ -20,6 +22,7 @@ export const DEFAULT_SETTINGS: PosSettings = {
   cashierName: "",
   storeName: "KOPI POS",
   blockNegativeStock: false,
+  autoPrint: true,
 };
 
 export const SETTINGS_KEY = "pos.settings.v1";
@@ -48,7 +51,8 @@ function sanitize(raw: Partial<PosSettings>): PosSettings {
   const storeRaw = toString(raw.storeName, DEFAULT_SETTINGS.storeName).slice(0, 100);
   const storeName = storeRaw.trim() === "" ? DEFAULT_SETTINGS.storeName : storeRaw;
   const blockNegativeStock = raw.blockNegativeStock === true;
-  return { serviceChargeRp, roundingStep, requireVoidPin, voidPin, cashierName, storeName, blockNegativeStock };
+  const autoPrint = raw.autoPrint !== false;
+  return { serviceChargeRp, roundingStep, requireVoidPin, voidPin, cashierName, storeName, blockNegativeStock, autoPrint };
 }
 
 export function getSettings(): PosSettings {
