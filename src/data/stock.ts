@@ -112,6 +112,22 @@ export async function getStock(db: SQLiteDBConnection, ingredientId: string): Pr
   return typeof row?.q === "number" ? row.q : 0;
 }
 
+export type IngredientRow = { id: string; name: string; baseUnit: string; stockQty: number };
+
+/** Daftar bahan + stok terkini, untuk layar Stok. */
+export async function loadIngredients(db?: SQLiteDBConnection): Promise<IngredientRow[]> {
+  const conn = db ?? (await getDb());
+  const res = await conn.query(
+    "SELECT id, name, base_unit, stock_qty FROM ingredients ORDER BY name ASC;",
+  );
+  return rowsOf(res).map((r) => ({
+    id: String(r.id ?? ""),
+    name: String(r.name ?? ""),
+    baseUnit: String(r.base_unit ?? ""),
+    stockQty: Number(r.stock_qty ?? 0),
+  }));
+}
+
 /**
  * Catat pembelian: tambah/upsert ingredient + cost history + naikkan stok +
  * movement `purchase_received`. Membuat ingredient bila belum ada

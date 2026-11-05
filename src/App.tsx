@@ -17,6 +17,7 @@ import { applyRounding, getSettings, saveSettings, type PosSettings } from "./da
 import { closeShift, openShift, summarizeShift, type Shift } from "./domain/shifts";
 import { ProductItem } from "./components/ProductItem";
 import { HppEditor } from "./components/HppEditor";
+import { StockEditor } from "./components/StockEditor";
 
 type CartLine = {
   productId: string;
@@ -27,12 +28,12 @@ type CartLine = {
   qty: number;
 };
 
-type View = "kasir" | "riwayat" | "hpp" | "backup" | "pengaturan";
+type View = "kasir" | "riwayat" | "hpp" | "stok" | "backup" | "pengaturan";
 
 type Status = {
   kind: "error" | "ok" | "info";
   msg: string;
-  scope: "kasir" | "riwayat" | "hpp" | "backup" | "pengaturan";
+  scope: "kasir" | "riwayat" | "hpp" | "stok" | "backup" | "pengaturan";
 };
 
 function newIdempotencyKey(): string {
@@ -745,6 +746,13 @@ export default function App() {
           HPP
         </button>{" "}
         <button
+          aria-current={view === "stok" ? "page" : undefined}
+          style={{ minHeight: 44, fontWeight: view === "stok" ? "bold" : undefined }}
+          onClick={() => setView("stok")}
+        >
+          Stok
+        </button>{" "}
+        <button
           aria-current={view === "backup" ? "page" : undefined}
           style={{ minHeight: 44, fontWeight: view === "backup" ? "bold" : undefined }}
           onClick={() => setView("backup")}
@@ -993,6 +1001,7 @@ export default function App() {
       )}
 
       {view === "hpp" && <HppEditor />}
+      {view === "stok" && <StockEditor />}
       {view === "backup" && (
         <>
           <h2>Backup & Restore</h2>
