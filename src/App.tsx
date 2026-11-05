@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CATEGORIES, PRODUCTS, unitPriceFor, variantsForProduct, type Product, type ProductVariant } from "./domain/catalog";
 import { calcSubtotal, calcTotal, formatRupiah, type Rupiah } from "./domain/money";
 import { type Order, type OrderLineInput, type PaymentMethod } from "./domain/orders";
-import { backupFileName, downloadTextFile, rememberBackup, repo, type BackupRecord } from "./data/orderRepo";
+import { downloadTextFile, backupFileName, rememberBackup, repo, type BackupRecord } from "./data/orderRepo";
+import { saveBackupFile, shareBackupFile } from "./data/backupFile";
 import {
   countPendingOutbox,
   loadSyncMeta,
@@ -532,12 +533,26 @@ export default function App() {
         createdAt: new Date().toISOString(),
         orderCount,
       };
-      downloadTextFile(json, record.name);
+      // Di Android blob-download tidak menghasilkan file. Pakai plugin native
+      // dulu; browser tetap memakai unduhan biasa.
+      let savedPath: string | null = null;
+      try {
+        savedPath = await saveBackupFile(record.name, json);
+      } catch {
+        savedPath = null;
+      }
+      if (savedPath) {
+        await shareBackupFile(record.name).catch(() => undefined);
+      } else {
+        downloadTextFile(json, record.name);
+      }
       rememberBackup(record);
       setBackups(repo.listBackups());
       setStatus({
         kind: "ok",
-        msg: `Backup ${record.name} diunduh (${orderCount} order).`,
+        msg: savedPath
+          ? `Backup tersimpan di ${savedPath} (${orderCount} order).`
+          : `Backup ${record.name} diunduh (${orderCount} order).`,
         scope: "backup",
       });
     } catch (e) {
@@ -634,10 +649,26 @@ export default function App() {
         createdAt: new Date().toISOString(),
         orderCount,
       };
-      downloadTextFile(enc, record.name);
+      let savedPath: string | null = null;
+      try {
+        savedPath = await saveBackupFile(record.name, enc);
+      } catch {
+        savedPath = null;
+      }
+      if (savedPath) {
+        await shareBackupFile(record.name).catch(() => undefined);
+      } else {
+        downloadTextFile(enc, record.name);
+      }
       rememberBackup(record);
       setBackups(repo.listBackups());
-      setStatus({ kind: "ok", msg: `Backup terenkripsi ${record.name} diunduh.`, scope: "backup" });
+      setStatus({
+        kind: "ok",
+        msg: savedPath
+          ? `Backup terenkripsi tersimpan di ${savedPath}.`
+          : `Backup terenkripsi ${record.name} diunduh.`,
+        scope: "backup",
+      });
     } catch (e) {
       setStatus({ kind: "error", msg: e instanceof Error ? e.message : "Backup terenkripsi gagal.", scope: "backup" });
     }

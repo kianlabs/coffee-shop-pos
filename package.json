@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/test-domain.mjs",
+    "android:assets": "npm run build && node scripts/sync-android-assets.mjs",
     "mock:sync": "node scripts/mock-sync-server.mjs --port 8787"
   },
   "repository": {

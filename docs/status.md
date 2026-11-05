@@ -21,17 +21,21 @@ Terakhir diperbarui: 5 November 2026.
 | Struk 58mm: nama panjang tidak memotong qty, ESC/POS disanitasi, CP437 | `src/data/receipt.ts`, `src/data/printer.ts` |
 | Cetak otomatis setelah bayar (bisa dimatikan) | `posSettings.autoPrint` |
 | Backup JSON membawa order + master data + HPP + setelan | `exportBackupJsonAsync` (schemaVersion 2) |
+| Backup tersimpan sebagai file di Android (bukan blob yang hilang) | `BackupPlugin.java` + `src/data/backupFile.ts` |
 | Restore: urutan DELETE benar, audit tidak dihapus, event void dibuat ulang | `importBackupJsonAsync` |
 | Keranjang & shift bertahan saat app ditutup | `posCart`/`posShift` di localStorage |
 | Error boundary (tidak ada layar putih) | `src/components/ErrorBoundary.tsx` |
+| Sync: timeout 15s, single-flight, klasifikasi 2xx/409/429/4xx, event_id UUID | `src/data/sync.ts` |
+| Backup terenkripsi: PBKDF2 600k, salt/IV acak, checksum SHA-256 | `src/data/cryptoBackup.ts` |
+| APK memuat bundle terbaru | `npm run android:assets` (diverifikasi lewat isi APK) |
 
 ## Belum selesai / perlu hardware
 
 | Hal | Kondisi |
 |-----|---------|
 | Transport Bluetooth printer | Kode Java ditulis, **belum diuji dengan printer fisik** |
-| Logo raster di struk | Bergantung rasterisasi di plugin; belum diuji cetak |
-| Backup ke file di Android | Masih unduh lewat browser; perlu plugin Filesystem/Share |
+| Logo raster di struk | `EscPosRaster.java` + 8 unit test lulus; belum diuji cetak |
+| Backup ke file di Android | Plugin `BackupPlugin` selesai; chooser Android belum diuji di perangkat |
 | Sinkronisasi cloud | Mock server + outbox ada; server produksi belum ada |
 | Laporan laba agregat per periode | Data snapshot sudah siap, query/layar belum ada |
 | Editor resep di UI | Tabel resep ada, layar belum |
