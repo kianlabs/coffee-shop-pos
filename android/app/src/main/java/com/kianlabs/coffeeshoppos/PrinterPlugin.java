@@ -334,13 +334,14 @@ public class PrinterPlugin extends Plugin {
       call.reject("dataPngBase64 bukan base64 valid.");
       return;
     }
-    final Bitmap decoded = BitmapFactory.decodeByteArray(raw, 0, raw.length);
-    if (decoded == null) {
-      call.reject("PNG tidak bisa di-decode.");
-      return;
-    }
 
     io().execute(() -> {
+      // Decode di thread I/O: PNG besar bisa alokasi puluhan MB.
+      final Bitmap decoded = BitmapFactory.decodeByteArray(raw, 0, raw.length);
+      if (decoded == null) {
+        call.reject("PNG tidak bisa di-decode.");
+        return;
+      }
       Bitmap work = decoded;
       try {
         int w = work.getWidth();

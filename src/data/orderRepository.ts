@@ -41,6 +41,7 @@ type OrderItemRow = {
   variant_name_snapshot: string | null;
   quantity: number;
   unit_price_rp: number;
+  discount_rp?: number;
   line_total_rp: number;
   created_at: string;
 };
@@ -70,15 +71,21 @@ function toOrder(
     receiptNumber: row.receipt_number,
     idempotencyKey: row.idempotency_key,
     status: row.status,
-    lines: items.map((i) => ({
-      productId: i.product_id ?? "",
-      variantId: i.variant_id,
-      productName: i.product_name_snapshot,
-      variantName: i.variant_name_snapshot,
-      unitPriceRp: i.unit_price_rp,
-      qty: i.quantity,
-      lineTotalRp: i.line_total_rp,
-    })),
+    lines: items.map((i) => {
+      const gross = i.line_total_rp;
+      const disc = typeof i.discount_rp === "number" ? i.discount_rp : 0;
+      return {
+        productId: i.product_id ?? "",
+        variantId: i.variant_id,
+        productName: i.product_name_snapshot,
+        variantName: i.variant_name_snapshot,
+        unitPriceRp: i.unit_price_rp,
+        qty: i.quantity,
+        lineTotalRp: gross,
+        discountRp: disc,
+        netTotalRp: gross - disc,
+      };
+    }),
     subtotalRp: row.subtotal_rp,
     discountRp: row.discount_rp,
     taxRp: row.tax_rp,
@@ -287,7 +294,7 @@ export async function checkoutAtomicAsync(
       return [
         {
           statement:
-            "INSERT INTO order_items (id, order_id, product_id, variant_id, product_name_snapshot, variant_name_snapshot, quantity, unit_price_rp, discount_rp, line_total_rp, hpp_total_rp, recipe_version_snapshot, created_at, hpp_unit_rp, hpp_source, hpp_detail_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?);",
+            "INSERT INTO order_items (id, order_id, product_id, variant_id, product_name_snapshot, variant_name_snapshot, quantity, unit_price_rp, discount_rp, line_total_rp, hpp_total_rp, recipe_version_snapshot, created_at, hpp_unit_rp, hpp_source, hpp_detail_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
           values: [
             itemId,
             order.id,
@@ -297,6 +304,7 @@ export async function checkoutAtomicAsync(
             l.variantName,
             l.qty,
             l.unitPriceRp,
+            l.discountRp,
             l.lineTotalRp,
             hppTotalRp,
             hpp.recipeVersion,
@@ -644,8 +652,20 @@ export async function importBackupJsonAsync(json: string): Promise<number> {
     o.lines.forEach((l, idx) => {
       txn.push({
         statement:
-          "INSERT INTO order_items (id, order_id, product_id, variant_id, product_name_snapshot, variant_name_snapshot, quantity, unit_price_rp, discount_rp, line_total_rp, hpp_total_rp, recipe_version_snapshot, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 0, NULL, ?);",
-        values: [`${o.id}-item-${idx}`, o.id, l.productId || null, l.variantId, l.productName, l.variantName, l.qty, l.unitPriceRp, l.lineTotalRp, o.createdAt],
+          "INSERT INTO order_items (id, order_id, product_id, variant_id, product_name_snapshot, variant_name_snapshot, quantity, unit_price_rp, discount_rp, line_total_rp, hpp_total_rp, recipe_version_snapshot, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?);",
+        values: [
+          `${o.id}-item-${idx}`,
+          o.id,
+          l.productId || null,
+          l.variantId,
+          l.productName,
+          l.variantName,
+          l.qty,
+          l.unitPriceRp,
+          l.discountRp ?? 0,
+          l.lineTotalRp,
+          o.createdAt,
+        ],
       });
     });
     txn.push({

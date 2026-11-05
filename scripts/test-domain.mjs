@@ -80,6 +80,13 @@ check("metode bayar asing ditolak", typeof orders.validateCheckout(baseCheckout(
 check("pembulatan positif ditolak", typeof orders.validateCheckout(baseCheckout({ roundingRp: 500 })), "string");
 check("checkout valid lolos", orders.validateCheckout(baseCheckout()), null);
 
+console.log("\n[2b] alokasi diskon ke item");
+check("diskon 3000 dari 30000+20000", orders.allocateDiscount([30000, 20000], 3000), [1800, 1200]);
+check("jumlah alokasi selalu sama", orders.allocateDiscount([3333, 3333, 3334], 1000).reduce((a, b) => a + b, 0), 1000);
+check("tanpa diskon", orders.allocateDiscount([15000], 0), [0]);
+check("diskon > total dijepit", orders.allocateDiscount([1000], 5000).reduce((a, b) => a + b, 0), 1000);
+check("baris tunggal dapat semua", orders.allocateDiscount([15000], 2500), [2500]);
+
 console.log("\n[3] order jadi");
 const o = orders.createCompletedOrder(baseCheckout({ payment: { method: "cash", amountRp: 50000, paidAt: "2026-11-05T10:00:00.000Z" } }), new Date("2026-11-05T10:00:00.000Z"));
 check("total 30000", o.totalRp, 30000);

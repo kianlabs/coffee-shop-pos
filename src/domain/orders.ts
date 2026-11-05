@@ -11,6 +11,10 @@ export type OrderLineInput = {
 
 export type OrderLine = OrderLineInput & {
   lineTotalRp: Rupiah;
+  /** Bagian diskon order yang dibebankan ke baris ini (integer Rupiah). */
+  discountRp: Rupiah;
+  /** lineTotalRp - discountRp. */
+  netTotalRp: Rupiah;
 };
 
 export type PaymentMethod = "cash" | "qris_manual" | "other";
@@ -50,10 +54,43 @@ export type CheckoutInput = {
   idempotencyKey: string;
 };
 
-function buildOrderLines(lines: OrderLineInput[]): OrderLine[] {
-  return lines.map((l) => ({
+/**
+ * Bagi diskon order ke tiap baris secara proporsional terhadap lineTotalRp.
+ * Pembulatan ke bawah per baris, sisa 1-rupiah diberikan ke baris terbesar
+ * supaya jumlah alokasi selalu tepat sama dengan diskon order.
+ */
+export function allocateDiscount(
+  lineTotals: Rupiah[],
+  discountRp: Rupiah,
+): Rupiah[] {
+  const total = lineTotals.reduce((a, b) => a + b, 0);
+  if (discountRp <= 0 || total <= 0) {
+    return lineTotals.map(() => 0);
+  }
+  const capped = Math.min(discountRp, total);
+  const shares = lineTotals.map((lt) => Math.floor((lt * capped) / total));
+  let remainder = capped - shares.reduce((a, b) => a + b, 0);
+  // Sisa dibagikan ke baris dengan nilai terbesar (deterministik).
+  const order = lineTotals
+    .map((lt, idx) => ({ lt, idx }))
+    .sort((a, b) => b.lt - a.lt);
+  let i = 0;
+  while (remainder > 0 && order.length > 0) {
+    shares[order[i % order.length].idx] += 1;
+    remainder -= 1;
+    i += 1;
+  }
+  return shares;
+}
+
+function buildOrderLines(lines: OrderLineInput[], discountRp: Rupiah): OrderLine[] {
+  const gross = lines.map((l) => calcLineTotal(l.unitPriceRp, l.qty));
+  const shares = allocateDiscount(gross, discountRp);
+  return lines.map((l, idx) => ({
     ...l,
-    lineTotalRp: calcLineTotal(l.unitPriceRp, l.qty),
+    lineTotalRp: gross[idx],
+    discountRp: shares[idx],
+    netTotalRp: gross[idx] - shares[idx],
   }));
 }
 
@@ -160,9 +197,9 @@ function receiptRandomSuffix(): string {
 }
 
 export function createCompletedOrder(input: CheckoutInput, now: Date): Order {
-  const built = buildOrderLines(input.lines);
-  const subtotal = calcSubtotal(built);
   const discount = input.discountRp ?? 0;
+  const built = buildOrderLines(input.lines, discount);
+  const subtotal = calcSubtotal(built);
   const tax = input.taxRp ?? 0;
   const serviceCharge = input.serviceChargeRp ?? 0;
   const rounding = input.roundingRp ?? 0;
