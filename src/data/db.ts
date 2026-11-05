@@ -4,7 +4,7 @@ import {
   SQLiteConnection,
   type SQLiteDBConnection,
 } from "@capacitor-community/sqlite";
-import { DB_NAME, DB_VERSION, UPGRADE_V1, UPGRADE_V2, UPGRADE_V3, UPGRADE_V4 } from "./migrations";
+import { DB_NAME, DB_VERSION, UPGRADE_V1, UPGRADE_V2, UPGRADE_V3, UPGRADE_V4, UPGRADE_V5 } from "./migrations";
 import { CATEGORIES, PRODUCTS, VARIANTS } from "../domain/catalog";
 
 let sqlite: SQLiteConnection | null = null;
@@ -39,6 +39,7 @@ async function openConnection(): Promise<SQLiteDBConnection> {
       { toVersion: 2, statements: UPGRADE_V2 },
       { toVersion: 3, statements: UPGRADE_V3 },
       { toVersion: 4, statements: UPGRADE_V4 },
+      { toVersion: 5, statements: UPGRADE_V5 },
     ],
   }).catch(() => undefined);
   const exists = await sql.isConnection(DB_NAME, false).catch(() => ({ result: false }));
@@ -49,6 +50,7 @@ async function openConnection(): Promise<SQLiteDBConnection> {
   await opened.open();
   await ensureV3Columns(opened);
   await ensureV4Columns(opened);
+  await ensureV5Indexes(opened);
   await seedCatalog(opened);
   return opened;
 }
@@ -152,6 +154,22 @@ async function ensureV4Columns(db: SQLiteDBConnection): Promise<void> {
   await ensureColumn(db, "order_items", "hpp_unit_rp", `hpp_unit_rp INTEGER NOT NULL DEFAULT 0`);
   await ensureColumn(db, "order_items", "hpp_source", `hpp_source TEXT NOT NULL DEFAULT 'none'`);
   await ensureColumn(db, "order_items", "hpp_detail_json", `hpp_detail_json TEXT`);
+}
+
+/**
+ * V5: unique index penjaga idempotensi (movement per order+ingredient,
+ * snapshot per order item+ingredient, satu resep aktif per produk/varian).
+ * Dijalankan satu per satu dengan catch supaya DB lama yang belum punya tabel
+ * V2 tidak membuat aplikasi gagal dibuka.
+ */
+async function ensureV5Indexes(db: SQLiteDBConnection): Promise<void> {
+  for (const statement of UPGRADE_V5) {
+    try {
+      await db.execute(statement);
+    } catch {
+      // Tabel belum ada atau duplikat yang tidak bisa dibereskan otomatis.
+    }
+  }
 }
 
 export function getDb(): Promise<SQLiteDBConnection> {

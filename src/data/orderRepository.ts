@@ -1,7 +1,14 @@
 import type { SQLiteDBConnection } from "@capacitor-community/sqlite";
 import { createCompletedOrder, validateCheckout, type CheckoutInput, type Order } from "../domain/orders";
 import { getDb } from "./db";
-import { STOCK_DEDUCTION_ENABLED, consumeForOrder, v2TablesExist } from "./stock";
+import {
+  STOCK_DEDUCTION_ENABLED,
+  prepareConsumption,
+  prepareVoidReversal,
+  v2TablesExist,
+  type ConsumptionPlan,
+} from "./stock";
+import { getSettings } from "./settings";
 import { hppKey, resolveCheckoutHpp, type CheckoutHpp } from "./productRepo";
 
 export type { BackupRecord } from "./orderStore";
@@ -190,10 +197,11 @@ export async function checkoutAtomicAsync(
   }
   const order = createCompletedOrder(input, new Date());
   const now = order.createdAt;
+  const itemIds = order.lines.map((_, idx) => `${order.id}-item-${idx}`);
 
-  // Snapshot HPP per baris SEBELUM insert: manual (diisi user), resep (dihitung
-  // dari bahan), atau none. Kegagalan resolusi tidak boleh menggagalkan
-  // penjualan — dicatat sebagai source 'none' + alasan di detail_json.
+  // Snapshot HPP per baris: manual (diisi user), resep (dihitung dari bahan),
+  // atau none. Kegagalan resolusi tidak boleh menggagalkan penjualan —
+  // dicatat sebagai source 'none' + alasan di detail_json.
   let hppMap = new Map<string, CheckoutHpp>();
   try {
     hppMap = await resolveCheckoutHpp(db, order.lines);
@@ -207,6 +215,35 @@ export async function checkoutAtomicAsync(
         detailJson: JSON.stringify({ error: reason }),
       });
     }
+  }
+
+  // Konsumsi stok dibangun SEKARANG dan dieksekusi di transaksi yang sama
+  // dengan order. Order, stok, movement, dan snapshot HPP jadi atomik.
+  let consumption: ConsumptionPlan = { statements: [], byItem: new Map(), negative: [] };
+  if (STOCK_DEDUCTION_ENABLED) {
+    try {
+      if (await v2TablesExist(db)) {
+        consumption = await prepareConsumption(
+          db,
+          order.id,
+          order.lines.map((l, idx) => ({
+            orderItemId: itemIds[idx],
+            productId: l.productId,
+            variantId: l.variantId,
+            qty: l.qty,
+          })),
+          now,
+          null,
+        );
+      }
+    } catch {
+      consumption = { statements: [], byItem: new Map(), negative: [] };
+    }
+  }
+
+  if (consumption.negative.length > 0 && getSettings().blockNegativeStock) {
+    const detail = consumption.negative.map((n) => `${n.name} (sisa ${n.after})`).join(", ");
+    throw new Error(`Stok tidak cukup: ${detail}.`);
   }
 
   const txn: { statement: string; values?: unknown[] }[] = [
@@ -229,13 +266,23 @@ export async function checkoutAtomicAsync(
       ],
     },
     ...order.lines.flatMap((l, idx) => {
-      const itemId = `${order.id}-item-${idx}`;
-      const hpp = hppMap.get(hppKey(l.productId, l.variantId)) ?? {
+      const itemId = itemIds[idx];
+      const base = hppMap.get(hppKey(l.productId, l.variantId)) ?? {
         unitHppRp: 0,
         source: "none" as const,
         recipeVersion: null,
         detailJson: null,
       };
+      const fromRecipe = consumption.byItem.get(itemId);
+      const hpp =
+        base.source === "recipe" && fromRecipe
+          ? {
+              unitHppRp: fromRecipe.hppUnitRp,
+              source: "recipe" as const,
+              recipeVersion: fromRecipe.recipeVersion,
+              detailJson: fromRecipe.detailJson,
+            }
+          : base;
       const hppTotalRp = hpp.unitHppRp * l.qty;
       return [
         {
@@ -261,6 +308,7 @@ export async function checkoutAtomicAsync(
         },
       ];
     }),
+    ...consumption.statements,
     {
       statement:
         "INSERT INTO payments (id, order_id, method, amount_rp, status, reference_note, paid_at, created_at) VALUES (?, ?, ?, ?, 'paid', NULL, ?, ?);",
@@ -274,7 +322,15 @@ export async function checkoutAtomicAsync(
     {
       statement:
         "INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, before_json, after_json, reason, created_at) VALUES (?, NULL, 'order.completed', 'order', ?, NULL, ?, NULL, ?);",
-      values: [`${order.id}-audit`, order.id, JSON.stringify({ totalRp: order.totalRp }), now],
+      values: [
+        `${order.id}-audit`,
+        order.id,
+        JSON.stringify({
+          totalRp: order.totalRp,
+          stockShortage: consumption.negative.length > 0 ? consumption.negative : undefined,
+        }),
+        now,
+      ],
     },
   ];
   try {
@@ -290,28 +346,6 @@ export async function checkoutAtomicAsync(
       }
     }
     throw e;
-  }
-  // Best-effort: kurangi stok bila resep tersedia; kasir tetap sukses bila
-  // tabel V2 belum ada / stok tidak cukup dicatat (dicatat, bukan diblokir).
-  try {
-    if (STOCK_DEDUCTION_ENABLED) {
-      try {
-        if (await v2TablesExist(db)) {
-          const itemRes = await db.query("SELECT id AS id, product_id AS pid, variant_id AS vid, quantity AS q FROM order_items WHERE order_id = ?;", [order.id]);
-          const rows = (Array.isArray(itemRes.values) ? itemRes.values : []) as { id: string; pid: string | null; vid: string | null; q: number }[];
-          await consumeForOrder(
-            order.id,
-            rows.map((r) => ({ orderItemId: r.id, productId: r.pid ?? "", variantId: r.vid, qty: r.q })),
-            null,
-            db,
-          );
-        }
-      } catch {
-        // Stok opsional: jangan gagalkan checkout yang sudah tersimpan.
-      }
-    }
-  } catch {
-    // Stok tidak dapat dibaca: abaikan, checkout tetap sukses.
   }
   return { order, duplicate: false };
 }
@@ -356,6 +390,18 @@ export async function voidOrderAsync(orderId: string): Promise<Order[]> {
       statement: "UPDATE payments SET status = 'voided' WHERE order_id = ?;",
       values: [orderId],
     });
+  }
+  // Void = kebalikan penuh: stok yang sudah terpotong dikembalikan lewat
+  // movement `return_in` di transaksi yang sama.
+  if (STOCK_DEDUCTION_ENABLED) {
+    try {
+      if (await v2TablesExist(db)) {
+        const reversal = await prepareVoidReversal(db, orderId, now, null);
+        txn.push(...reversal.statements);
+      }
+    } catch {
+      // Tabel V2 belum ada: void tetap jalan tanpa reversal stok.
+    }
   }
   await db.executeTransaction(txn, false);
   return loadAllOrders(db);

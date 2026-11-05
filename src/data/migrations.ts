@@ -1,5 +1,5 @@
 export const DB_NAME = "coffee_shop_pos";
-export const DB_VERSION = 4;
+export const DB_VERSION = 5;
 
 export const UPGRADE_V1: string[] = [
   `PRAGMA foreign_keys = ON;`,
@@ -229,4 +229,42 @@ export const UPGRADE_V4: string[] = [
   `ALTER TABLE order_items ADD COLUMN hpp_unit_rp INTEGER NOT NULL DEFAULT 0;`,
   `ALTER TABLE order_items ADD COLUMN hpp_source TEXT NOT NULL DEFAULT 'none';`,
   `ALTER TABLE order_items ADD COLUMN hpp_detail_json TEXT;`,
+];
+
+/**
+ * UPGRADE_V5 — penjaga idempotensi & integritas.
+ *
+ * Index unik ini yang membuat retry aman:
+ * - satu movement `sale_consumption`/`return_in` per (order, ingredient)
+ *   → konsumsi stok dan pembalikan void tidak bisa dobel.
+ * - satu snapshot HPP per (order_item, ingredient).
+ * - satu resep aktif per (product, variant) → tidak ada lagi `LIMIT 1` acak.
+ *
+ * Memakai `CREATE UNIQUE INDEX IF NOT EXISTS` (idempotent), bukan ALTER TABLE,
+ * supaya aman dijalankan berulang di DB lama.
+ */
+export const UPGRADE_V5: string[] = [
+  // Rapikan duplikat lama dulu — kalau tidak, CREATE UNIQUE INDEX gagal.
+  `UPDATE recipes SET is_active = 0
+     WHERE is_active = 1 AND rowid NOT IN (
+       SELECT MIN(rowid) FROM recipes WHERE is_active = 1 GROUP BY product_id, IFNULL(variant_id, '')
+     );`,
+  `DELETE FROM order_item_cost_snapshots
+     WHERE rowid NOT IN (
+       SELECT MIN(rowid) FROM order_item_cost_snapshots GROUP BY order_item_id, ingredient_id
+     );`,
+  `DELETE FROM stock_movements
+     WHERE reference_type IN ('order', 'order_void') AND rowid NOT IN (
+       SELECT MIN(rowid) FROM stock_movements
+       WHERE reference_type IN ('order', 'order_void')
+       GROUP BY reference_type, reference_id, movement_type, ingredient_id
+     );`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS uq_stock_movements_ref
+     ON stock_movements(reference_type, reference_id, movement_type, ingredient_id)
+     WHERE reference_type IN ('order', 'order_void');`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS uq_cost_snapshot_item
+     ON order_item_cost_snapshots(order_item_id, ingredient_id);`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS uq_recipes_active
+     ON recipes(product_id, IFNULL(variant_id, ''))
+     WHERE is_active = 1;`,
 ];

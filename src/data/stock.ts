@@ -3,7 +3,6 @@ import { getDb } from "./db";
 import {
   calcHppForLine,
   snapshotForOrder,
-  type RecipeLineInput,
 } from "../domain/hpp";
 
 /**
@@ -13,12 +12,17 @@ import {
  * `effective_at` terbesar per ingredient. Ganti ke average/FIFO kelak dengan
  * tambah kolom/tabel lot + ganti resolver di `src/domain/hpp.ts` saja.
  *
- * Penarikan stok OTOMATIS AKTIF (best-effort): `checkoutAtomicAsync` memanggil
- * `consumeForOrder()` setelah order tersimpan. Tanpa resep aktif item dilewati
- * (kasir tetap sukses); tabel V2 belum ada → dilewati; error stok tidak
- * pernah menggagalkan checkout yang sudah tersimpan.
+ * Penarikan stok DIJALANKAN DI DALAM transaksi checkout: `prepareConsumption()`
+ * mengembalikan statement yang digabung ke transaksi order, sehingga order dan
+ * pemotongan stok tersimpan bersama atau tidak sama sekali. Tanpa resep aktif
+ * item dilewati (kasir tetap sukses).
  */
 export const STOCK_DEDUCTION_ENABLED = true;
+
+/** Stok disimpan 3 desimal supaya penjumlahan float tidak menumpuk drift. */
+export function roundQty(qty: number): number {
+  return Math.round(qty * 1000) / 1000;
+}
 
 export const MOVEMENT_TYPES = [
   "purchase_received",
@@ -31,6 +35,23 @@ export const MOVEMENT_TYPES = [
 ] as const;
 
 export type MovementType = (typeof MOVEMENT_TYPES)[number];
+
+export type Statement = { statement: string; values?: unknown[] };
+
+export type ConsumptionLineResult = {
+  hppUnitRp: number;
+  hppTotalRp: number;
+  recipeVersion: number | null;
+  detailJson: string | null;
+};
+
+export type ConsumptionPlan = {
+  statements: Statement[];
+  /** Kunci: orderItemId. */
+  byItem: Map<string, ConsumptionLineResult>;
+  /** Ingredient yang stoknya akan minus setelah transaksi ini. */
+  negative: Array<{ ingredientId: string; name: string; after: number }>;
+};
 
 export type OrderConsumptionLine = {
   orderItemId: string;
@@ -141,13 +162,13 @@ export async function recordPurchase(
         values: [costId, ingredientId, Math.trunc(costPerUnitRp), now, now],
       },
       {
-        statement: "UPDATE ingredients SET stock_qty = stock_qty + ? WHERE id = ?;",
+        statement: "UPDATE ingredients SET stock_qty = ROUND(stock_qty + ?, 3) WHERE id = ?;",
         values: [qty, ingredientId],
       },
       {
         statement:
           "INSERT INTO stock_movements (id, ingredient_id, product_id, qty, movement_type, reference_type, reference_id, reason, actor, created_at) VALUES (?, ?, NULL, ?, 'purchase_received', 'purchase', ?, NULL, ?, ?);",
-        values: [moveId, ingredientId, qty, costId, actor, now],
+        values: [moveId, ingredientId, roundQty(qty), costId, actor, now],
       },
     ],
     false,
@@ -181,13 +202,13 @@ export async function adjustStock(
   await conn.executeTransaction(
     [
       {
-        statement: "UPDATE ingredients SET stock_qty = stock_qty + ? WHERE id = ?;",
+        statement: "UPDATE ingredients SET stock_qty = ROUND(stock_qty + ?, 3) WHERE id = ?;",
         values: [deltaQty, ingredientId],
       },
       {
         statement:
           "INSERT INTO stock_movements (id, ingredient_id, product_id, qty, movement_type, reference_type, reference_id, reason, actor, created_at) VALUES (?, ?, NULL, ?, ?, 'adjustment', ?, ?, ?, ?);",
-        values: [moveId, ingredientId, deltaQty, type, moveId, reason, actor, now],
+        values: [moveId, ingredientId, roundQty(deltaQty), type, moveId, reason, actor, now],
       },
     ],
     false,
@@ -196,50 +217,96 @@ export async function adjustStock(
 }
 
 /**
- * Konsumsi untuk satu order (dipanggil MANUAL — lihat STOCK_DEDUCTION_ENABLED).
- * Untuk tiap order item: cari resep aktif (variant spesifik dulu, lalu
- * generik product), hitung HPP last-cost, insert snapshot +
- * movement `sale_consumption` negatif + kurangi stok. Tanpa resep aktif:
- * item dilewati (tidak error) agar kasir tetap jalan saat resep belum lengkap.
+ * Bangun statement konsumsi stok + snapshot HPP untuk satu order, TANPA
+ * mengeksekusi. Pemanggil (checkout) menggabungkannya ke transaksi order,
+ * sehingga order + stok + HPP tersimpan atomik.
  */
-export async function consumeForOrder(
+export async function prepareConsumption(
+  db: SQLiteDBConnection,
   orderId: string,
   lines: OrderConsumptionLine[],
-  actor?: string | null,
-  db?: SQLiteDBConnection,
-): Promise<{ consumedItems: number; hppTotalRp: number }> {
-  const conn = db ?? (await getDb());
+  now: string,
+  actor: string | null = null,
+): Promise<ConsumptionPlan> {
   if (!orderId) throw new Error("orderId wajib diisi.");
-  const now = new Date().toISOString();
-  let consumedItems = 0;
-  let hppTotalRp = 0;
+  const statements: Statement[] = [];
+  const byItem = new Map<string, ConsumptionLineResult>();
+  const negative: ConsumptionPlan["negative"] = [];
+
+  type Planned = {
+    line: OrderConsumptionLine;
+    rows: ReturnType<typeof snapshotForOrder>["rows"];
+    hppTotalRp: number;
+    perUnitRp: number;
+    version: number;
+    detailJson: string;
+  };
+  const planned: Planned[] = [];
+  const need = new Map<string, number>();
+  const names = new Map<string, string>();
 
   for (const line of lines) {
-    if (!line.orderItemId || line.qty <= 0) continue;
-    const recipe = await findActiveRecipe(conn, line.productId, line.variantId);
+    if (!line.orderItemId || !(line.qty > 0)) continue;
+    const recipe = await findActiveRecipe(db, line.productId, line.variantId);
     if (!recipe) continue;
-    const items = await loadRecipeItems(conn, recipe.id);
+    const items = await loadRecipeItems(db, recipe.id);
     if (items.length === 0) continue;
-    const costs = await getLastCosts(
-      conn,
-      items.map((i) => i.ingredient_id),
+    const costs = await getLastCosts(db, items.map((i) => i.ingredient_id));
+    const hpp = calcHppForLine(
+      items.map((i) => ({
+        ingredientId: i.ingredient_id,
+        ingredientName: i.name,
+        qtyPerUnit: i.qty_per_unit,
+        costPerUnitRp: costs.get(i.ingredient_id) ?? 0,
+      })),
     );
-    const recipeInput: RecipeLineInput[] = items.map((i) => ({
-      ingredientId: i.ingredient_id,
-      ingredientName: i.name,
-      qtyPerUnit: i.qty_per_unit,
-      // DEFAULT: ingredient tanpa histori cost dianggap 0 (tetap snapshot agar ketahuan).
-      costPerUnitRp: costs.get(i.ingredient_id) ?? 0,
-    }));
-    const hpp = calcHppForLine(recipeInput);
     const snap = snapshotForOrder(line.orderItemId, line.qty, hpp);
-    const txn: { statement: string; values?: unknown[] }[] = [];
+    planned.push({
+      line,
+      rows: snap.rows,
+      hppTotalRp: snap.hppTotalRp,
+      perUnitRp: hpp.perUnitRp,
+      version: recipe.version,
+      detailJson: JSON.stringify({ version: recipe.version, lines: hpp.lines }),
+    });
     for (const row of snap.rows) {
-      txn.push({
+      need.set(row.ingredientId, roundQty((need.get(row.ingredientId) ?? 0) + row.qty));
+      names.set(row.ingredientId, row.ingredientName);
+    }
+  }
+
+  const stock = new Map<string, number>();
+  for (const id of need.keys()) {
+    stock.set(id, await getStock(db, id));
+  }
+  for (const [id, qty] of need) {
+    const after = roundQty((stock.get(id) ?? 0) - qty);
+    if (after < 0) {
+      negative.push({ ingredientId: id, name: names.get(id) ?? id, after });
+    }
+  }
+
+  // Retry safety: kalau movement untuk order ini sudah ada, stok sudah pernah
+  // dipotong — jangan ulangi. (`INSERT OR IGNORE` saja tidak cukup: UPDATE
+  // berikutnya tetap akan mengurangi stok.)
+  const already = new Set<string>();
+  try {
+    const res = await db.query(
+      "SELECT ingredient_id AS id FROM stock_movements WHERE reference_type = 'order' AND reference_id = ? AND movement_type = 'sale_consumption';",
+      [orderId],
+    );
+    for (const r of rowsOf(res)) already.add(String(r.id ?? ""));
+  } catch {
+    // Tabel stock_movements belum ada — tidak ada yang perlu dicek.
+  }
+
+  for (const p of planned) {
+    for (const row of p.rows) {
+      statements.push({
         statement:
-          "INSERT INTO order_item_cost_snapshots (id, order_item_id, ingredient_id, ingredient_name, qty, cost_per_unit_rp, line_cost_rp, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?);",
+          "INSERT OR IGNORE INTO order_item_cost_snapshots (id, order_item_id, ingredient_id, ingredient_name, qty, cost_per_unit_rp, line_cost_rp, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?);",
         values: [
-          uid("snap"),
+          `snap-${row.orderItemId}-${row.ingredientId}`,
           row.orderItemId,
           row.ingredientId,
           row.ingredientName,
@@ -249,26 +316,107 @@ export async function consumeForOrder(
           now,
         ],
       });
-      txn.push({
-        statement:
-          "INSERT INTO stock_movements (id, ingredient_id, product_id, qty, movement_type, reference_type, reference_id, reason, actor, created_at) VALUES (?, ?, ?, ?, 'sale_consumption', 'order', ?, NULL, ?, ?);",
-        values: [uid("mov"), row.ingredientId, line.productId || null, -row.qty, orderId, actor ?? null, now],
-      });
-      txn.push({
-        statement: "UPDATE ingredients SET stock_qty = stock_qty - ? WHERE id = ?;",
-        values: [row.qty, row.ingredientId],
-      });
     }
-    txn.push({
-      statement:
-        "UPDATE order_items SET hpp_total_rp = ?, hpp_unit_rp = ?, hpp_source = 'recipe', recipe_version_snapshot = ? WHERE id = ? AND hpp_source <> 'manual';",
-      values: [snap.hppTotalRp, hpp.perUnitRp, recipe.version, line.orderItemId],
+    byItem.set(p.line.orderItemId, {
+      hppUnitRp: p.perUnitRp,
+      hppTotalRp: p.hppTotalRp,
+      recipeVersion: p.version,
+      detailJson: p.detailJson,
     });
-    await conn.executeTransaction(txn, false);
-    consumedItems += 1;
-    hppTotalRp += snap.hppTotalRp;
   }
-  return { consumedItems, hppTotalRp };
+
+  // Satu movement + satu UPDATE per ingredient (bukan per baris order):
+  // id movement deterministik supaya retry tidak pernah memotong stok dua kali.
+  for (const [ingredientId, qty] of need) {
+    if (already.has(ingredientId)) continue;
+    const movementId = `mv-sale-${orderId}-${ingredientId}`;
+    statements.push({
+      statement:
+        "INSERT OR IGNORE INTO stock_movements (id, ingredient_id, product_id, qty, movement_type, reference_type, reference_id, reason, actor, created_at) VALUES (?, ?, NULL, ?, 'sale_consumption', 'order', ?, NULL, ?, ?);",
+      values: [movementId, ingredientId, -qty, orderId, actor, now],
+    });
+    // UPDATE hanya jalan kalau movement tadi benar-benar masuk. Tanpa syarat
+    // ini, retry akan menulis movement yang di-ignore tapi tetap memotong stok.
+    statements.push({
+      statement:
+        "UPDATE ingredients SET stock_qty = ROUND(stock_qty - ?, 3) WHERE id = ? AND EXISTS (SELECT 1 FROM stock_movements WHERE id = ?);",
+      values: [qty, ingredientId, movementId],
+    });
+  }
+
+  return { statements, byItem, negative };
+}
+
+/**
+ * Konsumsi stok untuk order yang sudah tersimpan (jalur manual/kompatibilitas).
+ * Checkout normal memakai `prepareConsumption()` agar ikut transaksi order.
+ */
+export async function consumeForOrder(
+  orderId: string,
+  lines: OrderConsumptionLine[],
+  actor?: string | null,
+  db?: SQLiteDBConnection,
+): Promise<{ consumedItems: number; hppTotalRp: number }> {
+  const conn = db ?? (await getDb());
+  const now = new Date().toISOString();
+  const plan = await prepareConsumption(conn, orderId, lines, now, actor ?? null);
+  if (plan.statements.length === 0) {
+    return { consumedItems: 0, hppTotalRp: 0 };
+  }
+  await conn.executeTransaction(plan.statements, false);
+  let total = 0;
+  for (const v of plan.byItem.values()) total += v.hppTotalRp;
+  return { consumedItems: plan.byItem.size, hppTotalRp: total };
+}
+
+export type VoidReversalPlan = { statements: Statement[]; restoredLines: number };
+
+/**
+ * Kebalikan dari konsumsi: tulis movement `return_in` dan kembalikan stok.
+ * Idempoten — kalau reversal untuk order ini sudah pernah ditulis, hasilnya
+ * kosong (dijaga juga oleh unique index V5).
+ */
+export async function prepareVoidReversal(
+  db: SQLiteDBConnection,
+  orderId: string,
+  now: string,
+  actor: string | null = null,
+): Promise<VoidReversalPlan> {
+  if (!orderId) throw new Error("orderId wajib diisi.");
+  const already = await db.query(
+    "SELECT COUNT(*) AS c FROM stock_movements WHERE reference_type = 'order_void' AND reference_id = ?;",
+    [orderId],
+  );
+  const alreadyRow = rowsOf(already)[0];
+  if (Number(alreadyRow?.c ?? 0) > 0) {
+    return { statements: [], restoredLines: 0 };
+  }
+
+  const res = await db.query(
+    "SELECT ingredient_id AS ingredient_id, qty AS qty FROM stock_movements WHERE reference_type = 'order' AND reference_id = ? AND movement_type = 'sale_consumption';",
+    [orderId],
+  );
+  const statements: Statement[] = [];
+  let restoredLines = 0;
+  for (const row of rowsOf(res)) {
+    const ingredientId = String(row.ingredient_id ?? "");
+    const consumed = Number(row.qty);
+    if (!ingredientId || !Number.isFinite(consumed) || consumed === 0) continue;
+    const back = roundQty(-consumed);
+    const movementId = `mv-void-${orderId}-${ingredientId}`;
+    statements.push({
+      statement:
+        "INSERT OR IGNORE INTO stock_movements (id, ingredient_id, product_id, qty, movement_type, reference_type, reference_id, reason, actor, created_at) VALUES (?, ?, NULL, ?, 'return_in', 'order_void', ?, 'void order', ?, ?);",
+      values: [movementId, ingredientId, back, orderId, actor, now],
+    });
+    statements.push({
+      statement:
+        "UPDATE ingredients SET stock_qty = ROUND(stock_qty + ?, 3) WHERE id = ? AND EXISTS (SELECT 1 FROM stock_movements WHERE id = ?);",
+      values: [back, ingredientId, movementId],
+    });
+    restoredLines += 1;
+  }
+  return { statements, restoredLines };
 }
 
 async function findActiveRecipe(

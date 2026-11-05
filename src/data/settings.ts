@@ -7,6 +7,8 @@ export type PosSettings = {
   voidPin: string;
   cashierName: string;
   storeName: string;
+  /** true = checkout ditolak bila stok bahan tidak cukup (default: tetap jalan). */
+  blockNegativeStock: boolean;
 };
 
 /** DEFAULT: semua nilai aman — tanpa biaya tambahan, tanpa pembulatan, tanpa PIN. */
@@ -17,6 +19,7 @@ export const DEFAULT_SETTINGS: PosSettings = {
   voidPin: "",
   cashierName: "",
   storeName: "KOPI POS",
+  blockNegativeStock: false,
 };
 
 export const SETTINGS_KEY = "pos.settings.v1";
@@ -44,7 +47,8 @@ function sanitize(raw: Partial<PosSettings>): PosSettings {
   const cashierName = toString(raw.cashierName, "").slice(0, 100);
   const storeRaw = toString(raw.storeName, DEFAULT_SETTINGS.storeName).slice(0, 100);
   const storeName = storeRaw.trim() === "" ? DEFAULT_SETTINGS.storeName : storeRaw;
-  return { serviceChargeRp, roundingStep, requireVoidPin, voidPin, cashierName, storeName };
+  const blockNegativeStock = raw.blockNegativeStock === true;
+  return { serviceChargeRp, roundingStep, requireVoidPin, voidPin, cashierName, storeName, blockNegativeStock };
 }
 
 export function getSettings(): PosSettings {
@@ -90,5 +94,10 @@ export function applyRounding(totalRp: number, step: RoundingStep): RoundedTotal
     return { rounded: total, roundingRp: 0 };
   }
   const rounded = Math.floor(total / step) * step;
+  // Jangan pernah membulatkan transaksi menjadi Rp0 (mis. total 800 dengan
+  // step 1.000). Lebih baik tanpa pembulatan daripada struk gratis.
+  if (rounded <= 0) {
+    return { rounded: total, roundingRp: 0 };
+  }
   return { rounded, roundingRp: rounded - total };
 }
