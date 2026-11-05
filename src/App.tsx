@@ -87,7 +87,7 @@ export default function App() {
     }
     let cancelled = false;
     repo
-      .load()
+      .load(200)
       .then((rows) => {
         if (!cancelled) {
           setOrders(rows);
@@ -211,6 +211,11 @@ export default function App() {
       cartKeyRef.current = null;
       setCart([]);
       setPayAmount(0);
+      // Reset juga potongan & catatan: kalau tidak, order berikutnya mewarisi
+      // diskon/pajak order sebelumnya dan total jadi salah tanpa disadari.
+      setDiscount(0);
+      setTax(0);
+      setNotes("");
       // Prepend optimistik — tanpa bump ordersVersion agar tak double full-scan.
       setOrders((prev) => [order, ...prev.filter((o) => o.id !== order.id)]);
       setReceipt(renderReceiptText(order, { storeName: posSettings.storeName, cashierName: posSettings.cashierName }));
@@ -256,6 +261,35 @@ export default function App() {
         kind: "error",
         msg: e instanceof Error ? e.message : "Void gagal.",
         scope: "riwayat",
+      });
+    }
+  }
+
+  /**
+   * Tutup shift memakai SELURUH order, bukan 200 terakhir yang ada di state —
+   * kalau tidak, total setoran shift lebih kecil dari uang di laci.
+   */
+  async function handleCloseShift() {
+    if (!shift) {
+      return;
+    }
+    try {
+      const all = await repo.loadAll();
+      const { shift: closed, summary } = closeShift(shift, all);
+      setShift(null);
+      setLastShiftSummary(
+        `Shift ${closed.cashierName || "(tanpa nama)"} ditutup: ${summary.orderCount} order, total ${formatRupiah(summary.grandTotalRp)}.`,
+      );
+      setStatus({
+        kind: "ok",
+        msg: `Shift ditutup: ${summary.orderCount} order, total ${formatRupiah(summary.grandTotalRp)}.`,
+        scope: "pengaturan",
+      });
+    } catch (e) {
+      setStatus({
+        kind: "error",
+        msg: e instanceof Error ? e.message : "Gagal menutup shift.",
+        scope: "pengaturan",
       });
     }
   }
@@ -955,18 +989,7 @@ export default function App() {
               </p>
               <button
                 style={{ minHeight: 40 }}
-                onClick={() => {
-                  const { shift: closed, summary } = closeShift(shift, orders);
-                  setShift(null);
-                  setLastShiftSummary(
-                    `Shift ${closed.cashierName || "(tanpa nama)"} ditutup: ${summary.orderCount} order, total ${formatRupiah(summary.grandTotalRp)}.`,
-                  );
-                  setStatus({
-                    kind: "ok",
-                    msg: `Shift ditutup: ${summary.orderCount} order, total ${formatRupiah(summary.grandTotalRp)}.`,
-                    scope: "pengaturan",
-                  });
-                }}
+                onClick={() => void handleCloseShift()}
               >
                 Tutup shift
               </button>

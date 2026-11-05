@@ -118,8 +118,11 @@ async function loadOrderByKey(db: SQLiteDBConnection, key: string): Promise<Orde
   return hydrateOne(db, rows[0]);
 }
 
-async function loadAllOrders(db: SQLiteDBConnection, limit = 200): Promise<Order[]> {
-  const capped = Number.isFinite(limit) ? Math.max(0, Math.trunc(limit)) : 200;
+async function loadAllOrders(db: SQLiteDBConnection, limit?: number): Promise<Order[]> {
+  // Tanpa `limit` = ambil semua. Sebelumnya default 200 membuat backup dan
+  // rekap shift terpotong diam-diam (Number.isFinite(Infinity) === false).
+  const capped =
+    typeof limit === "number" && Number.isFinite(limit) ? Math.max(0, Math.trunc(limit)) : Number.POSITIVE_INFINITY;
   const orderRowsAll = (await db.query("SELECT * FROM orders ORDER BY created_at DESC;")).values;
   const orderRows = (Array.isArray(orderRowsAll) ? orderRowsAll : []).slice(0, capped) as OrderRow[];
   if (orderRows.length === 0) {
@@ -159,6 +162,12 @@ function uniqueConstraintTarget(e: unknown): string {
 export async function loadOrdersAsync(limit = 200): Promise<Order[]> {
   const db = await getDb();
   return loadAllOrders(db, limit);
+}
+
+/** Semua order, tanpa cap — untuk rekap shift dan backup. */
+export async function loadAllOrdersAsync(): Promise<Order[]> {
+  const db = await getDb();
+  return loadAllOrders(db);
 }
 
 export async function checkoutAtomicAsync(
@@ -354,7 +363,7 @@ export async function voidOrderAsync(orderId: string): Promise<Order[]> {
 
 export async function exportBackupJsonAsync(): Promise<string> {
   const db = await getDb();
-  const orders = await loadAllOrders(db, Number.POSITIVE_INFINITY);
+  const orders = await loadAllOrders(db);
   return JSON.stringify(
     { schemaVersion: 1, exportedAt: new Date().toISOString(), orders },
     null,
@@ -475,10 +484,13 @@ export async function importBackupJsonAsync(json: string): Promise<number> {
   validateBackupOrders(orders);
   const db = await getDb();
   const txn: { statement: string; values?: unknown[] }[] = [
+    // Anak terdalam dulu. `order_item_cost_snapshots.order_item_id` punya FK ke
+    // order_items; tanpa baris ini restore selalu gagal "FOREIGN KEY constraint
+    // failed" begitu ada satu order yang memakai resep.
+    { statement: "DELETE FROM order_item_cost_snapshots;" },
     { statement: "DELETE FROM payments;" },
     { statement: "DELETE FROM order_items;" },
     { statement: "DELETE FROM sync_outbox;" },
-    { statement: "DELETE FROM audit_logs;" },
     { statement: "DELETE FROM orders;" },
   ];
   for (const o of orders) {
@@ -504,6 +516,14 @@ export async function importBackupJsonAsync(json: string): Promise<number> {
         statement:
           "INSERT INTO sync_outbox (id, event_type, aggregate_type, aggregate_id, payload_json, schema_version, status, attempt_count, next_attempt_at, last_error, created_at, acknowledged_at) VALUES (?, 'order.completed', 'order', ?, ?, 1, 'pending', 0, NULL, NULL, ?, NULL);",
         values: [`${o.id}-evt`, o.id, JSON.stringify({ orderId: o.id, totalRp: o.totalRp }), o.createdAt],
+      });
+    } else if (o.status === "voided") {
+      // Order void juga harus sampai ke cloud, kalau tidak server menganggapnya
+      // penjualan sah selamanya.
+      txn.push({
+        statement:
+          "INSERT INTO sync_outbox (id, event_type, aggregate_type, aggregate_id, payload_json, schema_version, status, attempt_count, next_attempt_at, last_error, created_at, acknowledged_at) VALUES (?, 'order.voided', 'order', ?, ?, 1, 'pending', 0, NULL, NULL, ?, NULL);",
+        values: [`${o.id}-void-evt`, o.id, JSON.stringify({ orderId: o.id }), o.createdAt],
       });
     }
   }

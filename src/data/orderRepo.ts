@@ -4,6 +4,7 @@ import {
   checkoutAtomicAsync,
   exportBackupJsonAsync,
   importBackupJsonAsync,
+  loadAllOrdersAsync,
   loadOrdersAsync,
   voidOrderAsync,
   type BackupRecord,
@@ -25,6 +26,8 @@ export const isNative = isNativePlatform();
 
 export interface OrderRepo {
   load(limit?: number): Promise<Order[]>;
+  /** Semua order tanpa cap — dipakai rekap shift, bukan daftar riwayat. */
+  loadAll(): Promise<Order[]>;
   checkout(input: CheckoutInput): Promise<{ order: Order; duplicate: boolean }>;
   void(id: string): Promise<Order[]>;
   exportJson(): Promise<string>;
@@ -40,6 +43,7 @@ function applyLimit(rows: Order[], limit?: number): Order[] {
 /** Bungkus sync browser store dalam Promise agar seragam dengan SQLite. */
 export const browserRepo: OrderRepo = {
   load: (limit) => Promise.resolve(applyLimit(loadOrders(), limit)),
+  loadAll: () => Promise.resolve(loadOrders()),
   checkout: (input) => Promise.resolve(checkoutAtomic(input)),
   void: (id) => Promise.resolve(voidOrder(id)),
   exportJson: () => Promise.resolve(exportBackupJson()),
@@ -50,7 +54,8 @@ export const browserRepo: OrderRepo = {
 
 /** Bungkus repo SQLite async. */
 export const sqliteRepo: OrderRepo = {
-  load: (limit) => loadOrdersAsync().then((rows) => applyLimit(rows, limit)),
+  load: (limit) => loadOrdersAsync(limit ?? 200),
+  loadAll: () => loadAllOrdersAsync(),
   checkout: (input) => checkoutAtomicAsync(input),
   void: (id) => voidOrderAsync(id),
   exportJson: () => exportBackupJsonAsync(),

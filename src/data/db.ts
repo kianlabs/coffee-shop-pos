@@ -100,13 +100,20 @@ async function ensureV3Columns(db: SQLiteDBConnection): Promise<void> {
       }
     })();
     if (!hasVoided) {
-      await db.execute(
-        `INSERT OR IGNORE INTO payments_v3 (id, order_id, method, amount_rp, status, reference_note, paid_at, created_at)
-         SELECT id, order_id, method, amount_rp, status, reference_note, paid_at, created_at FROM payments;`,
+      // WAJIB satu transaksi: kalau proses mati di antara DROP dan RENAME,
+      // tabel `payments` hilang permanen dan checkout tidak bisa jalan lagi.
+      await db.executeTransaction(
+        [
+          {
+            statement: `INSERT OR IGNORE INTO payments_v3 (id, order_id, method, amount_rp, status, reference_note, paid_at, created_at)
+             SELECT id, order_id, method, amount_rp, status, reference_note, paid_at, created_at FROM payments;`,
+          },
+          { statement: `DROP TABLE payments;` },
+          { statement: `ALTER TABLE payments_v3 RENAME TO payments;` },
+          { statement: `CREATE INDEX IF NOT EXISTS idx_payments_order ON payments(order_id);` },
+        ],
+        false,
       );
-      await db.execute(`DROP TABLE payments;`);
-      await db.execute(`ALTER TABLE payments_v3 RENAME TO payments;`);
-      await db.execute(`CREATE INDEX IF NOT EXISTS idx_payments_order ON payments(order_id);`);
     } else {
       await db.execute(`DROP TABLE payments_v3;`);
     }
