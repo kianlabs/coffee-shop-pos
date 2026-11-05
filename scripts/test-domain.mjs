@@ -18,6 +18,7 @@ execFileSync(
     "src/domain/hppResolve.ts",
     "src/domain/shifts.ts",
     "src/domain/sales.ts",
+    "src/domain/units.ts",
     "src/data/settings.ts",
     "--ignoreConfig",
     "--outDir",
@@ -39,6 +40,7 @@ const resolve = require(path.join(OUT, "domain/hppResolve.js"));
 const shifts = require(path.join(OUT, "domain/shifts.js"));
 const settings = require(path.join(OUT, "data/settings.js"));
 const sales = require(path.join(OUT, "domain/sales.js"));
+const units = require(path.join(OUT, "domain/units.js"));
 
 let pass = 0;
 let fail = 0;
@@ -203,6 +205,24 @@ console.log("\n[8] PIN void (PBKDF2 + salt)");
   check("PIN benar diterima", await settings.verifyVoidPin("1234", withPin), true);
   check("PIN salah ditolak", await settings.verifyVoidPin("9999", withPin), false);
   check("tanpa hash ditolak", await settings.verifyVoidPin("1234", settings.DEFAULT_SETTINGS), false);
+}
+
+console.log("\n[9] satuan");
+{
+  check("1500 g -> 1.5 kg", units.convertQty(1500, "g", "kg"), 1.5);
+  check("1.5 kg -> 1500 g", units.convertQty(1.5, "kg", "g"), 1500);
+  check("750 ml -> 0.75 l", units.convertQty(750, "ml", "l"), 0.75);
+  check("0.25 l -> 250 ml", units.convertQty(0.25, "l", "ml"), 250);
+  check("satuan sama passthrough", units.convertQty(12, "pcs", "pcs"), 12);
+  check("alias gram dikenali", units.normalizeUnit(" Gram "), "g");
+  check("kg dan g kompatibel", units.isConvertible("kg", "g"), true);
+  check("pcs dan butir tidak kompatibel", units.isConvertible("pcs", "butir"), false);
+  check("satuan tak dikenal ditolak", units.convertQty(1, "ikat", "kg"), null);
+  check("pcs ke kg ditolak", units.convertQty(1, "pcs", "kg"), null);
+  check("pembulatan 3 desimal", units.convertQty(1 / 3, "kg", "g"), 333.333);
+  check("format 1500 g menyebut 1.5 kg", units.formatQtyWithUnit(1500, "g"), "1500 g (1.5 kg)");
+  check("format 12 pcs tanpa konversi", units.formatQtyWithUnit(12, "pcs"), "12 pcs");
+  check("picker kg memuat g", units.getCompatibleUnits("kg").includes("g"), true);
 }
 
 rmSync(OUT, { recursive: true, force: true });

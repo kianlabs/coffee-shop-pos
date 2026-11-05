@@ -9,7 +9,7 @@ Terakhir diperbarui: 5 November 2026.
 
 | Fitur | Bukti |
 |-------|-------|
-| Kasir offline (tambah keranjang, diskon, pajak, layanan, pembulatan, bayar, kembalian) | `npm run build` + `npm test` (62 assertion) |
+| Kasir offline (tambah keranjang, diskon, pajak, layanan, pembulatan, bayar, kembalian) | `npm run build` + `npm test` (76 assertion) |
 | Menu & harga diisi sendiri oleh user (katalog kosong di awal) | `src/components/CatalogEditor.tsx`, `src/data/catalogRepo.ts` |
 | Katalog dibaca dari database, bukan daftar hardcoded | `loadCatalog()` di `App.tsx` |
 | Checkout atomik: order + item + pembayaran + stok + snapshot HPP dalam transaksi manual yang diserialkan | `src/data/orderRepository.ts#checkoutAtomicAsync`, `src/data/tx.ts` |
@@ -21,6 +21,7 @@ Terakhir diperbarui: 5 November 2026.
 | Void atomik & tahan balapan ganda | conditional status update (`WHERE id = ? AND status = 'completed'`) |
 | Per-connection SQLite PRAGMAs (FK on, busy_timeout 5000, WAL di native) | `src/data/db.ts#applyConnectionPragmas` |
 | Pembelian bahan + koreksi stok dari aplikasi | `src/components/StockEditor.tsx` |
+| Konversi satuan input (kg↔g, l↔ml) tanpa mengubah satuan dasar tersimpan | `src/domain/units.ts`, `StockEditor.tsx` |
 | Semua tulis SQLite (checkout, void, katalog, HPP, stok) melewati satu antrean serial | `runSerializedWrite()` di `src/data/tx.ts` |
 | Rekap shift + tutup shift memakai seluruh order | `repo.loadAll()`, `handleCloseShift` |
 | Struk 58mm: nama panjang tidak memotong qty, ESC/POS disanitasi, CP437 | `src/data/receipt.ts`, `src/data/printer.ts` |
@@ -45,7 +46,7 @@ Terakhir diperbarui: 5 November 2026.
 | Sinkronisasi cloud | Mock server + outbox ada; server produksi belum ada |
 | Laporan laba agregat per periode | Data snapshot sudah siap, query/layar belum ada |
 | Editor resep di UI | Tabel resep ada, layar belum |
-| Konversi satuan (kg↔g) | Belum ada; satuan masih teks bebas |
+| Konversi satuan (kg↔g) | Sudah ada untuk input pembelian/koreksi; densitas (ml↔g) belum didukung |
 | Kuantitas stok | Masih REAL, dibulatkan 3 desimal tiap update (anti drift), belum integer milli |
 | Test UI/end-to-end | Belum ada; yang ada hanya test domain |
 | Signing release | Perlu keystore produksi (lihat `android/keystore.properties`) |

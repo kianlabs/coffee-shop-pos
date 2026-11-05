@@ -3,6 +3,14 @@ import { formatRupiah } from "../domain/money";
 import { adjustStock, loadIngredients, recordPurchase, type IngredientRow } from "../data/stock";
 import { isNativePlatform } from "../data/db";
 import { Icon } from "./Icon";
+import {
+  COMMON_BASE_UNITS,
+  convertQty,
+  formatQtyWithUnit,
+  getCompatibleUnits,
+  isConvertible,
+  normalizeUnit,
+} from "../domain/units";
 
 function slugId(name: string): string {
   const base = name
@@ -15,7 +23,7 @@ function slugId(name: string): string {
 
 /**
  * Layar Stok: satu-satunya tempat `recordPurchase` / `adjustStock` dipanggil.
- * Tanpa layar ini, tabel ingredients selalu kosong dan pemotongan stok mustahil.
+ * Mendukung konversi satuan otomatis (kg <-> g, l <-> ml) saat pembelian / koreksi.
  */
 export function StockEditor() {
   const native = isNativePlatform();
@@ -25,13 +33,18 @@ export function StockEditor() {
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Form pembelian
   const [buyId, setBuyId] = useState("");
   const [buyName, setBuyName] = useState("");
-  const [buyUnit, setBuyUnit] = useState("gram");
+  const [buyUnitPreset, setBuyUnitPreset] = useState<string>("g");
+  const [buyCustomUnit, setBuyCustomUnit] = useState("");
+  const [buyInputUnit, setBuyInputUnit] = useState("g");
   const [buyQty, setBuyQty] = useState(0);
   const [buyCost, setBuyCost] = useState(0);
 
+  // Form koreksi stok
   const [adjId, setAdjId] = useState("");
+  const [adjInputUnit, setAdjInputUnit] = useState("");
   const [adjDelta, setAdjDelta] = useState(0);
   const [adjReason, setAdjReason] = useState("");
 
@@ -53,14 +66,71 @@ export function StockEditor() {
   }, [native]);
 
   const selected = useMemo(() => rows.find((r) => r.id === buyId) ?? null, [rows, buyId]);
+  const selectedAdj = useMemo(() => rows.find((r) => r.id === adjId) ?? null, [rows, adjId]);
+
+  // Satuan dasar efektif untuk form pembelian
+  const effectiveBaseUnit = useMemo(() => {
+    if (selected) return selected.baseUnit;
+    if (buyUnitPreset === "custom") return buyCustomUnit.trim();
+    return buyUnitPreset;
+  }, [selected, buyUnitPreset, buyCustomUnit]);
+
+  // Pilihan satuan input pembelian
+  const purchaseUnitOptions = useMemo(() => {
+    const base = effectiveBaseUnit;
+    const compatible = getCompatibleUnits(base);
+    const set = new Set<string>();
+    if (base) set.add(base);
+    for (const u of compatible) set.add(u);
+    for (const u of COMMON_BASE_UNITS) set.add(u);
+    return Array.from(set);
+  }, [effectiveBaseUnit]);
+
+  // Pilihan satuan input koreksi
+  const adjUnitOptions = useMemo(() => {
+    if (!selectedAdj) return [];
+    const base = selectedAdj.baseUnit;
+    const compatible = getCompatibleUnits(base);
+    const set = new Set<string>();
+    if (base) set.add(base);
+    for (const u of compatible) set.add(u);
+    for (const u of COMMON_BASE_UNITS) set.add(u);
+    return Array.from(set);
+  }, [selectedAdj]);
+
+  function handleSelectBuyIngredient(id: string) {
+    setBuyId(id);
+    const ing = rows.find((r) => r.id === id);
+    if (ing) {
+      setBuyInputUnit(ing.baseUnit);
+    } else {
+      setBuyInputUnit(buyUnitPreset === "custom" ? buyCustomUnit.trim() : buyUnitPreset);
+    }
+  }
+
+  function handleSelectAdjIngredient(id: string) {
+    setAdjId(id);
+    const ing = rows.find((r) => r.id === id);
+    if (ing) {
+      setAdjInputUnit(ing.baseUnit);
+    } else {
+      setAdjInputUnit("");
+    }
+  }
 
   async function handlePurchase() {
     setError(null);
     setInfo(null);
     const name = selected ? selected.name : buyName.trim();
-    const unit = selected ? selected.baseUnit : buyUnit.trim();
+    const baseUnit = effectiveBaseUnit;
+    const inputUnit = buyInputUnit.trim() || baseUnit;
+
     if (!name) {
       setError("Nama bahan wajib diisi.");
+      return;
+    }
+    if (!baseUnit) {
+      setError("Satuan dasar bahan wajib diisi.");
       return;
     }
     if (!(buyQty > 0)) {
@@ -71,21 +141,42 @@ export function StockEditor() {
       setError("Harga per satuan tidak boleh negatif.");
       return;
     }
+    if (!isConvertible(inputUnit, baseUnit)) {
+      setError(`Satuan "${inputUnit}" tidak dapat dikonversi ke satuan dasar "${baseUnit}".`);
+      return;
+    }
+    const convertedQty = convertQty(buyQty, inputUnit, baseUnit);
+    if (convertedQty === null || !(convertedQty > 0)) {
+      setError(`Jumlah pembelian tidak valid setelah konversi ke "${baseUnit}".`);
+      return;
+    }
+
+    // Hitung harga per satuan dasar (baseUnit)
+    // Total belanja = buyQty * buyCost
+    // costPerBaseUnit = totalBelanja / convertedQty
+    const totalExpenditure = buyQty * buyCost;
+    const costPerBaseUnit = Math.round(totalExpenditure / convertedQty);
+
     setBusy(true);
     try {
       await recordPurchase({
         ingredientId: selected ? selected.id : slugId(name),
         name,
-        baseUnit: unit || "pcs",
-        qty: buyQty,
-        costPerUnitRp: Math.trunc(buyCost),
+        baseUnit,
+        qty: convertedQty,
+        costPerUnitRp: costPerBaseUnit,
       });
       setBuyQty(0);
       setBuyCost(0);
       setBuyName("");
       setBuyId("");
+      setBuyCustomUnit("");
       await reload();
-      setInfo(`Pembelian ${name} ${buyQty} ${unit} dicatat.`);
+      const displayMsg =
+        normalizeUnit(inputUnit) !== normalizeUnit(baseUnit)
+          ? `Pembelian ${name} ${buyQty} ${inputUnit} (${convertedQty} ${baseUnit}) dicatat.`
+          : `Pembelian ${name} ${buyQty} ${baseUnit} dicatat.`;
+      setInfo(displayMsg);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal mencatat pembelian.");
     } finally {
@@ -96,7 +187,7 @@ export function StockEditor() {
   async function handleAdjust() {
     setError(null);
     setInfo(null);
-    if (!adjId) {
+    if (!adjId || !selectedAdj) {
       setError("Pilih bahan yang mau dikoreksi.");
       return;
     }
@@ -108,13 +199,34 @@ export function StockEditor() {
       setError("Alasan koreksi wajib diisi.");
       return;
     }
+    const baseUnit = selectedAdj.baseUnit;
+    const inputUnit = adjInputUnit.trim() || baseUnit;
+
+    if (!isConvertible(inputUnit, baseUnit)) {
+      setError(`Satuan "${inputUnit}" tidak dapat dikonversi ke satuan dasar "${baseUnit}".`);
+      return;
+    }
+    const convertedDelta = convertQty(adjDelta, inputUnit, baseUnit);
+    if (convertedDelta === null || convertedDelta === 0) {
+      setError(`Selisih tidak boleh nol setelah konversi ke "${baseUnit}".`);
+      return;
+    }
+
     setBusy(true);
     try {
-      await adjustStock({ ingredientId: adjId, deltaQty: adjDelta, reason: adjReason.trim() });
+      await adjustStock({
+        ingredientId: adjId,
+        deltaQty: convertedDelta,
+        reason: adjReason.trim(),
+      });
       setAdjDelta(0);
       setAdjReason("");
       await reload();
-      setInfo("Koreksi stok tersimpan.");
+      const displayMsg =
+        normalizeUnit(inputUnit) !== normalizeUnit(baseUnit)
+          ? `Koreksi stok ${selectedAdj.name} ${adjDelta > 0 ? "+" : ""}${adjDelta} ${inputUnit} (${convertedDelta > 0 ? "+" : ""}${convertedDelta} ${baseUnit}) tersimpan.`
+          : `Koreksi stok ${selectedAdj.name} ${convertedDelta > 0 ? "+" : ""}${convertedDelta} ${baseUnit} tersimpan.`;
+      setInfo(displayMsg);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal mengoreksi stok.");
     } finally {
@@ -173,7 +285,7 @@ export function StockEditor() {
                     className={`stock-qty ${r.stockQty < 0 ? "is-negative" : ""}`}
                     title={r.stockQty < 0 ? "Stok minus — lakukan koreksi" : undefined}
                   >
-                    {r.stockQty} {r.baseUnit}
+                    {formatQtyWithUnit(r.stockQty, r.baseUnit)}
                     {r.stockQty < 0 && " ⚠"}
                   </span>
                 </div>
@@ -187,7 +299,11 @@ export function StockEditor() {
           <div className="form-grid">
             <label style={{ gridColumn: "1 / -1" }}>
               Bahan
-              <select aria-label="Pilih bahan" value={buyId} onChange={(e) => setBuyId(e.target.value)}>
+              <select
+                aria-label="Pilih bahan"
+                value={buyId}
+                onChange={(e) => handleSelectBuyIngredient(e.target.value)}
+              >
                 <option value="">— bahan baru —</option>
                 {rows.map((r) => (
                   <option key={r.id} value={r.id}>
@@ -208,36 +324,78 @@ export function StockEditor() {
                   />
                 </label>
                 <label>
-                  Satuan
-                  <input
-                    aria-label="Satuan"
-                    placeholder="gram / ml / pcs"
-                    value={buyUnit}
-                    onChange={(e) => setBuyUnit(e.target.value.slice(0, 20))}
-                  />
+                  Satuan dasar
+                  <select
+                    aria-label="Satuan dasar"
+                    value={buyUnitPreset}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setBuyUnitPreset(val);
+                      if (val !== "custom") {
+                        setBuyInputUnit(val);
+                      }
+                    }}
+                  >
+                    <option value="g">gram (g)</option>
+                    <option value="kg">kilogram (kg)</option>
+                    <option value="ml">mililiter (ml)</option>
+                    <option value="l">liter (l)</option>
+                    <option value="pcs">pcs</option>
+                    <option value="custom">Lainnya (bebas)…</option>
+                  </select>
                 </label>
+                {buyUnitPreset === "custom" && (
+                  <label style={{ gridColumn: "1 / -1" }}>
+                    Satuan dasar kustom
+                    <input
+                      aria-label="Satuan kustom"
+                      placeholder="mis. butir / bungkus / ikat"
+                      value={buyCustomUnit}
+                      onChange={(e) => {
+                        const val = e.target.value.slice(0, 20);
+                        setBuyCustomUnit(val);
+                        setBuyInputUnit(val);
+                      }}
+                    />
+                  </label>
+                )}
               </>
             )}
             <label>
-              Jumlah
+              Jumlah pembelian
               <input
                 aria-label="Jumlah"
                 type="number"
                 min={0}
+                step="any"
                 inputMode="decimal"
-                value={buyQty}
+                value={buyQty || ""}
                 onChange={(e) => setBuyQty(Math.max(0, Number(e.target.value) || 0))}
                 placeholder="qty"
               />
             </label>
             <label>
-              Harga per satuan (Rp)
+              Satuan pembelian
+              <select
+                aria-label="Satuan pembelian"
+                value={buyInputUnit}
+                onChange={(e) => setBuyInputUnit(e.target.value)}
+              >
+                {purchaseUnitOptions.map((u) => (
+                  <option key={u} value={u}>
+                    {u} {u === effectiveBaseUnit ? "(satuan dasar)" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label style={{ gridColumn: "1 / -1" }}>
+              Harga per {buyInputUnit || "satuan"} (Rp)
               <input
                 aria-label="Harga per satuan"
                 type="number"
                 min={0}
                 inputMode="numeric"
-                value={buyCost}
+                value={buyCost || ""}
                 onChange={(e) => setBuyCost(Math.max(0, Math.trunc(Number(e.target.value) || 0)))}
                 placeholder="Rp/satuan"
               />
@@ -254,9 +412,26 @@ export function StockEditor() {
             </div>
           </div>
           {buyQty > 0 && buyCost > 0 && (
-            <p className="muted" style={{ marginTop: 8 }}>
-              Total belanja: {formatRupiah(buyQty * buyCost)}
-            </p>
+            <div style={{ marginTop: 8 }}>
+              <p className="muted">
+                Total belanja: {formatRupiah(buyQty * buyCost)}
+                {effectiveBaseUnit &&
+                  normalizeUnit(buyInputUnit) !== normalizeUnit(effectiveBaseUnit) &&
+                  isConvertible(buyInputUnit, effectiveBaseUnit) && (
+                    <>
+                      {" "}
+                      (≈ {convertQty(buyQty, buyInputUnit, effectiveBaseUnit)} {effectiveBaseUnit} @{" "}
+                      {formatRupiah(
+                        Math.round(
+                          (buyQty * buyCost) /
+                            (convertQty(buyQty, buyInputUnit, effectiveBaseUnit) || 1),
+                        ),
+                      )}
+                      /{effectiveBaseUnit})
+                    </>
+                  )}
+              </p>
+            </div>
           )}
         </section>
       </div>
@@ -272,7 +447,7 @@ export function StockEditor() {
             <select
               aria-label="Pilih bahan koreksi"
               value={adjId}
-              onChange={(e) => setAdjId(e.target.value)}
+              onChange={(e) => handleSelectAdjIngredient(e.target.value)}
             >
               <option value="">— pilih bahan —</option>
               {rows.map((r) => (
@@ -287,22 +462,38 @@ export function StockEditor() {
             <input
               aria-label="Selisih"
               type="number"
+              step="any"
               inputMode="decimal"
-              value={adjDelta}
+              value={adjDelta || ""}
               onChange={(e) => setAdjDelta(Number(e.target.value) || 0)}
-              placeholder="mis. -250"
+              placeholder="mis. -250 atau 1.5"
             />
           </label>
           <label>
+            Satuan koreksi
+            <select
+              aria-label="Satuan koreksi"
+              value={adjInputUnit}
+              disabled={!selectedAdj}
+              onChange={(e) => setAdjInputUnit(e.target.value)}
+            >
+              {adjUnitOptions.map((u) => (
+                <option key={u} value={u}>
+                  {u} {selectedAdj && u === selectedAdj.baseUnit ? "(satuan dasar)" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label style={{ gridColumn: "1 / -1" }}>
             Alasan
             <input
               aria-label="Alasan"
               value={adjReason}
               onChange={(e) => setAdjReason(e.target.value.slice(0, 200))}
-              placeholder="mis. stok opname / tumpah"
+              placeholder="mis. stok opname / tumpah / kedaluwarsa"
             />
           </label>
-          <div style={{ display: "flex", alignItems: "flex-end" }}>
+          <div style={{ display: "flex", alignItems: "flex-end", gridColumn: "1 / -1" }}>
             <button className="block" disabled={busy} onClick={() => void handleAdjust()}>
               <Icon name="check" size={17} />
               Simpan koreksi
