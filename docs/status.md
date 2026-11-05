@@ -30,6 +30,7 @@ Terakhir diperbarui: 5 November 2026.
 | Keranjang & shift bertahan saat app ditutup | `posCart`/`posShift` di localStorage |
 | Error boundary (tidak ada layar putih) | `src/components/ErrorBoundary.tsx` |
 | Sync: timeout 15s, single-flight, klasifikasi 2xx/409/429/4xx, event_id UUID | `src/data/sync.ts` |
+| Security hardening: void PIN salted PBKDF2, sync API key in-memory/sessionStorage, CSP meta, Android networkSecurityConfig | `src/data/settings.ts`, `src/data/sync.ts`, `index.html`, `network_security_config.xml` |
 | Backup terenkripsi: PBKDF2 600k, salt/IV acak, checksum SHA-256 | `src/data/cryptoBackup.ts` |
 | APK memuat bundle terbaru | `npm run android:assets` (diverifikasi lewat isi APK) |
 

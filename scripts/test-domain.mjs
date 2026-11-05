@@ -189,6 +189,22 @@ console.log("\n[7] ringkasan penjualan");
   check("kemarin 1 transaksi", sales.ordersInRange(sample, kem.start, kem.end).length, 1);
 }
 
+console.log("\n[8] PIN void (PBKDF2 + salt)");
+{
+  const first = await settings.hashVoidPin("1234");
+  const second = await settings.hashVoidPin("1234");
+  check("PIN tidak disimpan plaintext", first.hash === "1234", false);
+  check("salt acak berbeda", first.salt === second.salt, false);
+  const withPin = {
+    ...settings.DEFAULT_SETTINGS,
+    voidPinHash: first.hash,
+    voidPinSalt: first.salt,
+  };
+  check("PIN benar diterima", await settings.verifyVoidPin("1234", withPin), true);
+  check("PIN salah ditolak", await settings.verifyVoidPin("9999", withPin), false);
+  check("tanpa hash ditolak", await settings.verifyVoidPin("1234", settings.DEFAULT_SETTINGS), false);
+}
+
 rmSync(OUT, { recursive: true, force: true });
 console.log(`\n=== ${fail === 0 ? `SEMUA LULUS (${pass})` : `${fail} GAGAL dari ${pass + fail}`} ===`);
 process.exit(fail === 0 ? 0 : 1);

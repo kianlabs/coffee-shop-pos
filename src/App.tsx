@@ -45,7 +45,15 @@ import {
   type PrinterStatus,
 } from "./data/printer";
 import { paymentLabel, renderReceiptText } from "./data/receipt";
-import { applyRounding, getSettings, saveSettings, type PosSettings } from "./data/settings";
+import {
+  applyRounding,
+  getSettings,
+  hashVoidPin,
+  migrateLegacyVoidPin,
+  saveSettings,
+  verifyVoidPin,
+  type PosSettings,
+} from "./data/settings";
 import { closeShift, openShift, summarizeShift, type Shift } from "./domain/shifts";
 import { ProductItem } from "./components/ProductItem";
 import { Icon, type IconName } from "./components/Icon";
@@ -217,6 +225,11 @@ export default function App() {
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState<string | null>(null);
   const [pinAttempts, setPinAttempts] = useState(0);
+  const [pinVerifying, setPinVerifying] = useState(false);
+  // PIN baru tidak pernah masuk ke PosSettings sebagai plaintext; hanya
+  // di-hash saat tombol simpan ditekan.
+  const [voidPinDraft, setVoidPinDraft] = useState("");
+  const [settingsSaving, setSettingsSaving] = useState(false);
   const [printerDevices, setPrinterDevices] = useState<PrinterDevice[]>([]);
   const [printerState, setPrinterState] = useState<PrinterStatus>({
     connected: false,
@@ -243,6 +256,26 @@ export default function App() {
   viewRef.current = view;
   const dbReadyRef = useRef(dbReady);
   dbReadyRef.current = dbReady;
+
+  // Migrasi setelan lama: PIN void plaintext -> hash PBKDF2 (sekali saat buka).
+  useEffect(() => {
+    let cancelled = false;
+    void migrateLegacyVoidPin()
+      .then((migrated) => {
+        if (cancelled || !migrated) return;
+        setPosSettings(migrated);
+        // Jangan timpa field lain yang mungkin sudah diedit user.
+        setSettingsDraft((draft) => ({
+          ...draft,
+          voidPinHash: migrated.voidPinHash,
+          voidPinSalt: migrated.voidPinSalt,
+        }));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Keranjang & shift bertahan saat WebView di-kill / HP kehabisan baterai.
   useEffect(() => {
@@ -567,7 +600,7 @@ export default function App() {
     // PIN lewat modal, bukan window.prompt: prompt tidak menyamarkan input dan
     // tidak bisa dibatasi percobaannya.
     if (posSettings.requireVoidPin) {
-      if (posSettings.voidPin === "") {
+      if (posSettings.voidPinHash === "" || posSettings.voidPinSalt === "") {
         setStatus({
           kind: "error",
           msg: "PIN void aktif tapi belum diisi di Pengaturan.",
@@ -584,25 +617,76 @@ export default function App() {
     await performVoid(orderId, label);
   }
 
-  function confirmVoidPin() {
-    if (!pinRequest) return;
-    if (pinInput !== posSettings.voidPin) {
-      const next = pinAttempts + 1;
-      setPinAttempts(next);
-      setPinInput("");
-      if (next >= 3) {
-        setPinRequest(null);
-        setStatus({ kind: "error", msg: "PIN salah 3x — void dibatalkan.", scope: "riwayat" });
+  async function confirmVoidPin() {
+    if (!pinRequest || pinVerifying) return;
+    setPinVerifying(true);
+    try {
+      const ok = await verifyVoidPin(pinInput, posSettings);
+      if (!ok) {
+        const next = pinAttempts + 1;
+        setPinAttempts(next);
+        setPinInput("");
+        if (next >= 3) {
+          setPinRequest(null);
+          setStatus({ kind: "error", msg: "PIN salah 3x — void dibatalkan.", scope: "riwayat" });
+          return;
+        }
+        setPinError(`PIN salah. Sisa ${3 - next} percobaan.`);
         return;
       }
-      setPinError(`PIN salah. Sisa ${3 - next} percobaan.`);
+      const req = pinRequest;
+      setPinRequest(null);
+      setPinInput("");
+      setPinError(null);
+      await performVoid(req.orderId, req.label);
+    } catch {
+      setPinError("PIN tidak bisa diverifikasi. Coba lagi.");
+    } finally {
+      setPinVerifying(false);
+    }
+  }
+
+  async function handleSaveSettings() {
+    if (settingsSaving) return;
+    const newPin = voidPinDraft.trim();
+    const hasStoredPin = settingsDraft.voidPinHash !== "" && settingsDraft.voidPinSalt !== "";
+    if (newPin !== "" && newPin.length < 4) {
+      setStatus({
+        kind: "error",
+        msg: "PIN void minimal 4 karakter.",
+        scope: "pengaturan",
+      });
       return;
     }
-    const req = pinRequest;
-    setPinRequest(null);
-    setPinInput("");
-    setPinError(null);
-    void performVoid(req.orderId, req.label);
+    if (settingsDraft.requireVoidPin && newPin === "" && !hasStoredPin) {
+      setStatus({
+        kind: "error",
+        msg: "PIN void wajib diisi bila PIN void aktif.",
+        scope: "pengaturan",
+      });
+      return;
+    }
+    setSettingsSaving(true);
+    try {
+      let next = settingsDraft;
+      if (newPin !== "") {
+        const { hash, salt } = await hashVoidPin(newPin);
+        next = { ...settingsDraft, voidPinHash: hash, voidPinSalt: salt };
+      }
+      const saved = saveSettings(next);
+      setPosSettings(saved);
+      setSettingsDraft(saved);
+      setVoidPinDraft("");
+      setStatus({ kind: "ok", msg: "Pengaturan disimpan.", scope: "pengaturan" });
+    } catch (e) {
+      setStatus({
+        kind: "error",
+        msg: e instanceof Error ? e.message : "Gagal menyimpan PIN void.",
+        scope: "pengaturan",
+      });
+    } finally {
+      setSettingsSaving(false);
+    }
   }
 
   async function handleScanPrinters() {
@@ -1735,6 +1819,10 @@ export default function App() {
                     autoComplete="off"
                   />
                 </label>
+                <p className="muted">
+                  API key hanya disimpan untuk sesi ini (sessionStorage) dan hilang saat aplikasi
+                  ditutup.
+                </p>
                 <div className="row-actions" style={{ justifyContent: "flex-start" }}>
                   <button
                     onClick={() => {
@@ -1880,17 +1968,24 @@ export default function App() {
                     Minta PIN saat void
                   </label>
                   <label>
-                    PIN void
+                    PIN void (baru)
                     <input
                       type="password"
-                      value={settingsDraft.voidPin}
-                      onChange={(e) =>
-                        setSettingsDraft({ ...settingsDraft, voidPin: e.target.value.slice(0, 32) })
+                      value={voidPinDraft}
+                      onChange={(e) => setVoidPinDraft(e.target.value.slice(0, 32))}
+                      placeholder={
+                        settingsDraft.voidPinHash !== ""
+                          ? "kosongkan bila tidak ganti PIN"
+                          : "isi bila PIN void aktif"
                       }
-                      placeholder="isi bila PIN void aktif"
-                      autoComplete="off"
+                      autoComplete="new-password"
                     />
                   </label>
+                  <p className="muted">
+                    {settingsDraft.voidPinHash !== ""
+                      ? "PIN sudah diset. Isi kolom di atas untuk menggantinya."
+                      : "PIN disimpan sebagai hash PBKDF2 + salt, bukan teks biasa."}
+                  </p>
                 </section>
 
                 <section className="settings-card">
@@ -2006,23 +2101,11 @@ export default function App() {
                 </span>
                 <button
                   className="primary"
-                  onClick={() => {
-                    if (settingsDraft.requireVoidPin && settingsDraft.voidPin.trim() === "") {
-                      setStatus({
-                        kind: "error",
-                        msg: "PIN void wajib diisi bila PIN void aktif.",
-                        scope: "pengaturan",
-                      });
-                      return;
-                    }
-                    const saved = saveSettings(settingsDraft);
-                    setPosSettings(saved);
-                    setSettingsDraft(saved);
-                    setStatus({ kind: "ok", msg: "Pengaturan disimpan.", scope: "pengaturan" });
-                  }}
+                  disabled={settingsSaving}
+                  onClick={() => void handleSaveSettings()}
                 >
                   <Icon name="check" size={17} />
-                  Simpan pengaturan
+                  {settingsSaving ? "Menyimpan…" : "Simpan pengaturan"}
                 </button>
               </div>
             </>
@@ -2109,7 +2192,7 @@ export default function App() {
         <div
           className="modal-backdrop"
           onClick={(e) => {
-            if (e.target === e.currentTarget) {
+            if (e.target === e.currentTarget && !pinVerifying) {
               setPinRequest(null);
               setPinInput("");
               setPinError(null);
@@ -2127,6 +2210,7 @@ export default function App() {
               <button
                 className="modal-close"
                 aria-label="Batal"
+                disabled={pinVerifying}
                 onClick={() => {
                   setPinRequest(null);
                   setPinInput("");
@@ -2143,12 +2227,13 @@ export default function App() {
               autoFocus
               aria-label="PIN void"
               value={pinInput}
+              disabled={pinVerifying}
               onChange={(e) => {
                 setPinInput(e.target.value.slice(0, 32));
                 setPinError(null);
               }}
               onKeyDown={(e) => {
-                if (e.key === "Enter") confirmVoidPin();
+                if (e.key === "Enter") void confirmVoidPin();
               }}
               style={{ minHeight: 52, fontSize: 22, textAlign: "center", letterSpacing: "0.2em" }}
             />
@@ -2159,6 +2244,7 @@ export default function App() {
             )}
             <div className="modal-actions">
               <button
+                disabled={pinVerifying}
                 onClick={() => {
                   setPinRequest(null);
                   setPinInput("");
@@ -2167,8 +2253,12 @@ export default function App() {
               >
                 Batal
               </button>
-              <button className="primary" onClick={confirmVoidPin}>
-                Lanjut
+              <button
+                className="primary"
+                disabled={pinVerifying}
+                onClick={() => void confirmVoidPin()}
+              >
+                {pinVerifying ? "Memeriksa…" : "Lanjut"}
               </button>
             </div>
           </div>

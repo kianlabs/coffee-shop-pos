@@ -18,7 +18,9 @@ import { getDb } from "./db";
  * DEFAULT (aman, mudah diganti):
  * - DEFAULT_ENDPOINT = "https://api.example.invalid" — syncNow MENOLAK kirim
  *   selama endpoint masih *.example.invalid. Ganti via panel Sync di App
- *   (tersimpan di localStorage `pos.sync.v1`).
+ *   (endpoint + device_id tersimpan di localStorage `pos.sync.v1`).
+ * - API key TIDAK disimpan di localStorage: hanya di memori + sessionStorage
+ *   (`pos.sync.key.v1`), sehingga hilang saat aplikasi ditutup penuh.
  * - Backoff: 30 detik * 2^attempt, dibatasi 1 jam (BACKOFF_BASE_SEC/MAX).
  * - Batch: max 100 event per sync (SYNC_BATCH_LIMIT).
  */
@@ -30,8 +32,11 @@ import { getDb } from "./db";
 /** DEFAULT: endpoint placeholder yang tidak akan pernah dikirimi data nyata. */
 export const DEFAULT_SYNC_ENDPOINT = "https://api.example.invalid";
 
-/** Kunci settings sync di localStorage. */
+/** Kunci settings sync (endpoint + device_id, TANPA API key) di localStorage. */
 export const SYNC_SETTINGS_KEY = "pos.sync.v1";
+
+/** API key hanya untuk sesi berjalan (sessionStorage; hilang saat app ditutup). */
+export const SYNC_API_KEY_SESSION_KEY = "pos.sync.key.v1";
 
 /** Kunci metadata status sync terakhir di localStorage. */
 export const SYNC_META_KEY = "pos.sync.meta.v1";
@@ -63,8 +68,17 @@ export type SyncOutboxEvent = {
 
 export type SyncSettings = {
   endpoint: string;
-  /** Disimpan plaintext di localStorage (WebView offline, tanpa dependency tambahan). */
+  /**
+   * Hanya di memori + sessionStorage — TIDAK pernah ikut ditulis ke localStorage.
+   * Hilang saat aplikasi ditutup penuh (bukan sekadar reload WebView).
+   */
   apiKey: string;
+  deviceId: string;
+};
+
+/** Bentuk yang boleh dipersistensikan ke localStorage. */
+type PersistedSyncSettings = {
+  endpoint: string;
   deviceId: string;
 };
 
@@ -130,36 +144,66 @@ function readJson(key: string): Record<string, unknown> | null {
   }
 }
 
-export function loadSyncSettings(): SyncSettings {
-  const saved = readJson(SYNC_SETTINGS_KEY);
-  let deviceId = typeof saved?.deviceId === "string" ? saved.deviceId : "";
-  if (!deviceId) {
-    deviceId = newDeviceId();
-    saveSyncSettings({
-      endpoint:
-        typeof saved?.endpoint === "string" && saved.endpoint
-          ? saved.endpoint
-          : DEFAULT_SYNC_ENDPOINT,
-      apiKey: typeof saved?.apiKey === "string" ? saved.apiKey : "",
-      deviceId,
-    });
+function readSessionApiKey(): string {
+  try {
+    return sessionStorage.getItem(SYNC_API_KEY_SESSION_KEY) ?? "";
+  } catch {
+    return "";
   }
-  return {
-    endpoint:
-      typeof saved?.endpoint === "string" && saved.endpoint
-        ? saved.endpoint
-        : DEFAULT_SYNC_ENDPOINT,
-    apiKey: typeof saved?.apiKey === "string" ? saved.apiKey : "",
-    deviceId,
-  };
 }
 
-export function saveSyncSettings(s: SyncSettings): void {
+function writeSessionApiKey(apiKey: string): void {
   try {
-    localStorage.setItem(SYNC_SETTINGS_KEY, JSON.stringify(s));
+    if (apiKey) {
+      sessionStorage.setItem(SYNC_API_KEY_SESSION_KEY, apiKey);
+    } else {
+      sessionStorage.removeItem(SYNC_API_KEY_SESSION_KEY);
+    }
+  } catch {
+    // Storage penuh / mode privat: key tetap hidup di memori sampai reload.
+  }
+}
+
+function persistSyncSettings(s: PersistedSyncSettings): void {
+  try {
+    localStorage.setItem(SYNC_SETTINGS_KEY, JSON.stringify({ endpoint: s.endpoint, deviceId: s.deviceId }));
   } catch {
     // Best-effort: sync tetap bisa jalan sekali tanpa persist.
   }
+}
+
+export function loadSyncSettings(): SyncSettings {
+  const saved = readJson(SYNC_SETTINGS_KEY);
+  const endpoint =
+    typeof saved?.endpoint === "string" && saved.endpoint
+      ? saved.endpoint
+      : DEFAULT_SYNC_ENDPOINT;
+  let deviceId = typeof saved?.deviceId === "string" ? saved.deviceId : "";
+  const needsDeviceId = deviceId === "";
+  if (needsDeviceId) {
+    deviceId = newDeviceId();
+  }
+
+  // Migrasi dari versi lama: API key pernah tersimpan plaintext di localStorage.
+  // Pindahkan ke sessionStorage lalu hapus field tersebut dari localStorage.
+  let apiKey = readSessionApiKey();
+  const legacyApiKey = typeof saved?.apiKey === "string" ? saved.apiKey : "";
+  const hadLegacyApiKey = saved !== null && Object.prototype.hasOwnProperty.call(saved, "apiKey");
+  if (legacyApiKey && !apiKey) {
+    apiKey = legacyApiKey;
+    writeSessionApiKey(apiKey);
+  }
+  if (needsDeviceId || hadLegacyApiKey) {
+    persistSyncSettings({ endpoint, deviceId });
+  }
+
+  return { endpoint, apiKey, deviceId };
+}
+
+export function saveSyncSettings(s: SyncSettings): void {
+  // Yang persisten hanya endpoint + device_id. API key sesi-only.
+  persistSyncSettings({ endpoint: s.endpoint, deviceId: s.deviceId });
+  writeSessionApiKey(s.apiKey);
 }
 
 export function loadSyncMeta(): SyncMeta {
@@ -324,8 +368,9 @@ export function isDefaultEndpoint(endpoint: string): boolean {
 }
 
 /**
- * Endpoint wajib https://. Pengecualian: http:// hanya untuk localhost
- * (mock server dev). API key dikirim sebagai Bearer token — jangan pernah
+ * Endpoint wajib https://. Pengecualian: http:// hanya untuk host loopback /
+ * emulator (mock server dev): localhost, 127.0.0.1, ::1, dan 10.0.2.2 (Android
+ * emulator -> host). API key dikirim sebagai Bearer token — jangan pernah
  * menulisnya ke console/log.
  */
 export function isEndpointAllowed(endpoint: string): boolean {
@@ -338,7 +383,13 @@ export function isEndpointAllowed(endpoint: string): boolean {
   if (url.protocol === "https:") return true;
   if (url.protocol !== "http:") return false;
   const host = url.hostname.toLowerCase();
-  return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
+  return (
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host === "::1" ||
+    host === "[::1]" ||
+    host === "10.0.2.2"
+  );
 }
 
 export type PushResponse = {
