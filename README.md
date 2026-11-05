@@ -1,6 +1,8 @@
-# Coffee Shop POS — Technical Blueprint
+# Coffee Shop POS
 
-Status: **draft / baseline**, based on currently confirmed client requirements. Validate every open decision before production.
+Status: **berjalan** untuk operasi offline (lihat `docs/status.md` untuk yang
+sudah jadi dan yang masih terbuka). Blueprint awal tetap disimpan di bawah
+sebagai catatan desain.
 
 ## Confirmed
 - One Android tablet, 4 GB RAM / 64 GB storage.
@@ -25,6 +27,7 @@ Status: **draft / baseline**, based on currently confirmed client requirements. 
 - `docs/offline-sync-flow.md` — outbox sync flow
 - `docs/printer-flow.md` — Bluetooth printer and logo flow
 - `docs/hpp.md` — user-editable HPP (manual / recipe / none) and margin
+- `docs/status.md` — apa yang sudah jalan vs belum (sumber kebenaran status)
 - `docs/backup-recovery.md` — backup/recovery baseline
 - `docs/open-decisions.md` — decisions that must be confirmed
 - `database/sqlite-schema.sql` — proposed SQLite schema
