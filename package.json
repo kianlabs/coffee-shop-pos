@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node scripts/test-domain.mjs",
     "android:assets": "npm run build && node scripts/sync-android-assets.mjs",
+    "apk": "bash scripts/build-apk.sh",
     "mock:sync": "node scripts/mock-sync-server.mjs --port 8787"
   },
   "repository": {
@@ -32,6 +33,7 @@
     "@capacitor/android": "^8.6.0",
     "@capacitor/cli": "^8.6.0",
     "@capacitor/core": "^8.6.0",
+    "@picocss/pico": "^2.1.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },

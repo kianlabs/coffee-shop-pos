@@ -765,247 +765,254 @@ export default function App() {
   }
 
   return (
-    <div
-      style={{
-        maxWidth: 1100,
-        margin: "0 auto",
-        paddingTop: "max(16px, env(safe-area-inset-top))",
-        paddingBottom: "max(16px, env(safe-area-inset-bottom))",
-        paddingLeft: "max(16px, env(safe-area-inset-left))",
-        paddingRight: "max(16px, env(safe-area-inset-right))",
-        boxSizing: "border-box",
-        fontFamily: "sans-serif",
-      }}
-    >
-      <h1>Kopi POS - Kasir</h1>
-      <p>Kasir Siap - Offline Mode</p>
-      <nav style={{ marginBottom: 16 }}>
+    <div className="app-shell">
+      <header className="app-header">
+        <h1 className="app-title">{posSettings.storeName}</h1>
+        <span className="muted">Kasir offline</span>
+      </header>
+      <p className="app-subtitle">Kasir siap · mode offline</p>
+      <nav className="nav-tabs">
         <button
           aria-current={view === "kasir" ? "page" : undefined}
-          style={{ minHeight: 44, fontWeight: view === "kasir" ? "bold" : undefined }}
           onClick={() => setView("kasir")}
         >
           Kasir
         </button>{" "}
         <button
           aria-current={view === "menu" ? "page" : undefined}
-          style={{ minHeight: 44, fontWeight: view === "menu" ? "bold" : undefined }}
           onClick={() => setView("menu")}
         >
           Menu
         </button>{" "}
         <button
           aria-current={view === "riwayat" ? "page" : undefined}
-          style={{ minHeight: 44, fontWeight: view === "riwayat" ? "bold" : undefined }}
           onClick={() => setView("riwayat")}
         >
           Riwayat ({orders.length})
         </button>{" "}
         <button
           aria-current={view === "hpp" ? "page" : undefined}
-          style={{ minHeight: 44, fontWeight: view === "hpp" ? "bold" : undefined }}
           onClick={() => setView("hpp")}
         >
           HPP
         </button>{" "}
         <button
           aria-current={view === "stok" ? "page" : undefined}
-          style={{ minHeight: 44, fontWeight: view === "stok" ? "bold" : undefined }}
           onClick={() => setView("stok")}
         >
           Stok
         </button>{" "}
         <button
           aria-current={view === "backup" ? "page" : undefined}
-          style={{ minHeight: 44, fontWeight: view === "backup" ? "bold" : undefined }}
           onClick={() => setView("backup")}
         >
           Backup
         </button>{" "}
         <button
           aria-current={view === "pengaturan" ? "page" : undefined}
-          style={{ minHeight: 44, fontWeight: view === "pengaturan" ? "bold" : undefined }}
           onClick={() => setView("pengaturan")}
         >
           Pengaturan
         </button>
       </nav>
       {view === "kasir" && (
-        <>
-          <div style={{ marginBottom: 12 }}>
-            {catalog.categories.map((c) => (
-              <button
-                key={c.id}
-                aria-current={c.id === categoryId ? "true" : undefined}
-                style={{
-                  marginRight: 8,
-                  minHeight: 44,
-                  fontWeight: c.id === categoryId ? "bold" : undefined,
-                }}
-                onClick={() => setCategoryId(c.id)}
-              >
-                {c.name}
-              </button>
-            ))}
-          </div>
+        <div className="pos-grid">
+          <section className="panel">
+            <div className="field-row" style={{ marginBottom: 12 }}>
+              {catalog.categories.map((c) => (
+                <button
+                  key={c.id}
+                  aria-current={c.id === categoryId ? "true" : undefined}
+                  className={c.id === categoryId ? "" : "outline"}
+                  onClick={() => setCategoryId(c.id)}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
 
-          {catalog.products.length === 0 ? (
-            <div style={{ padding: 16, background: "#fff8e1", borderRadius: 8, marginBottom: 12 }}>
-              <strong>Menu masih kosong.</strong>
-              <p style={{ fontSize: 13, margin: "6px 0 10px" }}>
+            {catalog.products.length === 0 ? (
+              <div className="banner">
+                <strong>Menu masih kosong</strong>
                 Isi dulu nama menu dan harganya — setelah itu tinggal dipilih saat jualan.
+                <div style={{ marginTop: 10 }}>
+                  <button onClick={() => setView("menu")}>Buka Menu &amp; Harga</button>
+                </div>
+              </div>
+            ) : (
+              <div className="product-grid">
+                {visibleProducts.map((p) => (
+                  <ProductItem key={p.id} product={p} variants={p.variants} onAdd={addToCart} />
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="panel">
+            <div className="panel-title">
+              <h2>Keranjang</h2>
+              {cart.length > 0 && (
+                <button
+                  className="secondary"
+                  onClick={() => {
+                    setCart([]);
+                    setStatus({ kind: "info", msg: "Keranjang dikosongkan.", scope: "kasir" });
+                  }}
+                >
+                  Kosongkan
+                </button>
+              )}
+            </div>
+
+            {cart.length === 0 ? (
+              <p className="muted">Belum ada item. Pilih menu di sebelah kiri.</p>
+            ) : (
+              cart.map((l) => (
+                <div className="cart-line" key={`${l.productId}-${l.variantId ?? "base"}`}>
+                  <div>
+                    <div className="cart-name">
+                      {l.productName}
+                      {l.variantName ? ` · ${l.variantName}` : ""}
+                    </div>
+                    <div className="cart-sub">
+                      {formatRupiah(l.unitPriceRp)} × {l.qty} ={" "}
+                      <strong>{formatRupiah(l.unitPriceRp * l.qty)}</strong>
+                    </div>
+                  </div>
+                  <div className="qty-group">
+                    <button
+                      aria-label={`Kurangi 1 ${l.productName}${l.variantName ? ` ${l.variantName}` : ""}`}
+                      onClick={() => changeQty(l.productId, l.variantId, -1)}
+                    >
+                      −
+                    </button>
+                    <span className="qty-value">{l.qty}</span>
+                    <button
+                      aria-label={`Tambah 1 ${l.productName}${l.variantName ? ` ${l.variantName}` : ""}`}
+                      onClick={() => changeQty(l.productId, l.variantId, 1)}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+
+            <div className="divider" />
+
+            <div className="field-row">
+              <label style={{ flex: "1 1 120px", margin: 0 }}>
+                Diskon (Rp)
+                <input
+                  type="number"
+                  min={0}
+                  inputMode="numeric"
+                  value={discount}
+                  onChange={(e) => setDiscount(Math.max(0, Number(e.target.value) || 0))}
+                />
+              </label>
+              <label style={{ flex: "1 1 120px", margin: 0 }}>
+                Pajak (Rp)
+                <input
+                  type="number"
+                  min={0}
+                  inputMode="numeric"
+                  value={tax}
+                  onChange={(e) => setTax(Math.max(0, Number(e.target.value) || 0))}
+                />
+              </label>
+            </div>
+
+            {(serviceCharge > 0 || roundingCalc.roundingRp !== 0) && (
+              <p className="muted" style={{ marginTop: 8 }}>
+                {serviceCharge > 0 ? `Layanan ${formatRupiah(serviceCharge)} · ` : ""}
+                {roundingCalc.roundingRp !== 0 && cart.length > 0
+                  ? `Pembulatan −${formatRupiah(Math.abs(roundingCalc.roundingRp))}`
+                  : ""}
               </p>
-              <button style={{ minHeight: 44, fontWeight: 600 }} onClick={() => setView("menu")}>
-                Buka Menu &amp; Harga
+            )}
+
+            <div className="total-box">
+              <span className="total-label">Total</span>
+              <span className="total-value">{formatRupiah(total)}</span>
+            </div>
+
+            <div className="field-row" style={{ marginTop: 10 }}>
+              <select
+                aria-label="Metode bayar"
+                value={payMethod}
+                onChange={(e) => setPayMethod(e.target.value as PaymentMethod)}
+                style={{ flex: "1 1 130px", margin: 0 }}
+              >
+                <option value="cash">Tunai</option>
+                <option value="qris_manual">QRIS manual</option>
+                <option value="other">Lainnya</option>
+              </select>
+              <input
+                aria-label="Nominal bayar"
+                type="number"
+                min={0}
+                inputMode="numeric"
+                placeholder="Bayar (Rp)"
+                value={payAmount}
+                onChange={(e) => setPayAmount(Math.max(0, Number(e.target.value) || 0))}
+                style={{ flex: "1 1 130px", margin: 0 }}
+              />
+              <button
+                className="secondary"
+                disabled={cart.length === 0}
+                onClick={() => setPayAmount(total)}
+              >
+                Uang pas
               </button>
             </div>
-          ) : (
-            visibleProducts.map((p) => (
-              <ProductItem key={p.id} product={p} variants={p.variants} onAdd={addToCart} />
-            ))
-          )}
 
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <h2 style={{ marginBottom: 0 }}>Keranjang</h2>
-            {cart.length > 0 && (
-              <button
-                style={{ minHeight: 44 }}
-                onClick={() => {
-                  setCart([]);
-                  setStatus({ kind: "info", msg: "Keranjang dikosongkan.", scope: "kasir" });
-                }}
-              >
-                Kosongkan
-              </button>
-            )}
-          </div>
-          {cart.length === 0 ? (
-            <p>Keranjang kosong</p>
-          ) : (
-            cart.map((l) => (
-              <div key={`${l.productId}-${l.variantId ?? "base"}`} style={{ marginBottom: 4 }}>
-                <span>
-                  {l.productName}
-                  {l.variantName ? ` (${l.variantName})` : ""} x{l.qty} -{" "}
-                  {formatRupiah(l.unitPriceRp * l.qty)}
-                </span>{" "}
-                <button
-                  aria-label={`Tambah 1 ${l.productName}${l.variantName ? ` ${l.variantName}` : ""}`}
-                  style={{ minWidth: 40, minHeight: 44 }}
-                  onClick={() => changeQty(l.productId, l.variantId, 1)}
-                >
-                  +
-                </button>{" "}
-                <button
-                  aria-label={`Kurangi 1 ${l.productName}${l.variantName ? ` ${l.variantName}` : ""}`}
-                  style={{ minWidth: 40, minHeight: 44 }}
-                  onClick={() => changeQty(l.productId, l.variantId, -1)}
-                >
-                  -
-                </button>
-              </div>
-            ))
-          )}
-
-          <p>Subtotal: {formatRupiah(subtotal)}</p>
-          <label>
-            Diskon (Rp):{" "}
-            <input
-              type="number"
-              min={0}
-              value={discount}
-              onChange={(e) => setDiscount(Math.max(0, Number(e.target.value) || 0))}
-            />
-          </label>{" "}
-          <label>
-            Pajak (Rp):{" "}
-            <input
-              type="number"
-              min={0}
-              value={tax}
-              onChange={(e) => setTax(Math.max(0, Number(e.target.value) || 0))}
-            />
-          </label>
-          {serviceCharge > 0 && <p>Layanan: {formatRupiah(serviceCharge)} (masuk total)</p>}
-          {roundingCalc.roundingRp !== 0 && cart.length > 0 && (
-            <p>
-              Pembulatan ({posSettings.roundingStep}): -{formatRupiah(Math.abs(roundingCalc.roundingRp))} (masuk total —
-              dibayar {formatRupiah(total)})
+            <p className="muted" style={{ marginTop: 8 }}>
+              Kembalian{" "}
+              <strong className="money">{formatRupiah(Math.max(0, payAmount - total))}</strong>
+              {payAmount > 0 && payAmount < total && (
+                <span style={{ color: "var(--pos-danger)" }}> — kurang {formatRupiah(total - payAmount)}</span>
+              )}
             </p>
-          )}
-          <p>Total: {formatRupiah(total)}</p>
 
-          <label>
-            Metode:{" "}
-            <select
-              value={payMethod}
-              onChange={(e) => setPayMethod(e.target.value as PaymentMethod)}
-            >
-              <option value="cash">Tunai</option>
-              <option value="qris_manual">QRIS manual</option>
-              <option value="other">Lainnya</option>
-            </select>
-          </label>{" "}
-          <label>
-            Bayar (Rp):{" "}
-            <input
-              type="number"
-              min={0}
-              inputMode="numeric"
-              value={payAmount}
-              onChange={(e) => setPayAmount(Math.max(0, Number(e.target.value) || 0))}
-            />
-          </label>{" "}
-          <button style={{ minHeight: 44 }} disabled={cart.length === 0} onClick={() => setPayAmount(total)}>
-            Uang pas
-          </button>
-          <p style={{ fontSize: 14 }}>
-            Kembalian: <strong>{formatRupiah(Math.max(0, payAmount - total))}</strong>
-            {payAmount > 0 && payAmount < total && (
-              <span style={{ color: "#b00020" }}> — kurang {formatRupiah(total - payAmount)}</span>
-            )}
-          </p>
-          <div style={{ marginTop: 8 }}>
             <label>
-              Catatan:{" "}
-              <input
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="opsional"
-              />
+              Catatan
+              <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="opsional" />
             </label>
-          </div>
 
-          {status?.scope === "kasir" && (
-            <p
-              role={status.kind === "error" ? "alert" : undefined}
-              aria-live="polite"
-              style={{ color: statusColor(status.kind) }}
+            {status?.scope === "kasir" && (
+              <p
+                role={status.kind === "error" ? "alert" : undefined}
+                aria-live="polite"
+                className={`status-line is-${status.kind}`}
+              >
+                {status.msg}
+              </p>
+            )}
+
+            <button
+              style={{ width: "100%", marginTop: 10, minHeight: 52, fontSize: "1rem", fontWeight: 700 }}
+              disabled={processing || cart.length === 0 || (!dbReady && !browserReady)}
+              aria-busy={processing}
+              onClick={handleCheckout}
             >
-              {status.msg}
-            </p>
-          )}
-          <button
-            disabled={processing || cart.length === 0 || (!dbReady && !browserReady)}
-            style={{ minHeight: 44 }}
-            onClick={handleCheckout}
-          >
-            {processing ? "Memproses..." : `Bayar ${formatRupiah(total)}`}
-          </button>
+              {processing ? "Memproses…" : `Bayar ${formatRupiah(total)}`}
+            </button>
 
-          {receipt && (
-            <>
-              <h3>Struk terakhir</h3>
-              <pre style={{ background: "#f5f5f5", padding: 12, whiteSpace: "pre-wrap" }}>
-                {receipt}
-              </pre>
-            </>
-          )}
-        </>
+            {receipt && (
+              <>
+                <h3 style={{ fontSize: "0.9rem", marginTop: 16 }}>Struk terakhir</h3>
+                <pre style={{ background: "#f7f3ee", padding: 12, whiteSpace: "pre-wrap", fontSize: 12 }}>
+                  {receipt}
+                </pre>
+              </>
+            )}
+          </section>
+        </div>
       )}
 
       {view === "riwayat" && (
-        <>
+        <div className="panel">
           <h2>Riwayat Order</h2>
           <button style={{ minHeight: 44, marginBottom: 8 }} onClick={handleReload}>
             Muat ulang
@@ -1067,14 +1074,26 @@ export default function App() {
               ))
             );
           })()}
-        </>
+        </div>
       )}
 
-      {view === "menu" && <CatalogEditor onChanged={() => setCatalogVersion((v) => v + 1)} />}
-      {view === "hpp" && <HppEditor />}
-      {view === "stok" && <StockEditor />}
+      {view === "menu" && (
+        <div className="panel">
+          <CatalogEditor onChanged={() => setCatalogVersion((v) => v + 1)} />
+        </div>
+      )}
+      {view === "hpp" && (
+        <div className="panel">
+          <HppEditor />
+        </div>
+      )}
+      {view === "stok" && (
+        <div className="panel">
+          <StockEditor />
+        </div>
+      )}
       {view === "backup" && (
-        <>
+        <div className="panel">
           <h2>Backup & Restore</h2>
           <button style={{ minHeight: 44 }} onClick={handleBackup}>
             Unduh backup (JSON)
@@ -1167,11 +1186,11 @@ export default function App() {
               {syncing ? "Sync…" : "Sync sekarang"}
             </button>
           </div>
-        </>
+        </div>
       )}
 
       {view === "pengaturan" && (
-        <>
+        <div className="panel">
           <h2>Pengaturan</h2>
           <label>
             Nama toko:{" "}
@@ -1358,7 +1377,7 @@ export default function App() {
             </>
           )}
           {lastShiftSummary && <p style={{ fontSize: 13 }}>Ringkasan terakhir: {lastShiftSummary}</p>}
-        </>
+        </div>
       )}
 
       {pinRequest && (

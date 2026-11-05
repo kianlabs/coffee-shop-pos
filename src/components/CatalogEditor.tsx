@@ -98,7 +98,7 @@ export function CatalogEditor({ onChanged }: { onChanged?: () => void }) {
         (riwayat transaksi lama tetap utuh).
       </p>
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      <div className="field-row" style={{ marginBottom: 12 }}>
         {catalog.categories.map((c) => (
           <span
             key={c.id}
@@ -140,9 +140,9 @@ export function CatalogEditor({ onChanged }: { onChanged?: () => void }) {
         )}
       </div>
 
-      <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 16 }}>
+      <div className="panel" style={{ background: "#fbf7f2" }}>
         <h3 style={{ marginTop: 0 }}>Tambah menu</h3>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <div className="field-row">
           <input
             aria-label="Nama menu"
             placeholder="Nama menu (mis. Kopi Susu)"
@@ -206,9 +206,9 @@ export function CatalogEditor({ onChanged }: { onChanged?: () => void }) {
           <div key={category.id} style={{ marginBottom: 16 }}>
             <h3 style={{ marginBottom: 8 }}>{category.name}</h3>
             {products.map((p) => (
-              <div key={p.id} style={{ border: "1px solid #e3e3e3", borderRadius: 8, padding: 10, marginBottom: 8 }}>
+              <div key={p.id} className="panel" style={{ marginBottom: 8, padding: "10px 12px" }}>
                 {editingId === p.id ? (
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                  <div className="field-row">
                     <input
                       aria-label={`Nama ${p.name}`}
                       value={editDraft.name}
@@ -258,7 +258,7 @@ export function CatalogEditor({ onChanged }: { onChanged?: () => void }) {
                     </button>
                   </div>
                 ) : (
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                  <div className="row-between" style={{ flexWrap: "wrap" }}>
                     <div>
                       <div style={{ fontWeight: 600 }}>{p.name}</div>
                       <div style={{ fontSize: 13, color: "#666" }}>
@@ -268,7 +268,7 @@ export function CatalogEditor({ onChanged }: { onChanged?: () => void }) {
                           : ""}
                       </div>
                     </div>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <div className="row-actions">
                       <button style={{ minHeight: 44 }} onClick={() => startEdit(p)}>
                         Edit
                       </button>
@@ -292,7 +292,7 @@ export function CatalogEditor({ onChanged }: { onChanged?: () => void }) {
                 {variantFor === p.id && (
                   <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px dashed #ddd" }}>
                     {p.variants.map((v) => (
-                      <div key={v.id} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
+                      <div key={v.id} className="field-row" style={{ marginBottom: 6 }}>
                         <input
                           aria-label={`Nama varian ${v.name}`}
                           defaultValue={v.name}
@@ -325,7 +325,7 @@ export function CatalogEditor({ onChanged }: { onChanged?: () => void }) {
                         </button>
                       </div>
                     ))}
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+                    <div className="field-row" style={{ marginTop: 8 }}>
                       <input
                         aria-label="Nama varian baru"
                         placeholder="Nama varian (mis. Large)"

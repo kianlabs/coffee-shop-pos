@@ -8,30 +8,22 @@ type ProductItemProps = {
 };
 
 export function ProductItem({ product, variants, onAdd }: ProductItemProps) {
-  if (variants.length === 0) {
-    return (
-      <div style={{ border: "1px solid #ddd", padding: 8, marginBottom: 8 }}>
-        <p>
-          {product.name} - {formatRupiah(product.basePriceRp)}
-        </p>
-        <button onClick={() => onAdd(product, null)}>Tambah</button>
-      </div>
-    );
-  }
   return (
-    <div style={{ border: "1px solid #ddd", padding: 8, marginBottom: 8 }}>
-      <p>
-        {product.name} - {formatRupiah(product.basePriceRp)}+
-      </p>
-      {variants.map((v) => (
-        <button
-          key={v.id}
-          style={{ marginRight: 8, marginBottom: 4 }}
-          onClick={() => onAdd(product, v)}
-        >
-          {v.name} ({formatRupiah(unitPriceFor(product, v))})
-        </button>
-      ))}
-    </div>
+    <article className="product-card">
+      <h3>{product.name}</h3>
+      <div className="product-price">{formatRupiah(product.basePriceRp)}</div>
+      {variants.length === 0 ? (
+        <button onClick={() => onAdd(product, null)}>Tambah</button>
+      ) : (
+        <div className="variant-list">
+          {variants.map((v) => (
+            <button key={v.id} className="variant-btn" onClick={() => onAdd(product, v)}>
+              <span>{v.name}</span>
+              <span className="money">{formatRupiah(unitPriceFor(product, v))}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </article>
   );
 }
