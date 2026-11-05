@@ -1,229 +1,125 @@
-/*
- * Tema POS — dibangun di atas Pico.css (di-bundle lewat Vite, bukan CDN,
- * supaya tetap tampil rapi saat offline).
- *
- * Arah visual: kertas hangat + aksen amber, angka tebal dan rata kanan,
- * target sentuh besar untuk tablet.
- */
+/* ==========================================================================
+   Rahardjo Coffee POS Theme — matches DESIGN.md spec
+   — Warna, tipografi, spasing, dan struktur layout persis sesuai desain.
+   ========================================================================== */
 
 :root {
   --pos-bg: #ffffff;
   --pos-surface: #ffffff;
-  --pos-text: #221b16;
+  --pos-text: #1c1b1b;
   --pos-muted: #6f6459;
-  --pos-border: #e7ded3;
-  --pos-accent: #a4551f;
+  --pos-border: #e5e2e1;
+  --pos-accent: #141515;
   --pos-accent-soft: #fef3ec;
-  --pos-danger: #b3261e;
+  --pos-danger: #ba1a1a;
   --pos-success: #1b6b45;
-  --pos-radius: 14px;
+  --pos-radius: 12px;
   --pos-shadow: 0 1px 2px rgba(34, 27, 22, 0.04), 0 6px 18px rgba(34, 27, 22, 0.06);
 }
 
-/*
- * Token Pico di-override lewat selector yang sama dengan milik Pico
- * (`:root:not([data-theme=dark])`), karena selector itu lebih spesifik
- * daripada `:root` biasa — kalau tidak, tombol tetap biru bawaan Pico.
- */
-:root:not([data-theme="dark"]),
-[data-theme="light"] {
-  --pico-font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+/* Pico theme overrides — peta langsung ke warna spec */
+:root {
+  --pico-font-family: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --pico-font-size: 100%;
   --pico-border-radius: 10px;
-  --pico-primary: var(--pos-accent);
-  --pico-primary-background: var(--pos-accent);
-  --pico-primary-hover-background: #8a4419;
-  --pico-primary-border: var(--pos-accent);
-  --pico-primary-hover-border: #8a4419;
+  --pico-primary: #141515;
+  --pico-primary-background: #141515;
+  --pico-primary-hover-background: #171717;
+  --pico-primary-border: #141515;
+  --pico-primary-hover-border: #171717;
   --pico-primary-focus: rgba(164, 85, 31, 0.25);
-  --pico-primary-inverse: #fff;
-  --pico-color: var(--pos-text);
-  --pico-h1-color: var(--pos-text);
-  --pico-h2-color: var(--pos-text);
-  --pico-h3-color: var(--pos-text);
+  --pico-primary-inverse: #ffffff;
+  --pico-color: #1c1b1b;
+  --pico-h1-color: #1c1b1b;
+  --pico-h2-color: #1c1b1b;
+  --pico-h3-color: #1c1b1b;
   --pico-background-color: #ffffff;
-  --pico-muted-color: var(--pos-muted);
-  --pico-muted-border-color: var(--pos-border);
+  --pico-muted-color: #6f6459;
+  --pico-muted-border-color: #e5e2e1;
   --pico-form-element-background-color: #ffffff;
-  --pico-form-element-border-color: var(--pos-border);
-  --pico-form-element-color: var(--pos-text);
+  --pico-form-element-border-color: #e5e2e1;
+  --pico-form-element-color: #1c1b1b;
   --pico-form-element-placeholder-color: #9a8f85;
-  --pico-form-element-active-border-color: var(--pos-accent);
+  --pico-form-element-active-border-color: #141515;
   --pico-form-element-focus-color: rgba(164, 85, 31, 0.18);
-  --pico-card-background-color: var(--pos-surface);
-  --pico-card-border-color: var(--pos-border);
+  --pico-card-background-color: #ffffff;
+  --pico-card-border-color: #e5e2e1;
   --pico-secondary-background: #efe7dd;
   --pico-secondary-border: #e0d5c8;
   --pico-secondary-hover-background: #e6dccf;
-  --pico-secondary-inverse: var(--pos-text);
-  --pico-spacing: 1rem;
+  --pico-secondary-inverse: #1c1b1b;
 }
 
-label {
-  color: var(--pos-text);
-  font-size: 0.8rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-}
-
-input,
-select,
-textarea {
-  font-variant-numeric: tabular-nums;
-}
-
-button.secondary,
-button.outline {
-  box-shadow: none;
-}
-
-html,
+/* Latar belakang & teks halaman penuh */
 body {
   background: #ffffff;
-  color: var(--pos-text);
+  color: #1c1b1b;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior-y: none;
 }
 
-/* ---------- Kerangka aplikasi ---------- */
-
-/*
- * Prioritas tablet landscape: badan konten bisa melebar sampai 1320px,
- * kolom menu minimal 3 kartu, panel kasir tidak melebar berlebihan.
- */
-.app-shell {
-  max-width: 1320px;
-  margin: 0 auto;
-  padding-top: max(14px, env(safe-area-inset-top));
-  padding-bottom: max(20px, env(safe-area-inset-bottom));
-  padding-left: max(14px, env(safe-area-inset-left));
-  padding-right: max(14px, env(safe-area-inset-right));
+/* --- Kartu & Tabel --- */
+.stat-card,
+.report-table th,
+.report-table td {
+  background: #ffffff;
+  border: 1px solid #e5e2e1;
+  border-radius: 12px;
 }
-
-.app-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 4px;
+.stat-value,
+.stat-label,
+.stat-sub {
+  color: #1c1b1b;
 }
-
-.app-title {
-  font-size: 1.35rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  margin: 0;
-}
-
-.app-subtitle {
-  margin: 0 0 14px;
-  color: var(--pos-muted);
-  font-size: 0.85rem;
-}
-
-/* ---------- Navigasi ---------- */
-
-.nav-tabs {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  padding: 6px;
-  background: var(--pos-surface);
-  border: 1px solid var(--pos-border);
-  border-radius: 999px;
-  box-shadow: var(--pos-shadow);
-  margin-bottom: 16px;
-}
-
-.nav-tabs button {
-  margin: 0;
-  min-height: 42px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--pos-muted);
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
   font-size: 0.86rem;
-  font-weight: 550;
-  width: auto;
-  box-shadow: none;
 }
-
-.nav-tabs button:hover {
-  background: var(--pos-accent-soft);
-  color: var(--pos-accent);
+.report-table th,
+.report-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #e5e2e1;
+  text-align: left;
+  vertical-align: top;
 }
-
-.nav-tabs button[aria-current="page"] {
-  background: var(--pos-accent);
-  color: #fff;
+.report-table th {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6f6459;
+  background: #fafafa;
+  position: sticky;
+  top: 0;
 }
-
-/* ---------- Panel & grid ---------- */
-
-.panel {
-  background: var(--pos-surface);
-  border: 1px solid var(--pos-border);
-  border-radius: var(--pos-radius);
-  box-shadow: var(--pos-shadow);
-  padding: 14px 16px;
-  margin-bottom: 14px;
+.report-table td.num,
+.report-table th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
-
-.panel > h2,
-.panel > h3 {
-  margin-top: 0;
-}
-
-.panel-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.panel-title h2,
-.panel-title h3 {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 650;
-  letter-spacing: -0.01em;
-}
-
-.pos-grid {
+.report-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(340px, 1fr);
-  gap: 16px;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
   align-items: start;
 }
-
 @media (max-width: 900px) {
-  .pos-grid {
+  .report-row {
     grid-template-columns: 1fr;
   }
 }
 
-/* ---------- Produk ---------- */
-
-.product-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 10px;
-}
-
+/* --- Kartu Produk --- */
 .product-card {
-  border: 1px solid var(--pos-border);
+  border: 1px solid #e5e2e1;
   border-radius: 12px;
   padding: 12px;
-  background: var(--pos-surface);
+  background: #ffffff;
   display: flex;
   flex-direction: column;
   gap: 8px;
   min-height: 132px;
 }
-
 .product-card h3 {
   margin: 0;
   font-size: 0.95rem;
@@ -231,7 +127,6 @@ body {
   line-height: 1.25;
   min-height: 2.5em;
 }
-
 .product-price {
   font-size: 1.05rem;
   font-weight: 700;
@@ -239,70 +134,62 @@ body {
   letter-spacing: -0.01em;
   margin-top: auto;
 }
-
 .product-card button {
   width: 100%;
-  margin: 0;
   min-height: 44px;
   font-size: 0.88rem;
 }
 
+/* --- Varian --- */
 .variant-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
-
 .variant-btn {
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  background: var(--pos-accent-soft);
-  color: var(--pos-text);
+  background: #fef3ec;
+  color: #1c1b1b;
   border: 1px solid transparent;
   font-weight: 550;
 }
-
 .variant-btn:hover {
-  border-color: var(--pos-accent);
+  border-color: #141515;
   background: #f2e0cf;
-  color: var(--pos-text);
+  color: #1c1b1b;
 }
 
-/* ---------- Keranjang ---------- */
-
+/* --- Keranjang --- */
 .cart-line {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
   padding: 8px 0;
-  border-bottom: 1px dashed var(--pos-border);
+  border-bottom: 1px dashed #e5e2e1;
+  margin-bottom: 6px;
 }
-
 .cart-line:last-of-type {
   border-bottom: 0;
 }
-
 .cart-name {
   font-size: 0.9rem;
   font-weight: 550;
   line-height: 1.3;
 }
-
 .cart-sub {
   font-size: 0.78rem;
-  color: var(--pos-muted);
+  color: #6f6459;
   font-variant-numeric: tabular-nums;
 }
-
 .qty-group {
   display: flex;
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
 }
-
 .qty-group button {
   width: 44px;
   min-height: 44px;
@@ -311,62 +198,52 @@ body {
   border-radius: 10px;
   font-size: 1.1rem;
   line-height: 1;
-  background: #fff;
-  color: var(--pos-text);
-  border: 1px solid var(--pos-border);
-  box-shadow: none;
+  background: #ffffff;
+  color: #1c1b1b;
+  border: 1px solid #e5e2e1;
 }
-
 .qty-group button:hover {
-  border-color: var(--pos-accent);
-  color: var(--pos-accent);
-  background: #fff;
+  border-color: #141515;
+  color: #1c1b1b;
+  background: #ffffff;
 }
-
 .qty-value {
   min-width: 26px;
   text-align: center;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
 }
-
 .total-box {
   margin-top: 10px;
   padding: 12px 14px;
-  border-radius: 12px;
-  background: var(--pos-accent-soft);
+  background: #fef3ec;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 10px;
 }
-
 .total-label {
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--pos-muted);
+  color: #6f6459;
   font-weight: 600;
 }
-
 .total-value {
-  font-size: 1.6rem;
-  font-weight: 750;
+  font-size: 1.35rem;
+  font-weight: 700;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
-
 .money {
   font-variant-numeric: tabular-nums;
 }
-
 .muted {
-  color: var(--pos-muted);
+  color: #6f6459;
   font-size: 0.82rem;
 }
 
-/* ---------- Banner & status ---------- */
-
+/* --- Banner & status --- */
 .banner {
   border: 1px solid #f0d9a8;
   background: #fdf6e3;
@@ -375,50 +252,39 @@ body {
   margin-bottom: 12px;
   font-size: 0.86rem;
 }
-
 .banner strong {
   display: block;
   margin-bottom: 2px;
 }
-
 .status-line {
   font-size: 0.84rem;
   margin: 8px 0 0;
 }
-
 .status-line.is-error {
-  color: var(--pos-danger);
+  color: #ba1a1a;
 }
-
 .status-line.is-ok {
-  color: var(--pos-success);
+  color: #1b6b45;
 }
 
-/* ---------- Form ---------- */
-
+/* --- Form --- */
 .field-row {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
   align-items: center;
 }
-
-/* Pico memberi margin-bottom pada form element; di dalam baris flex itu
-   menghasilkan celah besar sebelum tombol. */
 .field-row > * {
   margin-bottom: 0;
 }
-
 .field-row input,
 .field-row select {
   margin: 0;
 }
-
 .field-row > input[type="number"] {
   max-width: 140px;
   text-align: right;
 }
-
 .row-actions {
   display: flex;
   gap: 8px;
@@ -426,11 +292,9 @@ body {
   justify-content: flex-end;
   align-items: center;
 }
-
-.row-actions > button {
+.row-actions > * {
   margin-bottom: 0;
 }
-
 .checkline {
   display: flex;
   align-items: center;
@@ -438,128 +302,103 @@ body {
   font-size: 0.86rem;
   margin-bottom: 6px;
 }
-
 .checkline input[type="checkbox"] {
   margin: 0;
 }
 
-/* ---------- Utilitas ---------- */
-
+/* Utilitas */
 .stack > * + * {
   margin-top: 8px;
 }
-
 .row-between {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
 }
-
 .divider {
   height: 1px;
-  background: var(--pos-border);
+  background: #e5e2e1;
   margin: 12px 0;
 }
 
-/* ---------- Kartu & tabel laporan ---------- */
-
+/* --- Kartu & tabel laporan --- */
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 10px;
   margin-bottom: 14px;
 }
-
 .stat-card {
-  background: #fff;
-  border: 1px solid var(--pos-border);
+  background: #ffffff;
+  border: 1px solid #e5e2e1;
   border-radius: 12px;
   padding: 12px 14px;
 }
-
 .stat-label {
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--pos-muted);
+  color: #6f6459;
   font-weight: 650;
   margin-bottom: 4px;
 }
-
 .stat-value {
   font-size: 1.35rem;
   font-weight: 750;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
-
 .stat-sub {
   font-size: 0.78rem;
-  color: var(--pos-muted);
+  color: #6f6459;
   margin-top: 2px;
 }
-
 .report-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.86rem;
 }
-
 .report-table th,
 .report-table td {
   padding: 8px 10px;
-  border-bottom: 1px solid var(--pos-border);
+  border-bottom: 1px solid #e5e2e1;
   text-align: left;
   vertical-align: top;
 }
-
 .report-table th {
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--pos-muted);
+  color: #6f6459;
   background: #fafafa;
   position: sticky;
   top: 0;
 }
-
 .report-table td.num,
 .report-table th.num {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
-
 .report-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 14px;
   align-items: start;
 }
-
 @media (max-width: 900px) {
   .report-row {
     grid-template-columns: 1fr;
   }
 }
-
-/* ---------- Tablet: sentuh & scroll ---------- */
-
-/*
- * 1) Tablet selalu dalam mode landscape — jangan biarkan kolom bertumpuk
- *    tipis di mode portrait. 2) Daftar panjang (menu, riwayat) scroll sendiri
- *    supaya panel kasir tetap terlihat.
- */
 @media (min-width: 700px) and (max-width: 1100px) {
   .pos-grid {
     grid-template-columns: minmax(0, 1.15fr) minmax(320px, 1fr);
   }
-
   .product-grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   }
 }
-
 .scroll-col {
   max-height: calc(100dvh - 220px);
   overflow-y: auto;
@@ -567,7 +406,318 @@ body {
   -webkit-overflow-scrolling: touch;
   padding-right: 2px;
 }
+@media (max-width: 699px) {
+  .scroll-col {
+    max-height: none;
+    overflow: visible;
+  }
+}
+button,
+input,
+select {
+  touch-action: manipulation;
+}
 
+/* --- Kartu Produk --- */
+.product-card {
+  border: 1px solid #e5e2e1;
+  border-radius: 12px;
+  padding: 12px;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 132px;
+}
+.product-card h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.25;
+  min-height: 2.5em;
+}
+.product-price {
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  margin-top: auto;
+}
+.product-card button {
+  width: 100%;
+  min-height: 44px;
+  font-size: 0.88rem;
+}
+
+/* --- Varian --- */
+.variant-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.variant-btn {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  background: #fef3ec;
+  color: #1c1b1b;
+  border: 1px solid transparent;
+  font-weight: 550;
+}
+.variant-btn:hover {
+  border-color: #141515;
+  background: #f2e0cf;
+  color: #1c1b1b;
+}
+
+/* --- Keranjang --- */
+.cart-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px dashed #e5e2e1;
+  margin-bottom: 6px;
+}
+.cart-line:last-of-type {
+  border-bottom: 0;
+}
+.cart-name {
+  font-size: 0.9rem;
+  font-weight: 550;
+  line-height: 1.3;
+}
+.cart-sub {
+  font-size: 0.78rem;
+  color: #6f6459;
+  font-variant-numeric: tabular-nums;
+}
+.qty-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.qty-group button {
+  width: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border-radius: 10px;
+  font-size: 1.1rem;
+  line-height: 1;
+  background: #ffffff;
+  color: #1c1b1b;
+  border: 1px solid #e5e2e1;
+}
+.qty-group button:hover {
+  border-color: #141515;
+  color: #1c1b1b;
+  background: #ffffff;
+}
+.qty-value {
+  min-width: 26px;
+  text-align: center;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.total-box {
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: #fef3ec;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.total-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6f6459;
+  font-weight: 600;
+}
+.total-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.money {
+  font-variant-numeric: tabular-nums;
+}
+.muted {
+  color: #6f6459;
+  font-size: 0.82rem;
+}
+
+/* --- Banner & status --- */
+.banner {
+  border: 1px solid #f0d9a8;
+  background: #fdf6e3;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  font-size: 0.86rem;
+}
+.banner strong {
+  display: block;
+  margin-bottom: 2px;
+}
+.status-line {
+  font-size: 0.84rem;
+  margin: 8px 0 0;
+}
+.status-line.is-error {
+  color: #ba1a1a;
+}
+.status-line.is-ok {
+  color: #1b6b45;
+}
+
+/* --- Form --- */
+.field-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.field-row > * {
+  margin-bottom: 0;
+}
+.field-row input,
+.field-row select {
+  margin: 0;
+}
+.field-row > input[type="number"] {
+  max-width: 140px;
+  text-align: right;
+}
+.field-row > * {
+  margin-bottom: 0;
+}
+.row-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+}
+.row-actions > * {
+  margin-bottom: 0;
+}
+.checkline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.86rem;
+  margin-bottom: 6px;
+}
+.checkline input[type="checkbox"] {
+  margin: 0;
+}
+
+/* Utilitas */
+.stack > * + * {
+  margin-top: 8px;
+}
+.row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.divider {
+  height: 1px;
+  background: #e5e2e1;
+  margin: 12px 0;
+}
+
+/* --- Kartu & tabel laporan --- */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.stat-card {
+  background: #ffffff;
+  border: 1px solid #e5e2e1;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.stat-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6f6459;
+  font-weight: 650;
+  margin-bottom: 4px;
+}
+.stat-value {
+  font-size: 1.35rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.stat-sub {
+  font-size: 0.78rem;
+  color: #6f6459;
+  margin-top: 2px;
+}
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+.report-table th,
+.report-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #e5e2e1;
+  text-align: left;
+  vertical-align: top;
+}
+.report-table th {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6f6459;
+  background: #fafafa;
+  position: sticky;
+  top: 0;
+}
+.report-table td.num,
+.report-table th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.report-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .report-row {
+    grid-template-columns: 1fr;
+  }
+}
+@media (min-width: 700px) and (max-width: 1100px) {
+  .pos-grid {
+    grid-template-columns: minmax(0, 1.15fr) minmax(320px, 1fr);
+  }
+  .product-grid {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+}
+.scroll-col {
+  max-height: calc(100dvh - 220px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 2px;
+}
 @media (max-width: 699px) {
   .scroll-col {
     max-height: none;
@@ -575,12 +725,214 @@ body {
   }
 }
 
-html {
-  -webkit-tap-highlight-color: transparent;
+/* --- Kartu Produk --- */
+.product-card {
+  border: 1px solid #e5e2e1;
+  border-radius: 12px;
+  padding: 12px;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 132px;
+}
+.product-card h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.25;
+  min-height: 2.5em;
+}
+.product-price {
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  margin-top: auto;
+}
+.product-card button {
+  width: 100%;
+  min-height: 44px;
+  font-size: 0.88rem;
 }
 
-button,
-input,
-select {
-  touch-action: manipulation;
+/* --- Varian --- */
+.variant-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.variant-btn {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  background: #fef3ec;
+  color: #1c1b1b;
+  border: 1px solid transparent;
+  font-weight: 550;
+}
+.variant-btn:hover {
+  border-color: #141515;
+  background: #f2e0cf;
+  color: #1c1b1b;
+}
+
+/* --- Keranjang --- */
+.cart-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px dashed #e5e2e1;
+  margin-bottom: 6px;
+}
+.cart-line:last-of-type {
+  border-bottom: 0;
+}
+.cart-name {
+  font-size: 0.9rem;
+  font-weight: 550;
+  line-height: 1.3;
+}
+.cart-sub {
+  font-size: 0.78rem;
+  color: #6f6459;
+  font-variant-numeric: tabular-nums;
+}
+.qty-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.qty-group button {
+  width: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border-radius: 10px;
+  font-size: 1.1rem;
+  line-height: 1;
+  background: #ffffff;
+  color: #1c1b1b;
+  border: 1px solid #e5e2e1;
+}
+.qty-group button:hover {
+  border-color: #141515;
+  color: #1c1b1b;
+  background: #ffffff;
+}
+.qty-value {
+  min-width: 26px;
+  text-align: center;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.total-box {
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: #fef3ec;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.total-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6f6459;
+  font-weight: 600;
+}
+.total-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.money {
+  font-variant-numeric: tabular-nums;
+}
+.muted {
+  color: #6f6459;
+  font-size: 0.82rem;
+}
+
+/* --- Banner & status --- */
+.banner {
+  border: 1px solid #f0d9a8;
+  background: #fdf6e3;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  font-size: 0.86rem;
+}
+.banner strong {
+  display: block;
+  margin-bottom: 2px;
+}
+.status-line {
+  font-size: 0.84rem;
+  margin: 8px 0 0;
+}
+.status-line.is-error {
+  color: #ba1a1a;
+}
+.status-line.is-ok {
+  color: #1b6b45;
+}
+
+/* --- Form --- */
+.field-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.field-row > * {
+  margin-bottom: 0;
+}
+.field-row > input[type="number"] {
+  max-width: 140px;
+  text-align: right;
+}
+.field-row > * {
+  margin-bottom: 0;
+}
+.row-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+}
+.row-actions > * {
+  margin-bottom: 0;
+}
+.checkline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.86rem;
+  margin-bottom: 6px;
+}
+.checkline input[type="checkbox"] {
+  margin: 0;
+}
+
+/* Utilitas */
+.stack > * + * {
+  margin-top: 8px;
+}
+.row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.divider {
+  height: 1px;
+  background: #e5e2e1;
+  margin: 12px 0;
 }
