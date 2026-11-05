@@ -9,7 +9,7 @@ Terakhir diperbarui: 5 November 2026.
 
 | Fitur | Bukti |
 |-------|-------|
-| Kasir offline (tambah keranjang, diskon, pajak, layanan, pembulatan, bayar, kembalian) | `npm run build` + `npm test` (41 assertion) |
+| Kasir offline (tambah keranjang, diskon, pajak, layanan, pembulatan, bayar, kembalian) | `npm run build` + `npm test` (53 assertion) |
 | Menu & harga diisi sendiri oleh user (katalog kosong di awal) | `src/components/CatalogEditor.tsx`, `src/data/catalogRepo.ts` |
 | Katalog dibaca dari database, bukan daftar hardcoded | `loadCatalog()` di `App.tsx` |
 | Checkout atomik: order + item + pembayaran + stok + snapshot HPP dalam satu transaksi | `src/data/orderRepository.ts#checkoutAtomicAsync` |

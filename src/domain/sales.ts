@@ -173,7 +173,9 @@ export function paymentBreakdown(all: Order[], start: Date, end: Date): PaymentB
     if (o.status !== "completed") continue;
     const row = byMethod.get(o.payment.method) ?? { method: o.payment.method, orderCount: 0, totalRp: 0 };
     row.orderCount += 1;
-    row.totalRp += o.payment.amountRp;
+    // Omzet per metode = total order, BUKAN uang diterima. Kalau kasir menerima
+    // Rp50.000 untuk order Rp30.000, yang dihitung tetap Rp30.000.
+    row.totalRp += o.totalRp;
     byMethod.set(o.payment.method, row);
   }
   return [...byMethod.values()].sort((a, b) => b.totalRp - a.totalRp);

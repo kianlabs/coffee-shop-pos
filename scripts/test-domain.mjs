@@ -175,6 +175,12 @@ console.log("\n[7] ringkasan penjualan");
   check("terlaris laba 38000", tp[0].profitRp, 38000);
   const pb = sales.paymentBreakdown(sample, start, end);
   check("tunai 2 transaksi", pb[0].orderCount, 2);
+  check("tunai pakai total bersih", pb[0].totalRp, 55000);
+  const overTender = [
+    { ...row("x", "2026-11-05T12:00:00.000Z", "completed", 30000, 0), payment: { method: "cash", amountRp: 50000, paidAt: "2026-11-05T12:00:00.000Z" } },
+    { ...row("y", "2026-11-05T12:05:00.000Z", "completed", 25000, 0), payment: { method: "cash", amountRp: 25000, paidAt: "2026-11-05T12:05:00.000Z" } },
+  ];
+  check("uang diterima berlebih tidak dihitung omzet", sales.paymentBreakdown(overTender, start, end)[0].totalRp, 55000);
   const kem = sales.rangeFor("yesterday", t0);
   check("kemarin 1 transaksi", sales.ordersInRange(sample, kem.start, kem.end).length, 1);
 }
