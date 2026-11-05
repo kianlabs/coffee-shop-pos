@@ -1,5 +1,6 @@
 import type { SQLiteDBConnection } from "@capacitor-community/sqlite";
 import { getDb } from "./db";
+import { runSerializedWrite } from "./tx";
 import {
   calcHppForLine,
   snapshotForOrder,
@@ -165,29 +166,31 @@ export async function recordPurchase(
   const now = purchasedAt ?? new Date().toISOString();
   const costId = uid("cost");
   const moveId = uid("mov");
-  await conn.executeTransaction(
-    [
-      {
-        statement:
-          "INSERT INTO ingredients (id, name, base_unit, stock_qty, created_at) VALUES (?, ?, ?, 0, ?) ON CONFLICT(id) DO NOTHING;",
-        values: [ingredientId, name, baseUnit, now],
-      },
-      {
-        statement:
-          "INSERT INTO ingredient_cost_history (id, ingredient_id, cost_per_unit_rp, effective_at, created_at) VALUES (?, ?, ?, ?, ?);",
-        values: [costId, ingredientId, Math.trunc(costPerUnitRp), now, now],
-      },
-      {
-        statement: "UPDATE ingredients SET stock_qty = ROUND(stock_qty + ?, 3) WHERE id = ?;",
-        values: [qty, ingredientId],
-      },
-      {
-        statement:
-          "INSERT INTO stock_movements (id, ingredient_id, product_id, qty, movement_type, reference_type, reference_id, reason, actor, created_at) VALUES (?, ?, NULL, ?, 'purchase_received', 'purchase', ?, NULL, ?, ?);",
-        values: [moveId, ingredientId, roundQty(qty), costId, actor, now],
-      },
-    ],
-    false,
+  await runSerializedWrite(() =>
+    conn.executeTransaction(
+      [
+        {
+          statement:
+            "INSERT INTO ingredients (id, name, base_unit, stock_qty, created_at) VALUES (?, ?, ?, 0, ?) ON CONFLICT(id) DO NOTHING;",
+          values: [ingredientId, name, baseUnit, now],
+        },
+        {
+          statement:
+            "INSERT INTO ingredient_cost_history (id, ingredient_id, cost_per_unit_rp, effective_at, created_at) VALUES (?, ?, ?, ?, ?);",
+          values: [costId, ingredientId, Math.trunc(costPerUnitRp), now, now],
+        },
+        {
+          statement: "UPDATE ingredients SET stock_qty = ROUND(stock_qty + ?, 3) WHERE id = ?;",
+          values: [qty, ingredientId],
+        },
+        {
+          statement:
+            "INSERT INTO stock_movements (id, ingredient_id, product_id, qty, movement_type, reference_type, reference_id, reason, actor, created_at) VALUES (?, ?, NULL, ?, 'purchase_received', 'purchase', ?, NULL, ?, ?);",
+          values: [moveId, ingredientId, roundQty(qty), costId, actor, now],
+        },
+      ],
+      false,
+    ),
   );
 }
 
@@ -215,19 +218,21 @@ export async function adjustStock(
   const now = new Date().toISOString();
   const moveId = uid("mov");
   const type: MovementType = deltaQty > 0 ? "adjustment_in" : "adjustment_out";
-  await conn.executeTransaction(
-    [
-      {
-        statement: "UPDATE ingredients SET stock_qty = ROUND(stock_qty + ?, 3) WHERE id = ?;",
-        values: [deltaQty, ingredientId],
-      },
-      {
-        statement:
-          "INSERT INTO stock_movements (id, ingredient_id, product_id, qty, movement_type, reference_type, reference_id, reason, actor, created_at) VALUES (?, ?, NULL, ?, ?, 'adjustment', ?, ?, ?, ?);",
-        values: [moveId, ingredientId, roundQty(deltaQty), type, moveId, reason, actor, now],
-      },
-    ],
-    false,
+  await runSerializedWrite(() =>
+    conn.executeTransaction(
+      [
+        {
+          statement: "UPDATE ingredients SET stock_qty = ROUND(stock_qty + ?, 3) WHERE id = ?;",
+          values: [deltaQty, ingredientId],
+        },
+        {
+          statement:
+            "INSERT INTO stock_movements (id, ingredient_id, product_id, qty, movement_type, reference_type, reference_id, reason, actor, created_at) VALUES (?, ?, NULL, ?, ?, 'adjustment', ?, ?, ?, ?);",
+          values: [moveId, ingredientId, roundQty(deltaQty), type, moveId, reason, actor, now],
+        },
+      ],
+      false,
+    ),
   );
   return getStock(conn, ingredientId);
 }
@@ -379,7 +384,7 @@ export async function consumeForOrder(
   if (plan.statements.length === 0) {
     return { consumedItems: 0, hppTotalRp: 0 };
   }
-  await conn.executeTransaction(plan.statements, false);
+  await runSerializedWrite(() => conn.executeTransaction(plan.statements, false));
   let total = 0;
   for (const v of plan.byItem.values()) total += v.hppTotalRp;
   return { consumedItems: plan.byItem.size, hppTotalRp: total };

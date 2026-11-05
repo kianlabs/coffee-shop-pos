@@ -3,6 +3,7 @@ import type { Catalog, CatalogProduct, Category, ProductVariant } from "../domai
 import type { Rupiah } from "../domain/money";
 import { isNativePlatform } from "./db";
 import { getDb } from "./db";
+import { runSerializedWrite } from "./tx";
 import {
   createCategoryLocal,
   createProductLocal,
@@ -106,15 +107,17 @@ export async function createCategory(name: string): Promise<void> {
   const res = await db.query("SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM categories;");
   const next = num(rowsOf(res)[0]?.n);
   const now = new Date().toISOString();
-  await db.executeTransaction(
-    [
-      {
-        statement:
-          "INSERT INTO categories (id, name, sort_order, is_active, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?);",
-        values: [uid("cat"), clean, next, now, now],
-      },
-    ],
-    false,
+  await runSerializedWrite(() =>
+    db.executeTransaction(
+      [
+        {
+          statement:
+            "INSERT INTO categories (id, name, sort_order, is_active, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?);",
+          values: [uid("cat"), clean, next, now, now],
+        },
+      ],
+      false,
+    ),
   );
 }
 
@@ -134,15 +137,17 @@ export async function createProduct(input: {
   }
   const db = await getDb();
   const now = new Date().toISOString();
-  await db.executeTransaction(
-    [
-      {
-        statement:
-          "INSERT INTO products (id, category_id, name, description, base_price_rp, is_active, created_at, updated_at) VALUES (?, ?, ?, NULL, ?, 1, ?, ?);",
-        values: [uid("prod"), input.categoryId, name, input.basePriceRp, now, now],
-      },
-    ],
-    false,
+  await runSerializedWrite(() =>
+    db.executeTransaction(
+      [
+        {
+          statement:
+            "INSERT INTO products (id, category_id, name, description, base_price_rp, is_active, created_at, updated_at) VALUES (?, ?, ?, NULL, ?, 1, ?, ?);",
+          values: [uid("prod"), input.categoryId, name, input.basePriceRp, now, now],
+        },
+      ],
+      false,
+    ),
   );
 }
 
@@ -177,9 +182,11 @@ export async function updateProduct(
   if (sets.length === 0) return;
   sets.push("updated_at = ?");
   values.push(new Date().toISOString(), id);
-  await db.executeTransaction(
-    [{ statement: `UPDATE products SET ${sets.join(", ")} WHERE id = ?;`, values }],
-    false,
+  await runSerializedWrite(() =>
+    db.executeTransaction(
+      [{ statement: `UPDATE products SET ${sets.join(", ")} WHERE id = ?;`, values }],
+      false,
+    ),
   );
 }
 
@@ -190,11 +197,13 @@ export async function deactivateProduct(id: string): Promise<void> {
   }
   const db = await getDb();
   const now = new Date().toISOString();
-  await db.executeTransaction(
-    [
-      { statement: "UPDATE products SET is_active = 0, updated_at = ? WHERE id = ?;", values: [now, id] },
-    ],
-    false,
+  await runSerializedWrite(() =>
+    db.executeTransaction(
+      [
+        { statement: "UPDATE products SET is_active = 0, updated_at = ? WHERE id = ?;", values: [now, id] },
+      ],
+      false,
+    ),
   );
 }
 
@@ -206,15 +215,17 @@ export async function createVariant(productId: string, name: string, priceDeltaR
     return;
   }
   const db = await getDb();
-  await db.executeTransaction(
-    [
-      {
-        statement:
-          "INSERT INTO product_variants (id, product_id, name, price_delta_rp, is_active) VALUES (?, ?, ?, ?, 1);",
-        values: [uid("var"), productId, clean, Math.trunc(priceDeltaRp)],
-      },
-    ],
-    false,
+  await runSerializedWrite(() =>
+    db.executeTransaction(
+      [
+        {
+          statement:
+            "INSERT INTO product_variants (id, product_id, name, price_delta_rp, is_active) VALUES (?, ?, ?, ?, 1);",
+          values: [uid("var"), productId, clean, Math.trunc(priceDeltaRp)],
+        },
+      ],
+      false,
+    ),
   );
 }
 
@@ -238,9 +249,11 @@ export async function updateVariant(id: string, patch: { name?: string; priceDel
   }
   if (sets.length === 0) return;
   values.push(id);
-  await db.executeTransaction(
-    [{ statement: `UPDATE product_variants SET ${sets.join(", ")} WHERE id = ?;`, values }],
-    false,
+  await runSerializedWrite(() =>
+    db.executeTransaction(
+      [{ statement: `UPDATE product_variants SET ${sets.join(", ")} WHERE id = ?;`, values }],
+      false,
+    ),
   );
 }
 
@@ -250,8 +263,10 @@ export async function deactivateVariant(id: string): Promise<void> {
     return;
   }
   const db = await getDb();
-  await db.executeTransaction(
-    [{ statement: "UPDATE product_variants SET is_active = 0 WHERE id = ?;", values: [id] }],
-    false,
+  await runSerializedWrite(() =>
+    db.executeTransaction(
+      [{ statement: "UPDATE product_variants SET is_active = 0 WHERE id = ?;", values: [id] }],
+      false,
+    ),
   );
 }

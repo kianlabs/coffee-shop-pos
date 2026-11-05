@@ -13,6 +13,7 @@ import {
 } from "../domain/hppResolve";
 import { getDb } from "./db";
 import { getLastCosts } from "./stock";
+import { runSerializedWrite } from "./tx";
 
 type Row = Record<string, unknown>;
 
@@ -391,10 +392,12 @@ export async function saveHppDrafts(drafts: HppDraft[]): Promise<number> {
     }
   }
 
-  await db.executeTransaction(txn, false);
-  for (const a of audits) {
-    await writeAudit(db, a.entityType, a.entityId, a.after, now);
-  }
+  await runSerializedWrite(async () => {
+    await db.executeTransaction(txn, false);
+    for (const a of audits) {
+      await writeAudit(db, a.entityType, a.entityId, a.after, now);
+    }
+  });
   return txn.length;
 }
 

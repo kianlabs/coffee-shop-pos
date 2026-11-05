@@ -9,7 +9,7 @@ Terakhir diperbarui: 5 November 2026.
 
 | Fitur | Bukti |
 |-------|-------|
-| Kasir offline (tambah keranjang, diskon, pajak, layanan, pembulatan, bayar, kembalian) | `npm run build` + `npm test` (57 assertion) |
+| Kasir offline (tambah keranjang, diskon, pajak, layanan, pembulatan, bayar, kembalian) | `npm run build` + `npm test` (62 assertion) |
 | Menu & harga diisi sendiri oleh user (katalog kosong di awal) | `src/components/CatalogEditor.tsx`, `src/data/catalogRepo.ts` |
 | Katalog dibaca dari database, bukan daftar hardcoded | `loadCatalog()` di `App.tsx` |
 | Checkout atomik: order + item + pembayaran + stok + snapshot HPP dalam transaksi manual yang diserialkan | `src/data/orderRepository.ts#checkoutAtomicAsync`, `src/data/tx.ts` |
@@ -21,6 +21,7 @@ Terakhir diperbarui: 5 November 2026.
 | Void atomik & tahan balapan ganda | conditional status update (`WHERE id = ? AND status = 'completed'`) |
 | Per-connection SQLite PRAGMAs (FK on, busy_timeout 5000, WAL di native) | `src/data/db.ts#applyConnectionPragmas` |
 | Pembelian bahan + koreksi stok dari aplikasi | `src/components/StockEditor.tsx` |
+| Semua tulis SQLite (checkout, void, katalog, HPP, stok) melewati satu antrean serial | `runSerializedWrite()` di `src/data/tx.ts` |
 | Rekap shift + tutup shift memakai seluruh order | `repo.loadAll()`, `handleCloseShift` |
 | Struk 58mm: nama panjang tidak memotong qty, ESC/POS disanitasi, CP437 | `src/data/receipt.ts`, `src/data/printer.ts` |
 | Cetak otomatis setelah bayar (bisa dimatikan) | `posSettings.autoPrint` |
