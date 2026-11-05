@@ -77,11 +77,13 @@ public class EscPosRasterTest {
   @Test
   public void thresholdBoundaryIsInclusiveOfDarkSide() {
     int[] dark = new int[8];
-    Arrays.fill(dark, 0xFF7F7F7F); // luminance 127 → hitam
+    Arrays.fill(dark, WHITE);
+    dark[0] = 0xFF7F7F7F; // luminance 127 → hitam
     assertEquals(0x80, EscPosRaster.fromArgb(8, 1, dark, 128)[8] & 0xFF);
 
     int[] light = new int[8];
-    Arrays.fill(light, 0xFF808080); // luminance 128 → putih
+    Arrays.fill(light, WHITE);
+    light[0] = 0xFF808080; // luminance 128 → putih (ambang tidak inklusif)
     assertEquals(0x00, EscPosRaster.fromArgb(8, 1, light, 128)[8] & 0xFF);
   }
 

@@ -377,7 +377,8 @@ async function fetchWithTimeout(
     return await fetch(url, { ...init, signal: controller.signal });
   } catch (e) {
     if (timedOut) {
-      throw new Error(`Sync timeout setelah ${Math.round(timeoutMs / 1000)} detik.`);
+      const label = timeoutMs >= 1000 ? `${Math.round(timeoutMs / 1000)} detik` : `${timeoutMs} ms`;
+      throw new Error(`Sync timeout setelah ${label}.`);
     }
     if (outer?.aborted) throw new Error("Sync dibatalkan.");
     throw e;

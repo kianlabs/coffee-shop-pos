@@ -11,7 +11,7 @@ import {
   syncNow,
 } from "./data/sync";
 import { decryptJson, encryptJson, isEncryptedBackup } from "./data/cryptoBackup";
-import { activePrinter } from "./data/printer";
+import { activePrinter, connectPrinter, disconnectPrinter, listPrinterDevices, printerStatus, type PrinterDevice, type PrinterStatus } from "./data/printer";
 import { renderReceiptText } from "./data/receipt";
 import { applyRounding, getSettings, saveSettings, type PosSettings } from "./data/settings";
 import { closeShift, openShift, summarizeShift, type Shift } from "./domain/shifts";
@@ -117,6 +117,9 @@ export default function App() {
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState<string | null>(null);
   const [pinAttempts, setPinAttempts] = useState(0);
+  const [printerDevices, setPrinterDevices] = useState<PrinterDevice[]>([]);
+  const [printerState, setPrinterState] = useState<PrinterStatus>({ connected: false, address: null, name: null });
+  const [printerBusy, setPrinterBusy] = useState(false);
 
   const [orders, setOrders] = useState<Order[]>([]);
 
@@ -382,6 +385,69 @@ export default function App() {
     setPinInput("");
     setPinError(null);
     void performVoid(req.orderId, req.label);
+  }
+
+  async function handleScanPrinters() {
+    setPrinterBusy(true);
+    try {
+      const list = await listPrinterDevices();
+      setPrinterDevices(list);
+      setPrinterState(await printerStatus());
+      setStatus({
+        kind: list.length > 0 ? "ok" : "info",
+        msg:
+          list.length > 0
+            ? `${list.length} printer Bluetooth ditemukan.`
+            : "Belum ada printer yang dipasangkan. Pasangkan dulu lewat Setelan Bluetooth Android.",
+        scope: "pengaturan",
+      });
+    } catch (e) {
+      setStatus({
+        kind: "error",
+        msg: e instanceof Error ? e.message : "Gagal memindai printer.",
+        scope: "pengaturan",
+      });
+    } finally {
+      setPrinterBusy(false);
+    }
+  }
+
+  async function handleConnectPrinter(address: string) {
+    setPrinterBusy(true);
+    try {
+      const st = await connectPrinter(address);
+      setPrinterState(st);
+      setStatus({
+        kind: st.connected ? "ok" : "error",
+        msg: st.connected ? `Terhubung ke ${st.name ?? address}.` : "Koneksi printer gagal.",
+        scope: "pengaturan",
+      });
+    } catch (e) {
+      setStatus({
+        kind: "error",
+        msg: e instanceof Error ? e.message : "Gagal menyambung printer.",
+        scope: "pengaturan",
+      });
+    } finally {
+      setPrinterBusy(false);
+    }
+  }
+
+  async function handleDisconnectPrinter() {
+    setPrinterBusy(true);
+    try {
+      await disconnectPrinter();
+      setPrinterState({ connected: false, address: null, name: null });
+      setStatus({ kind: "ok", msg: "Printer diputuskan.", scope: "pengaturan" });
+    } catch (e) {
+      setStatus({
+        kind: "error",
+        msg: e instanceof Error ? e.message : "Gagal memutus printer.",
+        scope: "pengaturan",
+      });
+    } finally {
+      setPrinterBusy(false);
+    }
   }
 
   /**
@@ -1144,6 +1210,38 @@ export default function App() {
               {status.msg}
             </p>
           )}
+          <h2>Printer</h2>
+          <p style={{ fontSize: 13 }}>
+            Status:{" "}
+            {printerState.connected
+              ? `terhubung — ${printerState.name ?? printerState.address ?? ""}`
+              : "belum terhubung"}
+          </p>
+          <button style={{ minHeight: 44 }} disabled={printerBusy} onClick={() => void handleScanPrinters()}>
+            {printerBusy ? "Memindai…" : "Cari printer Bluetooth"}
+          </button>{" "}
+          {printerState.connected && (
+            <button style={{ minHeight: 44 }} disabled={printerBusy} onClick={() => void handleDisconnectPrinter()}>
+              Putuskan
+            </button>
+          )}
+          {printerDevices.map((d) => (
+            <div
+              key={d.address}
+              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 6 }}
+            >
+              <span style={{ fontSize: 13 }}>
+                {d.name || "(tanpa nama)"} · {d.address}
+              </span>
+              <button
+                style={{ minHeight: 44 }}
+                disabled={printerBusy}
+                onClick={() => void handleConnectPrinter(d.address)}
+              >
+                Hubungkan
+              </button>
+            </div>
+          ))}
           <h2>Shift</h2>
           {shift ? (
             <>
