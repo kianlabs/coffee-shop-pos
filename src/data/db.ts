@@ -49,12 +49,35 @@ async function openConnection(): Promise<SQLiteDBConnection> {
     : await sql.createConnection(DB_NAME, false, "no-encryption", DB_VERSION, false);
   conn = opened;
   await opened.open();
+  await applyConnectionPragmas(opened);
   await ensureV3Columns(opened);
   await ensureV4Columns(opened);
   await ensureV5Indexes(opened);
   await ensureV6EmptyCatalog(opened);
   await seedCategories(opened);
   return opened;
+}
+
+/**
+ * PRAGMA bersifat per-koneksi, jadi harus dipasang setiap kali koneksi dibuka
+ * (bukan hanya di migrasi). Kegagalan PRAGMA tidak boleh membuat aplikasi
+ * gagal dibuka — platform web/jeep-sqlite tidak mendukung semuanya.
+ */
+async function applyConnectionPragmas(db: SQLiteDBConnection): Promise<void> {
+  const pragmas = ["PRAGMA foreign_keys = ON;", "PRAGMA busy_timeout = 5000;"];
+  // WAL tidak tersedia di web (jeep-sqlite/IndexedDB) dan hanya berguna di
+  // penyimpanan native.
+  if (isNativePlatform()) {
+    pragmas.push("PRAGMA journal_mode = WAL;");
+  }
+  for (const sql of pragmas) {
+    try {
+      await db.execute(sql);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[db] ${sql.trim()} gagal: ${msg}`);
+    }
+  }
 }
 
 type TableCol = { name?: unknown };

@@ -53,9 +53,38 @@ type HppCatalog = {
   variantRecipe: Map<string, RecipeCost>;
 };
 
+async function tableExists(db: SQLiteDBConnection, table: string): Promise<boolean> {
+  const res = await db.query(
+    "SELECT COUNT(*) AS c FROM sqlite_master WHERE type = 'table' AND name = ?;",
+    [table],
+  );
+  return num(rowsOf(res)[0]?.c) > 0;
+}
+
+async function tableHasColumn(
+  db: SQLiteDBConnection,
+  table: string,
+  column: string,
+): Promise<boolean> {
+  // Nama tabel/kolom selalu literal internal, tidak pernah dari input user.
+  const res = await db.query(`PRAGMA table_info(${table});`);
+  return rowsOf(res).some((r) => str(r.name) === column);
+}
+
+/** True bila skema HPP (kolom V4 + tabel resep V2) sudah ada. */
+export async function hppSchemaExists(db: SQLiteDBConnection): Promise<boolean> {
+  if (!(await tableHasColumn(db, "products", "hpp_mode"))) {
+    return false;
+  }
+  return tableExists(db, "recipes");
+}
+
 /**
- * Baca konfigurasi HPP + biaya resep sekali jalan. Aman dipanggil di DB versi
- * lama: kolom/tabel yang belum ada diperlakukan sebagai default.
+ * Baca konfigurasi HPP + biaya resep sekali jalan.
+ *
+ * DB versi lama (kolom/tabel belum ada) diperlakukan sebagai default. Begitu
+ * skemanya ADA, kegagalan query TIDAK ditelan: checkout harus gagal closed
+ * daripada menulis HPP 0/source 'none' yang salah.
  */
 async function loadHppCatalog(db: SQLiteDBConnection): Promise<HppCatalog> {
   const products = new Map<string, { mode: HppMode; manualRp: Rupiah }>();
@@ -63,44 +92,50 @@ async function loadHppCatalog(db: SQLiteDBConnection): Promise<HppCatalog> {
   const productRecipe = new Map<string, RecipeCost>();
   const variantRecipe = new Map<string, RecipeCost>();
 
-  const productRes = await db
-    .query("SELECT id, hpp_mode, hpp_manual_rp FROM products WHERE is_active = 1;")
-    .catch(() => null);
-  for (const r of rowsOf(productRes ?? {})) {
-    const mode = isHppMode(str(r.hpp_mode)) ? (str(r.hpp_mode) as HppMode) : "none";
-    products.set(str(r.id), { mode, manualRp: clampRupiah(num(r.hpp_manual_rp)) });
+  if (await tableHasColumn(db, "products", "hpp_mode")) {
+    const productRes = await db.query(
+      "SELECT id, hpp_mode, hpp_manual_rp FROM products WHERE is_active = 1;",
+    );
+    for (const r of rowsOf(productRes)) {
+      const mode = isHppMode(str(r.hpp_mode)) ? (str(r.hpp_mode) as HppMode) : "none";
+      products.set(str(r.id), { mode, manualRp: clampRupiah(num(r.hpp_manual_rp)) });
+    }
   }
 
-  const variantRes = await db
-    .query("SELECT id, product_id, hpp_mode, hpp_manual_rp FROM product_variants WHERE is_active = 1;")
-    .catch(() => null);
-  for (const r of rowsOf(variantRes ?? {})) {
-    const raw = str(r.hpp_mode);
-    const mode = isVariantHppMode(raw) ? (raw as VariantHppMode) : "inherit";
-    variants.set(str(r.id), {
-      productId: str(r.product_id),
-      mode,
-      manualRp: clampRupiah(num(r.hpp_manual_rp)),
-    });
+  if (await tableHasColumn(db, "product_variants", "hpp_mode")) {
+    const variantRes = await db.query(
+      "SELECT id, product_id, hpp_mode, hpp_manual_rp FROM product_variants WHERE is_active = 1;",
+    );
+    for (const r of rowsOf(variantRes)) {
+      const raw = str(r.hpp_mode);
+      const mode = isVariantHppMode(raw) ? (raw as VariantHppMode) : "inherit";
+      variants.set(str(r.id), {
+        productId: str(r.product_id),
+        mode,
+        manualRp: clampRupiah(num(r.hpp_manual_rp)),
+      });
+    }
   }
 
-  const recipeRes = await db
-    .query("SELECT id, product_id, variant_id, version FROM recipes WHERE is_active = 1;")
-    .catch(() => null);
-  const recipeRows = rowsOf(recipeRes ?? {});
+  if (!(await tableExists(db, "recipes"))) {
+    return { products, variants, productRecipe, variantRecipe };
+  }
+
+  const recipeRes = await db.query(
+    "SELECT id, product_id, variant_id, version FROM recipes WHERE is_active = 1;",
+  );
+  const recipeRows = rowsOf(recipeRes);
   if (recipeRows.length === 0) {
     return { products, variants, productRecipe, variantRecipe };
   }
 
-  const itemRes = await db
-    .query(
-      `SELECT ri.recipe_id AS recipe_id, ri.ingredient_id AS ingredient_id, i.name AS ingredient_name, ri.qty_per_unit AS qty_per_unit
+  const itemRes = await db.query(
+    `SELECT ri.recipe_id AS recipe_id, ri.ingredient_id AS ingredient_id, i.name AS ingredient_name, ri.qty_per_unit AS qty_per_unit
        FROM recipe_items ri JOIN ingredients i ON i.id = ri.ingredient_id;`,
-    )
-    .catch(() => null);
+  );
   const itemsByRecipe = new Map<string, Array<{ ingredientId: string; ingredientName: string; qtyPerUnit: number }>>();
   const ingredientIds = new Set<string>();
-  for (const r of rowsOf(itemRes ?? {})) {
+  for (const r of rowsOf(itemRes)) {
     const recipeId = str(r.recipe_id);
     const list = itemsByRecipe.get(recipeId) ?? [];
     list.push({
@@ -112,7 +147,8 @@ async function loadHppCatalog(db: SQLiteDBConnection): Promise<HppCatalog> {
     ingredientIds.add(str(r.ingredient_id));
   }
 
-  const costs = await getLastCosts(db, Array.from(ingredientIds)).catch(() => new Map<string, number>());
+  // Skema resep ada, jadi kegagalan baca cost history harus terlihat pemanggil.
+  const costs = await getLastCosts(db, Array.from(ingredientIds));
 
   for (const r of recipeRows) {
     const recipeId = str(r.id);

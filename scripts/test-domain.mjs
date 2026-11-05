@@ -121,6 +121,10 @@ check("HPP resep 3600+3000", recipe.perUnitRp, 6600);
 const snap = hpp.snapshotForOrder("oi1", 2, recipe);
 check("snapshot total x2", snap.hppTotalRp, 13200);
 check("snapshot baris", snap.rows.length, 2);
+check("calcHppTotal 6600x2", hpp.calcHppTotal(6600, 2), 13200);
+check("calcHppTotal qty 0", hpp.calcHppTotal(6600, 0), 0);
+check("calcHppTotal unit negatif", hpp.calcHppTotal(-500, 2), 0);
+check("calcHppTotal unit desimal dipotong", hpp.calcHppTotal(100.9, 3), 300);
 
 console.log("\n[6] shift");
 const shift = { id: "s1", cashierName: "A", openedAt: "2026-11-05T08:00:00.000Z", closedAt: null, openCashRp: 0 };

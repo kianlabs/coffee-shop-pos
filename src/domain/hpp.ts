@@ -71,6 +71,21 @@ export function calcHppForLine(items: RecipeLineInput[]): HppResult {
 }
 
 /**
+ * Total HPP satu baris order = HPP per unit × qty. Satu-satunya tempat
+ * perkalian ini ditulis supaya checkout dan pemakai lain tidak beda rumus.
+ * Nilai tidak valid/negatif dianggap 0 (HPP tidak boleh menambah omzet).
+ */
+export function calcHppTotal(unitHppRp: Rupiah, qty: number): Rupiah {
+  if (!Number.isFinite(unitHppRp) || unitHppRp <= 0) {
+    return 0;
+  }
+  if (!Number.isFinite(qty) || qty <= 0) {
+    return 0;
+  }
+  return Math.round(Math.trunc(unitHppRp) * qty);
+}
+
+/**
  * Resolver LAST-COST (DEFAULT): untuk tiap ingredient ambil entri dengan
  * `effectiveAt` terbesar. Entri tanpa harga (= tidak ada) diabaikan pemanggil.
  */

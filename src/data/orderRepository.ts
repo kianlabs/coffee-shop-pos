@@ -9,7 +9,19 @@ import {
   type ConsumptionPlan,
 } from "./stock";
 import { getSettings, saveSettings, type PosSettings } from "./settings";
-import { hppKey, resolveCheckoutHpp, type CheckoutHpp } from "./productRepo";
+import {
+  hppKey,
+  hppSchemaExists,
+  resolveCheckoutHpp,
+  type CheckoutHpp,
+} from "./productRepo";
+import { calcHppTotal } from "../domain/hpp";
+import {
+  execStatements,
+  runSerializedWrite,
+  withTransaction,
+  type SqlStatement,
+} from "./tx";
 
 export type { BackupRecord } from "./orderStore";
 export { downloadBackup, listBackups } from "./orderStore";
@@ -186,6 +198,48 @@ export async function loadAllOrdersAsync(): Promise<Order[]> {
   return loadAllOrders(db);
 }
 
+type CheckoutLine = CheckoutInput["lines"][number];
+
+function noneHppMap(lines: CheckoutLine[], reason: string): Map<string, CheckoutHpp> {
+  const map = new Map<string, CheckoutHpp>();
+  for (const l of lines) {
+    map.set(hppKey(l.productId, l.variantId), {
+      unitHppRp: 0,
+      source: "none",
+      recipeVersion: null,
+      detailJson: JSON.stringify({ error: reason }),
+    });
+  }
+  return map;
+}
+
+/**
+ * Resolusi HPP untuk checkout. Fail-closed kalau skema HPP ada tapi gagal
+ * dibaca; fallback source 'none' hanya untuk DB versi lama yang memang belum
+ * punya kolom/tabel HPP.
+ */
+async function resolveCheckoutHppForSale(
+  db: SQLiteDBConnection,
+  lines: CheckoutLine[],
+): Promise<Map<string, CheckoutHpp>> {
+  try {
+    return await resolveCheckoutHpp(db, lines);
+  } catch (e) {
+    const reason = e instanceof Error ? e.message : "gagal membaca konfigurasi HPP";
+    let schemaExists = true;
+    try {
+      schemaExists = await hppSchemaExists(db);
+    } catch {
+      // Gagal memeriksa skema = anggap ada; jangan menulis HPP palsu.
+      schemaExists = true;
+    }
+    if (schemaExists) {
+      throw new Error(`Gagal menghitung HPP: ${reason}`);
+    }
+    return noneHppMap(lines, reason);
+  }
+}
+
 export async function checkoutAtomicAsync(
   input: CheckoutInput,
 ): Promise<{ order: Order; duplicate: boolean }> {
@@ -194,170 +248,162 @@ export async function checkoutAtomicAsync(
     throw new Error(error);
   }
   const db = await getDb();
-  const existing = await db.query("SELECT id FROM orders WHERE idempotency_key = ?;", [
-    input.idempotencyKey,
-  ]);
-  const existingRows = rowValues(existing) as { id: string }[];
-  if (existingRows[0]?.id) {
-    const found = await loadOrderById(db, existingRows[0].id);
-    if (found) {
-      return { order: found, duplicate: true };
+  // Serialisasi seluruh operasi tulis: satu transaksi aktif per koneksi.
+  return runSerializedWrite(async () => {
+    const existing = await db.query("SELECT id FROM orders WHERE idempotency_key = ?;", [
+      input.idempotencyKey,
+    ]);
+    const existingRows = rowValues(existing) as { id: string }[];
+    if (existingRows[0]?.id) {
+      const found = await loadOrderById(db, existingRows[0].id);
+      if (found) {
+        return { order: found, duplicate: true };
+      }
     }
-  }
-  const order = createCompletedOrder(input, new Date());
-  const now = order.createdAt;
-  const itemIds = order.lines.map((_, idx) => `${order.id}-item-${idx}`);
+    const order = createCompletedOrder(input, new Date());
+    const now = order.createdAt;
+    const itemIds = order.lines.map((_, idx) => `${order.id}-item-${idx}`);
 
-  // Snapshot HPP per baris: manual (diisi user), resep (dihitung dari bahan),
-  // atau none. Kegagalan resolusi tidak boleh menggagalkan penjualan —
-  // dicatat sebagai source 'none' + alasan di detail_json.
-  let hppMap = new Map<string, CheckoutHpp>();
-  try {
-    hppMap = await resolveCheckoutHpp(db, order.lines);
-  } catch (e) {
-    const reason = e instanceof Error ? e.message : "gagal membaca konfigurasi HPP";
-    for (const l of order.lines) {
-      hppMap.set(hppKey(l.productId, l.variantId), {
-        unitHppRp: 0,
-        source: "none",
-        recipeVersion: null,
-        detailJson: JSON.stringify({ error: reason }),
-      });
-    }
-  }
-
-  // Konsumsi stok dibangun SEKARANG dan dieksekusi di transaksi yang sama
-  // dengan order. Order, stok, movement, dan snapshot HPP jadi atomik.
-  let consumption: ConsumptionPlan = { statements: [], byItem: new Map(), negative: [] };
-  if (STOCK_DEDUCTION_ENABLED) {
     try {
-      if (await v2TablesExist(db)) {
-        consumption = await prepareConsumption(
-          db,
-          order.id,
-          order.lines.map((l, idx) => ({
-            orderItemId: itemIds[idx],
-            productId: l.productId,
-            variantId: l.variantId,
-            qty: l.qty,
-          })),
-          now,
-          null,
-        );
-      }
-    } catch {
-      consumption = { statements: [], byItem: new Map(), negative: [] };
-    }
-  }
+      await withTransaction(db, async () => {
+        // HPP dan stok dibaca DI DALAM transaksi supaya tidak ada celah
+        // antara cek stok dan pemotongan (TOCTOU).
+        const hppMap = await resolveCheckoutHppForSale(db, order.lines);
 
-  if (consumption.negative.length > 0 && getSettings().blockNegativeStock) {
-    const detail = consumption.negative.map((n) => `${n.name} (sisa ${n.after})`).join(", ");
-    throw new Error(`Stok tidak cukup: ${detail}.`);
-  }
-
-  const txn: { statement: string; values?: unknown[] }[] = [
-    {
-      statement:
-        "INSERT INTO orders (id, receipt_number, idempotency_key, status, subtotal_rp, discount_rp, tax_rp, service_charge_rp, rounding_rp, total_rp, notes, created_at, updated_at) VALUES (?, ?, ?, 'completed', ?, ?, ?, ?, ?, ?, ?, ?, ?);",
-      values: [
-        order.id,
-        order.receiptNumber,
-        order.idempotencyKey,
-        order.subtotalRp,
-        order.discountRp,
-        order.taxRp,
-        order.serviceChargeRp,
-        order.roundingRp,
-        order.totalRp,
-        order.notes,
-        now,
-        now,
-      ],
-    },
-    ...order.lines.flatMap((l, idx) => {
-      const itemId = itemIds[idx];
-      const base = hppMap.get(hppKey(l.productId, l.variantId)) ?? {
-        unitHppRp: 0,
-        source: "none" as const,
-        recipeVersion: null,
-        detailJson: null,
-      };
-      const fromRecipe = consumption.byItem.get(itemId);
-      const hpp =
-        base.source === "recipe" && fromRecipe
-          ? {
-              unitHppRp: fromRecipe.hppUnitRp,
-              source: "recipe" as const,
-              recipeVersion: fromRecipe.recipeVersion,
-              detailJson: fromRecipe.detailJson,
+        // Konsumsi stok dibangun di transaksi yang sama dengan order. Order,
+        // stok, movement, dan snapshot HPP jadi atomik.
+        let consumption: ConsumptionPlan = { statements: [], byItem: new Map(), negative: [] };
+        if (STOCK_DEDUCTION_ENABLED) {
+          if (await v2TablesExist(db)) {
+            try {
+              consumption = await prepareConsumption(
+                db,
+                order.id,
+                order.lines.map((l, idx) => ({
+                  orderItemId: itemIds[idx],
+                  productId: l.productId,
+                  variantId: l.variantId,
+                  qty: l.qty,
+                })),
+                now,
+                null,
+              );
+            } catch (e) {
+              const reason = e instanceof Error ? e.message : "gagal menyiapkan stok";
+              throw new Error(`Gagal menyiapkan konsumsi stok: ${reason}`);
             }
-          : base;
-      const hppTotalRp = hpp.unitHppRp * l.qty;
-      return [
-        {
-          statement:
-            "INSERT INTO order_items (id, order_id, product_id, variant_id, product_name_snapshot, variant_name_snapshot, quantity, unit_price_rp, discount_rp, line_total_rp, hpp_total_rp, recipe_version_snapshot, created_at, hpp_unit_rp, hpp_source, hpp_detail_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
-          values: [
-            itemId,
-            order.id,
-            l.productId || null,
-            l.variantId,
-            l.productName,
-            l.variantName,
-            l.qty,
-            l.unitPriceRp,
-            l.discountRp,
-            l.lineTotalRp,
-            hppTotalRp,
-            hpp.recipeVersion,
-            now,
-            hpp.unitHppRp,
-            hpp.source,
-            hpp.detailJson,
-          ],
-        },
-      ];
-    }),
-    ...consumption.statements,
-    {
-      statement:
-        "INSERT INTO payments (id, order_id, method, amount_rp, status, reference_note, paid_at, created_at) VALUES (?, ?, ?, ?, 'paid', NULL, ?, ?);",
-      values: [`${order.id}-pay`, order.id, order.payment.method, order.payment.amountRp, order.payment.paidAt, now],
-    },
-    {
-      statement:
-        "INSERT INTO sync_outbox (id, event_type, aggregate_type, aggregate_id, payload_json, schema_version, status, attempt_count, next_attempt_at, last_error, created_at, acknowledged_at) VALUES (?, 'order.completed', 'order', ?, ?, 1, 'pending', 0, NULL, NULL, ?, NULL);",
-      values: [`${order.id}-evt`, order.id, JSON.stringify({ orderId: order.id, totalRp: order.totalRp, serviceChargeRp: order.serviceChargeRp, roundingRp: order.roundingRp }), now],
-    },
-    {
-      statement:
-        "INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, before_json, after_json, reason, created_at) VALUES (?, NULL, 'order.completed', 'order', ?, NULL, ?, NULL, ?);",
-      values: [
-        `${order.id}-audit`,
-        order.id,
-        JSON.stringify({
-          totalRp: order.totalRp,
-          stockShortage: consumption.negative.length > 0 ? consumption.negative : undefined,
-        }),
-        now,
-      ],
-    },
-  ];
-  try {
-    await db.executeTransaction(txn, false);
-  } catch (e) {
-    if (isUniqueViolation(e)) {
-      const winner = await loadOrderByKey(db, order.idempotencyKey);
-      if (winner) {
-        return { order: winner, duplicate: true };
+          }
+        }
+
+        if (consumption.negative.length > 0 && getSettings().blockNegativeStock) {
+          const detail = consumption.negative.map((n) => `${n.name} (sisa ${n.after})`).join(", ");
+          throw new Error(`Stok tidak cukup: ${detail}.`);
+        }
+
+        const txn: SqlStatement[] = [
+          {
+            statement:
+              "INSERT INTO orders (id, receipt_number, idempotency_key, status, subtotal_rp, discount_rp, tax_rp, service_charge_rp, rounding_rp, total_rp, notes, created_at, updated_at) VALUES (?, ?, ?, 'completed', ?, ?, ?, ?, ?, ?, ?, ?, ?);",
+            values: [
+              order.id,
+              order.receiptNumber,
+              order.idempotencyKey,
+              order.subtotalRp,
+              order.discountRp,
+              order.taxRp,
+              order.serviceChargeRp,
+              order.roundingRp,
+              order.totalRp,
+              order.notes,
+              now,
+              now,
+            ],
+          },
+          ...order.lines.flatMap((l, idx) => {
+            const itemId = itemIds[idx];
+            const base = hppMap.get(hppKey(l.productId, l.variantId)) ?? {
+              unitHppRp: 0,
+              source: "none" as const,
+              recipeVersion: null,
+              detailJson: null,
+            };
+            const fromRecipe = consumption.byItem.get(itemId);
+            const hpp =
+              base.source === "recipe" && fromRecipe
+                ? {
+                    unitHppRp: fromRecipe.hppUnitRp,
+                    source: "recipe" as const,
+                    recipeVersion: fromRecipe.recipeVersion,
+                    detailJson: fromRecipe.detailJson,
+                  }
+                : base;
+            const hppTotalRp = calcHppTotal(hpp.unitHppRp, l.qty);
+            return [
+              {
+                statement:
+                  "INSERT INTO order_items (id, order_id, product_id, variant_id, product_name_snapshot, variant_name_snapshot, quantity, unit_price_rp, discount_rp, line_total_rp, hpp_total_rp, recipe_version_snapshot, created_at, hpp_unit_rp, hpp_source, hpp_detail_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
+                values: [
+                  itemId,
+                  order.id,
+                  l.productId || null,
+                  l.variantId,
+                  l.productName,
+                  l.variantName,
+                  l.qty,
+                  l.unitPriceRp,
+                  l.discountRp,
+                  l.lineTotalRp,
+                  hppTotalRp,
+                  hpp.recipeVersion,
+                  now,
+                  hpp.unitHppRp,
+                  hpp.source,
+                  hpp.detailJson,
+                ],
+              },
+            ];
+          }),
+          ...consumption.statements,
+          {
+            statement:
+              "INSERT INTO payments (id, order_id, method, amount_rp, status, reference_note, paid_at, created_at) VALUES (?, ?, ?, ?, 'paid', NULL, ?, ?);",
+            values: [`${order.id}-pay`, order.id, order.payment.method, order.payment.amountRp, order.payment.paidAt, now],
+          },
+          {
+            statement:
+              "INSERT INTO sync_outbox (id, event_type, aggregate_type, aggregate_id, payload_json, schema_version, status, attempt_count, next_attempt_at, last_error, created_at, acknowledged_at) VALUES (?, 'order.completed', 'order', ?, ?, 1, 'pending', 0, NULL, NULL, ?, NULL);",
+            values: [`${order.id}-evt`, order.id, JSON.stringify({ orderId: order.id, totalRp: order.totalRp, serviceChargeRp: order.serviceChargeRp, roundingRp: order.roundingRp }), now],
+          },
+          {
+            statement:
+              "INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, before_json, after_json, reason, created_at) VALUES (?, NULL, 'order.completed', 'order', ?, NULL, ?, NULL, ?);",
+            values: [
+              `${order.id}-audit`,
+              order.id,
+              JSON.stringify({
+                totalRp: order.totalRp,
+                stockShortage: consumption.negative.length > 0 ? consumption.negative : undefined,
+              }),
+              now,
+            ],
+          },
+        ];
+        await execStatements(db, txn);
+      });
+    } catch (e) {
+      if (isUniqueViolation(e)) {
+        const winner = await loadOrderByKey(db, order.idempotencyKey);
+        if (winner) {
+          return { order: winner, duplicate: true };
+        }
+        if (uniqueConstraintTarget(e).includes("receipt_number")) {
+          throw new Error("Nomor struk duplikat, coba lagi.");
+        }
       }
-      if (uniqueConstraintTarget(e).includes("receipt_number")) {
-        throw new Error("Nomor struk duplikat, coba lagi.");
-      }
+      throw e;
     }
-    throw e;
-  }
-  return { order, duplicate: false };
+    return { order, duplicate: false };
+  });
 }
 
 async function tableSqlAllows(db: SQLiteDBConnection, table: string, value: string): Promise<boolean> {
@@ -374,47 +420,56 @@ async function tableSqlAllows(db: SQLiteDBConnection, table: string, value: stri
 
 export async function voidOrderAsync(orderId: string): Promise<Order[]> {
   const db = await getDb();
-  const current = await loadOrderById(db, orderId);
-  if (!current || current.status !== "completed") {
-    throw new Error("Order tidak bisa di-void.");
-  }
-  const now = new Date().toISOString();
-  const txn: { statement: string; values?: unknown[] }[] = [
-    {
-      statement: "UPDATE orders SET status = 'voided', updated_at = ? WHERE id = ?;",
-      values: [now, orderId],
-    },
-    {
-      statement:
-        "INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, before_json, after_json, reason, created_at) VALUES (?, NULL, 'order.voided', 'order', ?, NULL, ?, NULL, ?);",
-      values: [`${orderId}-void-${Date.now()}`, orderId, JSON.stringify({ orderId }), now],
-    },
-    {
-      statement:
-        "INSERT INTO sync_outbox (id, event_type, aggregate_type, aggregate_id, payload_json, schema_version, status, attempt_count, next_attempt_at, last_error, created_at, acknowledged_at) VALUES (?, 'order.voided', 'order', ?, ?, 1, 'pending', 0, NULL, NULL, ?, NULL);",
-      values: [`${orderId}-void-evt`, orderId, JSON.stringify({ orderId }), now],
-    },
-  ];
-  if (await tableSqlAllows(db, "payments", "voided")) {
-    txn.push({
-      statement: "UPDATE payments SET status = 'voided' WHERE order_id = ?;",
-      values: [orderId],
-    });
-  }
-  // Void = kebalikan penuh: stok yang sudah terpotong dikembalikan lewat
-  // movement `return_in` di transaksi yang sama.
-  if (STOCK_DEDUCTION_ENABLED) {
-    try {
-      if (await v2TablesExist(db)) {
-        const reversal = await prepareVoidReversal(db, orderId, now, null);
-        txn.push(...reversal.statements);
+  return runSerializedWrite(async () => {
+    const now = new Date().toISOString();
+    await withTransaction(db, async () => {
+      // Transisi status kondisional: dua void bersamaan hanya boleh satu yang
+      // menang. `changes === 0` berarti sudah di-void/refund (atau tak ada).
+      const claim = await db.run(
+        "UPDATE orders SET status = 'voided', updated_at = ? WHERE id = ? AND status = 'completed';",
+        [now, orderId],
+      );
+      const changed = typeof claim.changes?.changes === "number" ? claim.changes.changes : 0;
+      if (changed !== 1) {
+        throw new Error("Order sudah di-void/refund atau tidak ditemukan.");
       }
-    } catch {
-      // Tabel V2 belum ada: void tetap jalan tanpa reversal stok.
-    }
-  }
-  await db.executeTransaction(txn, false);
-  return loadAllOrders(db);
+
+      const txn: SqlStatement[] = [
+        {
+          statement:
+            "INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, before_json, after_json, reason, created_at) VALUES (?, NULL, 'order.voided', 'order', ?, NULL, ?, NULL, ?);",
+          values: [`${orderId}-void-${Date.now()}`, orderId, JSON.stringify({ orderId }), now],
+        },
+        {
+          statement:
+            "INSERT INTO sync_outbox (id, event_type, aggregate_type, aggregate_id, payload_json, schema_version, status, attempt_count, next_attempt_at, last_error, created_at, acknowledged_at) VALUES (?, 'order.voided', 'order', ?, ?, 1, 'pending', 0, NULL, NULL, ?, NULL);",
+          values: [`${orderId}-void-evt`, orderId, JSON.stringify({ orderId }), now],
+        },
+      ];
+      if (await tableSqlAllows(db, "payments", "voided")) {
+        txn.push({
+          statement: "UPDATE payments SET status = 'voided' WHERE order_id = ?;",
+          values: [orderId],
+        });
+      }
+      // Void = kebalikan penuh: stok yang sudah terpotong dikembalikan lewat
+      // movement `return_in` di transaksi yang sama. Baru dijalankan setelah
+      // klaim status berhasil, jadi void ganda tidak membalik stok dua kali.
+      if (STOCK_DEDUCTION_ENABLED) {
+        if (await v2TablesExist(db)) {
+          try {
+            const reversal = await prepareVoidReversal(db, orderId, now, null);
+            txn.push(...reversal.statements);
+          } catch (e) {
+            const reason = e instanceof Error ? e.message : "gagal membalik stok";
+            throw new Error(`Gagal membalik stok void: ${reason}`);
+          }
+        }
+      }
+      await execStatements(db, txn);
+    });
+    return loadAllOrders(db);
+  });
 }
 
 type CatalogTable = { table: string; columns: string[] };
@@ -458,20 +513,59 @@ const CATALOG_TABLES: CatalogTable[] = [
   { table: "recipe_items", columns: ["id", "recipe_id", "ingredient_id", "qty_per_unit"] },
 ];
 
+/**
+ * Ledger stok + snapshot HPP ikut backup. Tanpa ini, restore menghapus riwayat
+ * movement dan cost snapshot secara permanen (dan stok berjalan kehilangan
+ * jejak asal-usulnya).
+ */
+const LEDGER_TABLES: CatalogTable[] = [
+  {
+    table: "stock_movements",
+    columns: [
+      "id",
+      "ingredient_id",
+      "product_id",
+      "qty",
+      "movement_type",
+      "reference_type",
+      "reference_id",
+      "reason",
+      "actor",
+      "created_at",
+    ],
+  },
+  {
+    table: "order_item_cost_snapshots",
+    columns: [
+      "id",
+      "order_item_id",
+      "ingredient_id",
+      "ingredient_name",
+      "qty",
+      "cost_per_unit_rp",
+      "line_cost_rp",
+      "created_at",
+    ],
+  },
+];
+
 type CatalogDump = Record<string, Record<string, unknown>[]>;
 
-async function dumpCatalog(db: SQLiteDBConnection): Promise<CatalogDump> {
+async function dumpTables(db: SQLiteDBConnection, tables: CatalogTable[]): Promise<CatalogDump> {
   const out: CatalogDump = {};
-  for (const t of CATALOG_TABLES) {
+  for (const t of tables) {
     const res = await db.query(`SELECT * FROM ${t.table};`).catch(() => ({ values: [] }));
     out[t.table] = Array.isArray(res.values) ? (res.values as Record<string, unknown>[]) : [];
   }
   return out;
 }
 
-function catalogInsertStatements(dump: CatalogDump): { statement: string; values?: unknown[] }[] {
+function tableInsertStatements(
+  tables: CatalogTable[],
+  dump: CatalogDump,
+): { statement: string; values?: unknown[] }[] {
   const statements: { statement: string; values?: unknown[] }[] = [];
-  for (const t of CATALOG_TABLES) {
+  for (const t of tables) {
     const rows = Array.isArray(dump[t.table]) ? dump[t.table] : [];
     for (const row of rows) {
       const cols = t.columns.filter((c) => row[c] !== undefined);
@@ -485,20 +579,23 @@ function catalogInsertStatements(dump: CatalogDump): { statement: string; values
   return statements;
 }
 
-function catalogDeleteStatements(): { statement: string }[] {
-  return [...CATALOG_TABLES].reverse().map((t) => ({ statement: `DELETE FROM ${t.table};` }));
+function tableDeleteStatements(tables: CatalogTable[]): { statement: string }[] {
+  return [...tables].reverse().map((t) => ({ statement: `DELETE FROM ${t.table};` }));
 }
 
 export async function exportBackupJsonAsync(): Promise<string> {
   const db = await getDb();
   const orders = await loadAllOrders(db);
-  const catalog = await dumpCatalog(db);
+  const catalog = await dumpTables(db, CATALOG_TABLES);
+  const ledger = await dumpTables(db, LEDGER_TABLES);
   return JSON.stringify(
     {
-      schemaVersion: 2,
+      // v3 = menambahkan `ledger` (stock_movements + order_item_cost_snapshots).
+      schemaVersion: 3,
       exportedAt: new Date().toISOString(),
       posSettings: getSettings(),
       catalog,
+      ledger,
       orders,
     },
     null,
@@ -598,6 +695,43 @@ function validateBackupOrders(orders: Order[]): void {
   }
 }
 
+/**
+ * Ledger hanya divalidasi bentuknya (objek + id string). Nilai numerik dan FK
+ * tetap dijaga oleh constraint SQLite; nama tabel/kolom dari file tidak pernah
+ * masuk SQL karena memakai allowlist LEDGER_TABLES.
+ */
+function validateLedger(raw: unknown): CatalogDump {
+  if (raw === undefined || raw === null) {
+    return {};
+  }
+  if (typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error("Data backup tidak valid: ledger bukan objek.");
+  }
+  const source = raw as Record<string, unknown>;
+  const out: CatalogDump = {};
+  for (const t of LEDGER_TABLES) {
+    const rows = source[t.table];
+    if (rows === undefined) {
+      out[t.table] = [];
+      continue;
+    }
+    if (!Array.isArray(rows)) {
+      throw new Error(`Data backup tidak valid: ledger.${t.table} bukan array.`);
+    }
+    out[t.table] = rows.map((row) => {
+      if (!row || typeof row !== "object" || Array.isArray(row)) {
+        throw new Error(`Data backup tidak valid: baris ledger.${t.table} bukan objek.`);
+      }
+      const r = row as Record<string, unknown>;
+      if (!isCappedString(r.id, 200)) {
+        throw new Error(`Data backup tidak valid: id ledger.${t.table} wajib string ≤200 karakter.`);
+      }
+      return r;
+    });
+  }
+  return out;
+}
+
 export async function importBackupJsonAsync(json: string): Promise<number> {
   if (json.length > MAX_BACKUP_BYTES) {
     throw new Error("File backup terlalu besar.");
@@ -612,12 +746,13 @@ export async function importBackupJsonAsync(json: string): Promise<number> {
     schemaVersion?: unknown;
     orders?: unknown;
     catalog?: unknown;
+    ledger?: unknown;
     posSettings?: unknown;
   };
   if (
     !env ||
     typeof env !== "object" ||
-    (env.schemaVersion !== 1 && env.schemaVersion !== 2) ||
+    (env.schemaVersion !== 1 && env.schemaVersion !== 2 && env.schemaVersion !== 3) ||
     !Array.isArray(env.orders)
   ) {
     throw new Error("Format backup tidak valid.");
@@ -627,6 +762,8 @@ export async function importBackupJsonAsync(json: string): Promise<number> {
   }
   const orders = env.orders as Order[];
   validateBackupOrders(orders);
+  // Backup v1/v2 tidak punya ledger; hasilnya objek kosong (kompatibel).
+  const ledger = validateLedger(env.ledger);
   const db = await getDb();
   const txn: { statement: string; values?: unknown[] }[] = [
     // Anak terdalam dulu. `order_item_cost_snapshots.order_item_id` punya FK ke
@@ -639,11 +776,11 @@ export async function importBackupJsonAsync(json: string): Promise<number> {
     { statement: "DELETE FROM sync_outbox;" },
     { statement: "DELETE FROM orders;" },
   ];
-  // Backup v2 membawa master data (produk, varian, bahan, resep, HPP) dan
+  // Backup v2+ membawa master data (produk, varian, bahan, resep, HPP) dan
   // setelan. Tanpa ini hasil restore bukan POS yang bisa langsung dipakai.
-  if (env.schemaVersion === 2 && env.catalog && typeof env.catalog === "object") {
-    txn.push(...catalogDeleteStatements());
-    txn.push(...catalogInsertStatements(env.catalog as CatalogDump));
+  if ((env.schemaVersion === 2 || env.schemaVersion === 3) && env.catalog && typeof env.catalog === "object") {
+    txn.push(...tableDeleteStatements(CATALOG_TABLES));
+    txn.push(...tableInsertStatements(CATALOG_TABLES, env.catalog as CatalogDump));
   }
   for (const o of orders) {
     txn.push({
@@ -691,17 +828,30 @@ export async function importBackupJsonAsync(json: string): Promise<number> {
       });
     }
   }
+  // Ledger dipulihkan setelah order_items ada (FK snapshot → order_items) dan
+  // setelah master data (FK movement → ingredients/products).
+  txn.push(...tableInsertStatements(LEDGER_TABLES, ledger));
   txn.push({
     statement:
       "INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, before_json, after_json, reason, created_at) VALUES (?, NULL, 'backup.restored', 'backup', 'backup', NULL, ?, NULL, ?);",
     values: [
       `restore-${Date.now()}`,
-      JSON.stringify({ count: orders.length }),
+      JSON.stringify({
+        count: orders.length,
+        stockMovements: (ledger.stock_movements ?? []).length,
+        costSnapshots: (ledger.order_item_cost_snapshots ?? []).length,
+      }),
       new Date().toISOString(),
     ],
   });
-  await db.executeTransaction(txn, false);
-  if (env.schemaVersion === 2 && env.posSettings && typeof env.posSettings === "object") {
+  // Restore memakai transaksi internal plugin; serialkan dengan checkout/void
+  // supaya tidak ada dua transaksi yang saling menimpa di satu koneksi.
+  await runSerializedWrite(() => db.executeTransaction(txn, false));
+  if (
+    (env.schemaVersion === 2 || env.schemaVersion === 3) &&
+    env.posSettings &&
+    typeof env.posSettings === "object"
+  ) {
     saveSettings(env.posSettings as PosSettings);
   }
   return orders.length;
