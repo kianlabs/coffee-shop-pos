@@ -21,6 +21,7 @@ import { ProductItem } from "./components/ProductItem";
 import { HppEditor } from "./components/HppEditor";
 import { StockEditor } from "./components/StockEditor";
 import { CatalogEditor } from "./components/CatalogEditor";
+import { SalesReport } from "./components/SalesReport";
 
 type CartLine = {
   productId: string;
@@ -31,12 +32,12 @@ type CartLine = {
   qty: number;
 };
 
-type View = "kasir" | "riwayat" | "menu" | "hpp" | "stok" | "backup" | "pengaturan";
+type View = "kasir" | "riwayat" | "laporan" | "menu" | "hpp" | "stok" | "backup" | "pengaturan";
 
 type Status = {
   kind: "error" | "ok" | "info";
   msg: string;
-  scope: "kasir" | "riwayat" | "menu" | "hpp" | "stok" | "backup" | "pengaturan";
+  scope: "kasir" | "riwayat" | "laporan" | "menu" | "hpp" | "stok" | "backup" | "pengaturan";
 };
 
 function newIdempotencyKey(): string {
@@ -127,6 +128,7 @@ export default function App() {
   const [printerBusy, setPrinterBusy] = useState(false);
 
   const [orders, setOrders] = useState<Order[]>([]);
+  const [reportOrders, setReportOrders] = useState<Order[] | null>(null);
   const [catalogVersion, setCatalogVersion] = useState(0);
 
   const viewRef = useRef<View>(view);
@@ -154,6 +156,24 @@ export default function App() {
       // Idem: kegagalan storage tidak boleh menghentikan kasir.
     }
   }, [shift]);
+
+  // Ringkasan Laporan memakai SELURUH order dari DB (bukan 200 terakhir di
+  // state), supaya warung yang transaksinya banyak tetap benar totalnya.
+  useEffect(() => {
+    if (view !== "laporan") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const all = await repo.loadAll();
+        if (!cancelled) setReportOrders(all);
+      } catch {
+        if (!cancelled) setReportOrders([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [view]);
 
   // Satu-satunya effect load: initial (ordersVersion 0) selalu jalan sampai
   // dbReady; reload berikutnya (restore) dijaga dbReady agar tak menembak DB
@@ -791,6 +811,12 @@ export default function App() {
           Riwayat ({orders.length})
         </button>{" "}
         <button
+          aria-current={view === "laporan" ? "page" : undefined}
+          onClick={() => setView("laporan")}
+        >
+          Laporan
+        </button>{" "}
+        <button
           aria-current={view === "hpp" ? "page" : undefined}
           onClick={() => setView("hpp")}
         >
@@ -1077,6 +1103,15 @@ export default function App() {
         </div>
       )}
 
+      {view === "laporan" && (
+        <div className="panel">
+          {reportOrders === null ? (
+            <p className="muted">Memuat laporan…</p>
+          ) : (
+            <SalesReport orders={reportOrders} />
+          )}
+        </div>
+      )}
       {view === "menu" && (
         <div className="panel">
           <CatalogEditor onChanged={() => setCatalogVersion((v) => v + 1)} />

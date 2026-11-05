@@ -17,6 +17,7 @@ execFileSync(
     "src/domain/hpp.ts",
     "src/domain/hppResolve.ts",
     "src/domain/shifts.ts",
+    "src/domain/sales.ts",
     "src/data/settings.ts",
     "--ignoreConfig",
     "--outDir",
@@ -37,6 +38,7 @@ const hpp = require(path.join(OUT, "domain/hpp.js"));
 const resolve = require(path.join(OUT, "domain/hppResolve.js"));
 const shifts = require(path.join(OUT, "domain/shifts.js"));
 const settings = require(path.join(OUT, "data/settings.js"));
+const sales = require(path.join(OUT, "domain/sales.js"));
 
 let pass = 0;
 let fail = 0;
@@ -131,6 +133,51 @@ const summary = shifts.summarizeShift(shift, [
 ]);
 check("2 order dalam shift", summary.orderCount, 2);
 check("total shift 50000", summary.grandTotalRp, 50000);
+
+
+console.log("\n[7] ringkasan penjualan");
+{
+  const t0 = new Date("2026-11-05T10:00:00.000Z");
+  const row = (id, createdAt, status, totalRp, hppPerItem) => ({
+    id,
+    receiptNumber: "R-" + id,
+    idempotencyKey: id,
+    status,
+    lines: [{ productId: "p1", variantId: null, productName: "Kopi", variantName: null, unitPriceRp: 15000, qty: 2, lineTotalRp: 30000, discountRp: 0, netTotalRp: 30000, hppTotal: hppPerItem }],
+    subtotalRp: 30000,
+    discountRp: 0,
+    taxRp: 0,
+    serviceChargeRp: 0,
+    roundingRp: 0,
+    totalRp,
+    payment: { method: "cash", amountRp: totalRp, paidAt: createdAt },
+    changeRp: 0,
+    notes: null,
+    createdAt,
+  });
+  const sample = [
+    row("a", "2026-11-05T09:00:00.000Z", "completed", 30000, 12000),
+    row("b", "2026-11-05T10:00:00.000Z", "completed", 25000, 10000),
+    row("c", "2026-11-04T09:00:00.000Z", "completed", 40000, 15000),
+    row("d", "2026-11-05T11:00:00.000Z", "voided", 20000, 8000),
+  ];
+  const start = sales.startOfDay(t0);
+  const end = sales.endOfDay(t0);
+  const sum = sales.summarizeSales(sample, start, end);
+  check("2 transaksi hari ini", sum.orderCount, 2);
+  check("omzet 55000", sum.grandTotalRp, 55000);
+  check("HPP snapshot 22000", sum.totalHppRp, 22000);
+  check("laba 38000", sum.grossProfitRp, 38000);
+  check("margin 69.1%", sum.profitMarginPct, 69.1);
+  check("1 void", sum.voidedCount, 1);
+  const tp = sales.topProducts(sample, start, end);
+  check("terlaris qty 4", tp[0].qty, 4);
+  check("terlaris laba 38000", tp[0].profitRp, 38000);
+  const pb = sales.paymentBreakdown(sample, start, end);
+  check("tunai 2 transaksi", pb[0].orderCount, 2);
+  const kem = sales.rangeFor("yesterday", t0);
+  check("kemarin 1 transaksi", sales.ordersInRange(sample, kem.start, kem.end).length, 1);
+}
 
 rmSync(OUT, { recursive: true, force: true });
 console.log(`\n=== ${fail === 0 ? `SEMUA LULUS (${pass})` : `${fail} GAGAL dari ${pass + fail}`} ===`);

@@ -43,6 +43,7 @@ type OrderItemRow = {
   unit_price_rp: number;
   discount_rp?: number;
   line_total_rp: number;
+  hpp_total_rp?: number;
   created_at: string;
 };
 
@@ -84,6 +85,7 @@ function toOrder(
         lineTotalRp: gross,
         discountRp: disc,
         netTotalRp: gross - disc,
+        hppTotal: typeof i.hpp_total_rp === "number" ? i.hpp_total_rp : 0,
       };
     }),
     subtotalRp: row.subtotal_rp,

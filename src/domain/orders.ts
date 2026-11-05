@@ -15,6 +15,8 @@ export type OrderLine = OrderLineInput & {
   discountRp: Rupiah;
   /** lineTotalRp - discountRp. */
   netTotalRp: Rupiah;
+  /** Snapshot HPP baris (terisi saat order dibaca dari DB; 0 saat checkout baru). */
+  hppTotal?: Rupiah;
 };
 
 export type PaymentMethod = "cash" | "qris_manual" | "other";
