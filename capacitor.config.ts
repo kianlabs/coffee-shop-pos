@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.kianlabs.coffeeshoppos',
-  appName: 'Coffee Shop POS',
+  appName: 'Kopi POS',
   webDir: 'dist'
 };
 

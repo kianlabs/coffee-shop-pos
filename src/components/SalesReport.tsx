@@ -7,12 +7,15 @@ import {
   formatRangeLabel,
   paymentBreakdown,
   rangeFor,
+  salesTrend,
   startOfDay,
   summarizeSales,
   topProducts,
   type Preset,
 } from "../domain/sales";
 import type { Order } from "../domain/orders";
+import { Icon } from "./Icon";
+import { SalesTrendChart, TREND_UNIT_LABEL } from "./SalesTrendChart";
 
 const PRESETS: Array<{ value: Exclude<Preset, "custom">; label: string }> = [
   { value: "today", label: "Hari ini" },
@@ -51,52 +54,78 @@ export function SalesReport({ orders }: { orders: Order[] }) {
   const summary = useMemo(() => summarizeSales(orders, start, end), [orders, start, end]);
   const top = useMemo(() => topProducts(orders, start, end, 10), [orders, start, end]);
   const pay = useMemo(() => paymentBreakdown(orders, start, end), [orders, start, end]);
+  const trend = useMemo(() => salesTrend(orders, start, end), [orders, start, end]);
+  const payTotal = pay.reduce((sum, p) => sum + p.totalRp, 0);
 
   return (
     <div>
       <div className="report-toolbar">
-        {PRESETS.map((p) => (
-          <button
-            key={p.value}
-            className={`chip ${preset === p.value ? "is-active" : ""}`}
-            aria-pressed={preset === p.value}
-            onClick={() => setPreset(p.value)}
-          >
-            {p.label}
-          </button>
-        ))}
-        <input
-          aria-label="Tanggal mulai"
-          type="datetime-local"
-          value={customStart}
-          onChange={(e) => {
-            setCustomStart(e.target.value);
-            setPreset("custom");
-          }}
-        />
-        <input
-          aria-label="Tanggal selesai"
-          type="datetime-local"
-          value={customEnd}
-          onChange={(e) => {
-            setCustomEnd(e.target.value);
-            setPreset("custom");
-          }}
-        />
+        <div className="report-presets" role="group" aria-label="Rentang laporan">
+          {PRESETS.map((p) => (
+            <button
+              key={p.value}
+              className={`chip ${preset === p.value ? "is-active" : ""}`}
+              aria-pressed={preset === p.value}
+              onClick={() => setPreset(p.value)}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <div className="report-dates">
+          <div className="date-field">
+            <input
+              aria-label="Tanggal mulai"
+              type="datetime-local"
+              value={customStart}
+              onChange={(e) => {
+                setCustomStart(e.target.value);
+                setPreset("custom");
+              }}
+            />
+          </div>
+          <span className="date-sep" aria-hidden="true">
+            –
+          </span>
+          <div className="date-field">
+            <input
+              aria-label="Tanggal selesai"
+              type="datetime-local"
+              value={customEnd}
+              onChange={(e) => {
+                setCustomEnd(e.target.value);
+                setPreset("custom");
+              }}
+            />
+          </div>
+        </div>
       </div>
 
-      <p className="muted" style={{ marginBottom: 12 }}>
-        {formatRangeLabel(start, end)} · {summary.orderCount} transaksi
-      </p>
+      <div className="report-range">
+        <Icon name="calendar" size={14} />
+        <span>{formatRangeLabel(start, end)}</span>
+        <span className="report-range-dot" aria-hidden="true" />
+        <strong>{summary.orderCount} transaksi</strong>
+      </div>
 
       <div className="stat-grid">
-        <div className="stat-card">
-          <div className="stat-label">Omzet</div>
+        <div className="stat-card is-primary">
+          <div className="stat-top">
+            <span className="stat-label">Omzet</span>
+            <span className="stat-icon">
+              <Icon name="receipt" size={15} />
+            </span>
+          </div>
           <div className="stat-value">{formatRupiah(summary.grandTotalRp)}</div>
           <div className="stat-sub">rata-rata {formatRupiah(summary.averageRp)} / transaksi</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Laba kotor</div>
+          <div className="stat-top">
+            <span className="stat-label">Laba kotor</span>
+            <span className="stat-icon">
+              <Icon name="chart" size={15} />
+            </span>
+          </div>
           <div
             className="stat-value"
             style={{ color: summary.grossProfitRp < 0 ? "var(--danger)" : undefined }}
@@ -106,12 +135,22 @@ export function SalesReport({ orders }: { orders: Order[] }) {
           <div className="stat-sub">margin {formatPct(summary.profitMarginPct)} dari omzet</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">HPP terjual</div>
+          <div className="stat-top">
+            <span className="stat-label">HPP terjual</span>
+            <span className="stat-icon">
+              <Icon name="calculator" size={15} />
+            </span>
+          </div>
           <div className="stat-value">{formatRupiah(summary.totalHppRp)}</div>
           <div className="stat-sub">dari snapshot saat transaksi</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Diskon / pajak / layanan</div>
+          <div className="stat-top">
+            <span className="stat-label">Diskon &amp; biaya</span>
+            <span className="stat-icon">
+              <Icon name="tag" size={15} />
+            </span>
+          </div>
           <div className="stat-value">{formatRupiah(summary.totalDiscountRp)}</div>
           <div className="stat-sub">
             pajak {formatRupiah(summary.totalTaxRp)} · layanan{" "}
@@ -119,18 +158,46 @@ export function SalesReport({ orders }: { orders: Order[] }) {
           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Transaksi void</div>
+          <div className="stat-top">
+            <span className="stat-label">Transaksi void</span>
+            <span className="stat-icon">
+              <Icon name="trash" size={15} />
+            </span>
+          </div>
           <div className="stat-value">{summary.voidedCount}</div>
           <div className="stat-sub">{formatRupiah(summary.voidedTotalRp)} dibatalkan</div>
         </div>
       </div>
+
+      <section className="card report-chart-card">
+        <div className="card-head">
+          <div>
+            <h3 className="card-title">Tren omzet</h3>
+            <p className="card-sub">Omzet {TREND_UNIT_LABEL[trend.unit]} · hanya transaksi selesai.</p>
+          </div>
+          <div className="chart-head-meta">
+            {trend.peak && (
+              <span className="chart-peak">
+                <span>Puncak</span>
+                <strong>{formatRupiah(trend.peak.totalRp)}</strong>
+                <em>· {trend.peak.label}</em>
+              </span>
+            )}
+            <span className="chart-total">
+              <span>Total</span>
+              <strong>{formatRupiah(trend.totalRp)}</strong>
+            </span>
+          </div>
+        </div>
+        <SalesTrendChart trend={trend} />
+      </section>
 
       <div className="report-row">
         <section className="card">
           <div className="card-head">
             <div>
               <h3 className="card-title">Produk terlaris</h3>
-              <p className="card-sub">10 menu dengan omzet tertinggi di rentang ini.</p>
+              <p className="card-sub">10 menu dengan qty terbanyak di rentang ini.</p>
             </div>
           </div>
           {top.length === 0 ? (
@@ -147,9 +214,14 @@ export function SalesReport({ orders }: { orders: Order[] }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {top.map((t) => (
+                  {top.map((t, i) => (
                     <tr key={t.productId}>
-                      <td>{t.productName}</td>
+                      <td>
+                        <div className="product-cell">
+                          <span className={`rank-badge${i < 3 ? " is-top" : ""}`}>{i + 1}</span>
+                          <span>{t.productName}</span>
+                        </div>
+                      </td>
                       <td className="num">{t.qty}</td>
                       <td className="num">{formatRupiah(t.grossRp)}</td>
                       <td className="num">{formatRupiah(t.profitRp)}</td>
@@ -171,25 +243,37 @@ export function SalesReport({ orders }: { orders: Order[] }) {
           {pay.length === 0 ? (
             <p className="muted">Belum ada penjualan di rentang ini.</p>
           ) : (
-            <div className="table-wrap">
-              <table className="report-table">
-                <thead>
-                  <tr>
-                    <th>Metode</th>
-                    <th className="num">Transaksi</th>
-                    <th className="num">Nominal</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pay.map((p) => (
-                    <tr key={p.method}>
-                      <td>{paymentLabel(p.method as Parameters<typeof paymentLabel>[0])}</td>
-                      <td className="num">{p.orderCount}</td>
-                      <td className="num">{formatRupiah(p.totalRp)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="payment-mix">
+              <div className="payment-mix-bar" aria-hidden="true">
+                {pay.map((p) => (
+                  <span
+                    key={p.method}
+                    className={`payment-seg is-${p.method}`}
+                    style={{ width: `${payTotal > 0 ? (p.totalRp / payTotal) * 100 : 0}%` }}
+                  />
+                ))}
+              </div>
+              <ul className="payment-list">
+                {pay.map((p) => {
+                  const share = payTotal > 0 ? (p.totalRp / payTotal) * 100 : 0;
+                  return (
+                    <li className="payment-item" key={p.method}>
+                      <span className={`payment-dot is-${p.method}`} aria-hidden="true" />
+                      <div className="payment-item-main">
+                        <div className="payment-item-head">
+                          <span className="payment-name">
+                            {paymentLabel(p.method as Parameters<typeof paymentLabel>[0])}
+                          </span>
+                          <strong className="money">{formatRupiah(p.totalRp)}</strong>
+                        </div>
+                        <div className="payment-item-sub">
+                          {p.orderCount} transaksi · {formatPct(share)} dari omzet
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
           )}
         </section>

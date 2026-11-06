@@ -191,6 +191,14 @@ console.log("\n[7] ringkasan penjualan");
   check("uang diterima berlebih tidak dihitung omzet", sales.paymentBreakdown(overTender, start, end)[0].totalRp, 55000);
   const kem = sales.rangeFor("yesterday", t0);
   check("kemarin 1 transaksi", sales.ordersInRange(sample, kem.start, kem.end).length, 1);
+  const trend = sales.salesTrend(sample, start, end);
+  check("tren hari ini 24 bucket", trend.points.length, 24);
+  check("tren total = omzet", trend.totalRp, 55000);
+  check("tren puncak 30000", trend.maxTotalRp, 30000);
+  const weekRange = sales.rangeFor("last7", t0);
+  const weekTrend = sales.salesTrend(sample, weekRange.start, weekRange.end);
+  check("tren 7 hari 7 bucket", weekTrend.points.length, 7);
+  check("tren 7 hari total", weekTrend.totalRp, 95000);
 }
 
 console.log("\n[8] PIN void (PBKDF2 + salt)");

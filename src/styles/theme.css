@@ -371,8 +371,8 @@ label.check input {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 4px 0 14px;
+  gap: 7px;
+  padding: 2px 0 13px;
   margin-bottom: 6px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.09);
 }
@@ -380,19 +380,21 @@ label.check input {
 .brand-mark {
   display: grid;
   place-items: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 13px;
-  background: var(--accent-soft);
-  color: #3a2413;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: linear-gradient(150deg, #fbf3e8, #ead7c0);
+  color: #2b1a0d;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
-.brand-text {
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: #b9ada1;
+.brand-wordmark {
+  display: block;
+  width: 70px;
+  height: auto;
+  opacity: 0.94;
 }
 
 .nav-list {
@@ -446,8 +448,8 @@ label.check input {
 
 .nav-badge {
   position: absolute;
-  top: 5px;
-  right: 10px;
+  top: 4px;
+  right: 4px;
   min-width: 17px;
   height: 17px;
   padding: 0 4px;
@@ -458,6 +460,7 @@ label.check input {
   font-weight: 800;
   line-height: 17px;
   text-align: center;
+  box-shadow: 0 0 0 2px #171412;
 }
 
 .app-main {
@@ -737,7 +740,11 @@ label.check input {
 }
 
 .chip {
+  display: inline-flex;
   flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   min-height: 38px;
   padding: 0 14px;
   border-radius: 999px;
@@ -1702,16 +1709,90 @@ label.check input {
 .report-toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 10px;
   flex-wrap: wrap;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
-.report-toolbar input[type="datetime-local"] {
-  width: auto;
-  flex: 1 1 190px;
-  max-width: 240px;
+.report-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.report-dates {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.date-field {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text-3);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.date-field:focus-within {
+  border-color: var(--line-strong);
+  box-shadow: 0 0 0 3px rgba(28, 25, 23, 0.06);
+}
+
+.date-field input {
+  width: 166px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text);
+  font-size: 0.78rem;
+}
+
+.date-field input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.date-sep {
+  color: var(--text-3);
   font-size: 0.8rem;
+}
+
+.report-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: var(--text-2);
+  font-size: 0.8rem;
+}
+
+.report-range svg {
+  flex: none;
+  color: var(--text-3);
+}
+
+.report-range strong {
+  color: var(--text);
+}
+
+.report-range-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--text-3);
 }
 
 .stat-grid {
@@ -1729,13 +1810,41 @@ label.check input {
   box-shadow: var(--shadow-sm);
 }
 
-.stat-label {
+.stat-card.is-primary {
+  background: linear-gradient(160deg, #ffffff 0%, #faf1e6 100%);
+  border-color: #e8d7c3;
+}
+
+.stat-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   margin-bottom: 4px;
+}
+
+.stat-label {
   color: var(--text-3);
   font-size: 0.67rem;
   font-weight: 750;
   letter-spacing: 0.07em;
   text-transform: uppercase;
+}
+
+.stat-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--surface-3);
+  color: var(--text-2);
+}
+
+.stat-card.is-primary .stat-icon {
+  background: var(--accent);
+  color: var(--accent-soft);
 }
 
 .stat-value {
@@ -1745,10 +1854,298 @@ label.check input {
   letter-spacing: -0.03em;
 }
 
+.stat-card.is-primary .stat-value {
+  font-size: 1.35rem;
+}
+
 .stat-sub {
   margin-top: 2px;
   color: var(--text-2);
   font-size: 0.72rem;
+}
+
+/* --- Grafik tren laporan ------------------------------------------------ */
+.report-chart-card {
+  margin-bottom: 16px;
+}
+
+.chart-head-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.chart-peak,
+.chart-total {
+  display: grid;
+  grid-auto-flow: column;
+  align-items: baseline;
+  gap: 5px;
+  color: var(--text-3);
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.chart-peak strong,
+.chart-total strong {
+  color: var(--text);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-peak em {
+  color: var(--text-3);
+  font-size: 0.66rem;
+  font-style: normal;
+}
+
+.trend-chart {
+  display: grid;
+  grid-template-columns: 50px minmax(0, 1fr);
+  grid-template-rows: 200px 22px;
+  column-gap: 8px;
+}
+
+.trend-y {
+  position: relative;
+  height: 200px;
+}
+
+.trend-y span {
+  position: absolute;
+  right: 0;
+  transform: translateY(50%);
+  color: var(--text-3);
+  font-size: 0.62rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.trend-plot {
+  position: relative;
+  height: 200px;
+  border-bottom: 1px solid var(--line-strong);
+  border-left: 1px solid var(--line);
+}
+
+.trend-grid {
+  position: absolute;
+  inset: 0;
+}
+
+.trend-grid span {
+  position: absolute;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: var(--line);
+}
+
+.trend-bars {
+  position: absolute;
+  inset: 0 6px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.trend-slot {
+  position: relative;
+  display: flex;
+  flex: 1 1 0;
+  align-items: flex-end;
+  justify-content: center;
+  min-width: 0;
+  height: 100%;
+}
+
+.trend-bar {
+  width: min(68%, 26px);
+  border-radius: 4px 4px 2px 2px;
+  background: linear-gradient(180deg, #b98555, #8a5a2b);
+  transition: filter 0.15s ease;
+}
+
+.trend-bar.is-peak {
+  background: linear-gradient(180deg, #3a2a1c, #1c1917);
+}
+
+.trend-bar.is-zero {
+  background: transparent;
+}
+
+.trend-slot:hover .trend-bar:not(.is-zero) {
+  filter: brightness(1.08);
+}
+
+.trend-x {
+  display: flex;
+  grid-column: 2;
+  gap: 2px;
+  padding: 4px 6px 0;
+}
+
+.trend-x span {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: 0.6rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.trend-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 200px;
+  color: var(--text-3);
+}
+
+.trend-empty p {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+/* --- Metode bayar ------------------------------------------------------- */
+.payment-mix-bar {
+  display: flex;
+  height: 10px;
+  margin-bottom: 16px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-3);
+}
+
+.payment-seg {
+  display: block;
+  height: 100%;
+}
+
+.payment-seg.is-cash,
+.payment-dot.is-cash {
+  background: #1c1917;
+}
+
+.payment-seg.is-qris_manual,
+.payment-dot.is-qris_manual {
+  background: #8a5a2b;
+}
+
+.payment-seg.is-other,
+.payment-dot.is-other {
+  background: #b9ada1;
+}
+
+.payment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.payment-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.payment-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin-top: 5px;
+  border-radius: 50%;
+}
+
+.payment-item-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.payment-item-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.82rem;
+}
+
+.payment-item-sub {
+  margin-top: 1px;
+  color: var(--text-3);
+  font-size: 0.7rem;
+}
+
+.product-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rank-badge {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-size: 0.64rem;
+  font-weight: 750;
+}
+
+.rank-badge.is-top {
+  background: var(--accent);
+  color: var(--accent-soft);
+}
+
+@media (max-width: 720px) {
+  .report-toolbar {
+    align-items: stretch;
+  }
+
+  .report-dates {
+    width: 100%;
+  }
+
+  .date-field {
+    flex: 1 1 150px;
+    min-width: 0;
+  }
+
+  .date-field input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .report-chart-card .card-head {
+    flex-wrap: wrap;
+  }
+
+  .chart-head-meta {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .trend-chart {
+    grid-template-rows: 160px 22px;
+  }
+
+  .trend-y,
+  .trend-plot {
+    height: 160px;
+  }
+
+  .trend-empty {
+    height: 160px;
+  }
 }
 
 .report-row {
@@ -2622,6 +3019,10 @@ label.check input {
 
   .stat-grid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .stat-grid .stat-card:last-child {
+    grid-column: 1 / -1;
   }
 
   .order-card-head {

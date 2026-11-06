@@ -255,7 +255,19 @@ async function main() {
     );
     check("filter refund ada di UI", await evalJs(`[...document.querySelectorAll('.chip')].some((c) => c.textContent.trim() === 'Refund')`));
 
-    console.log("\n[4] layout 390x844");
+    console.log("\n[4] laporan + grafik");
+    await evalJs(`(() => {
+      const nav = [...document.querySelectorAll('.nav-item')].find((b) => b.textContent.includes('Laporan'));
+      nav?.click();
+      return !!nav;
+    })()`);
+    check("halaman laporan terbuka", await waitFor(`document.body.innerText.includes('Tren omzet')`));
+    check("grafik tren tampil", await evalJs(`!!document.querySelector('.trend-chart')`));
+    check("lima kartu ringkasan", (await evalJs(`document.querySelectorAll('.stat-card').length`)) === 5);
+    check("grafik hari ini 24 bucket", (await evalJs(`document.querySelectorAll('.trend-bar').length`)) === 24);
+    check("bar metode bayar tampil", await evalJs(`!!document.querySelector('.payment-mix-bar')`));
+
+    console.log("\n[5] layout 390x844");
     await setViewport(390, 844, true);
     await reload();
     check("nav bawah tampil", await evalJs("!!document.querySelector('.nav-rail')"));

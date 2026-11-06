@@ -1232,9 +1232,15 @@ export default function App() {
       >
         <div className="brand">
           <div className="brand-mark">
-            <Icon name="coffee" size={24} />
+            <Icon name="coffee" size={25} />
           </div>
-          <span className="brand-text">Kopi POS</span>
+          <img
+            className="brand-wordmark"
+            src="/assets/brand-wordmark.png"
+            alt="Kopi POS"
+            width={70}
+            height={18}
+          />
         </div>
         <div className="nav-list" ref={navListRef}>
           {NAV_ITEMS.map((item) => (

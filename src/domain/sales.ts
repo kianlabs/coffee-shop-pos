@@ -33,6 +33,25 @@ export type PaymentBreakdownItem = {
   totalRp: number;
 };
 
+export type TrendUnit = "hour" | "day" | "week" | "month";
+
+export type SalesTrendPoint = {
+  key: string;
+  label: string;
+  totalRp: number;
+  orderCount: number;
+  profitRp: number;
+};
+
+export type SalesTrend = {
+  unit: TrendUnit;
+  points: SalesTrendPoint[];
+  totalRp: number;
+  orderCount: number;
+  maxTotalRp: number;
+  peak: SalesTrendPoint | null;
+};
+
 /** Batas rentang yang umum dipakai kasir. */
 export type Preset = "today" | "yesterday" | "thisWeek" | "last7" | "custom";
 
@@ -190,6 +209,115 @@ export function paymentBreakdown(all: Order[], start: Date, end: Date): PaymentB
     byMethod.set(o.payment.method, row);
   }
   return [...byMethod.values()].sort((a, b) => b.totalRp - a.totalRp);
+}
+
+function startOfWeek(d: Date): Date {
+  const copy = startOfDay(d);
+  const dow = (copy.getDay() + 6) % 7;
+  copy.setDate(copy.getDate() - dow);
+  return copy;
+}
+
+function startOfMonth(d: Date): Date {
+  const copy = startOfDay(d);
+  copy.setDate(1);
+  return copy;
+}
+
+function trendUnitFor(start: Date, end: Date): TrendUnit {
+  if (start.toDateString() === end.toDateString()) return "hour";
+  const span = end.getTime() - start.getTime();
+  if (span <= 31 * 86_400_000) return "day";
+  if (span <= 180 * 86_400_000) return "week";
+  return "month";
+}
+
+function bucketStart(d: Date, unit: TrendUnit): Date {
+  if (unit === "hour") {
+    const copy = new Date(d);
+    copy.setMinutes(0, 0, 0);
+    return copy;
+  }
+  if (unit === "day") return startOfDay(d);
+  if (unit === "week") return startOfWeek(d);
+  return startOfMonth(d);
+}
+
+function addBucket(d: Date, unit: TrendUnit): Date {
+  const copy = new Date(d);
+  if (unit === "hour") copy.setHours(copy.getHours() + 1);
+  else if (unit === "day") copy.setDate(copy.getDate() + 1);
+  else if (unit === "week") copy.setDate(copy.getDate() + 7);
+  else copy.setMonth(copy.getMonth() + 1);
+  return copy;
+}
+
+function bucketKey(d: Date, unit: TrendUnit): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  const y = d.getFullYear();
+  const m = p(d.getMonth() + 1);
+  const day = p(d.getDate());
+  if (unit === "hour") return `${y}-${m}-${day}T${p(d.getHours())}`;
+  if (unit === "month") return `${y}-${m}`;
+  return `${y}-${m}-${day}`;
+}
+
+function bucketLabel(d: Date, unit: TrendUnit): string {
+  if (unit === "hour") return `${String(d.getHours()).padStart(2, "0")}.00`;
+  if (unit === "month") {
+    return d.toLocaleDateString("id-ID", { month: "short", year: "2-digit" });
+  }
+  return d.toLocaleDateString("id-ID", { day: "numeric", month: "short" });
+}
+
+/**
+ * Deret omzet untuk grafik laporan.
+ *
+ * Satuan bucket menyesuaikan rentang supaya grafik tetap terbaca:
+ * satu hari → per jam, ≤31 hari → per hari, ≤180 hari → per minggu,
+ * lebih dari itu → per bulan. Hanya order `completed` yang dihitung.
+ */
+export function salesTrend(all: Order[], start: Date, end: Date): SalesTrend {
+  const unit = trendUnitFor(start, end);
+  const first = bucketStart(start, unit);
+  const last = bucketStart(end, unit);
+  const points: SalesTrendPoint[] = [];
+  for (let cursor = first; cursor.getTime() <= last.getTime(); cursor = addBucket(cursor, unit)) {
+    points.push({
+      key: bucketKey(cursor, unit),
+      label: bucketLabel(cursor, unit),
+      totalRp: 0,
+      orderCount: 0,
+      profitRp: 0,
+    });
+  }
+
+  const index = new Map(points.map((point, i) => [point.key, i]));
+  for (const order of ordersInRange(all, start, end)) {
+    if (order.status !== "completed") continue;
+    const when = new Date(order.createdAt);
+    if (!Number.isFinite(when.getTime())) continue;
+    const i = index.get(bucketKey(when, unit));
+    if (i === undefined) continue;
+    const point = points[i];
+    point.totalRp += order.totalRp;
+    point.orderCount += 1;
+    point.profitRp += order.lines.reduce((sum, l) => sum + lineNet(l) - lineHpp(l), 0);
+  }
+
+  let peak: SalesTrendPoint | null = null;
+  for (const point of points) {
+    if (point.totalRp > (peak?.totalRp ?? 0)) peak = point;
+  }
+
+  return {
+    unit,
+    points,
+    totalRp: points.reduce((sum, p) => sum + p.totalRp, 0),
+    orderCount: points.reduce((sum, p) => sum + p.orderCount, 0),
+    maxTotalRp: peak?.totalRp ?? 0,
+    peak,
+  };
 }
 
 export function formatRangeLabel(start: Date, end: Date): string {

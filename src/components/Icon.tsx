@@ -25,6 +25,7 @@ export type IconName =
   | "chevronRight"
   | "store"
   | "clock"
+  | "calendar"
   | "lock"
   | "download"
   | "upload"
@@ -66,15 +67,15 @@ export function Icon({ name, size = 22, ...rest }: Props) {
     case "menu":
       return (
         <svg {...common}>
-          <path d="M4 4.5h6.5a2.5 2.5 0 0 1 2.5 2.5v12a2 2 0 0 0-2-2H4z" />
-          <path d="M20 4.5h-6.5a2.5 2.5 0 0 0-2.5 2.5v12a2 2 0 0 1 2-2h7z" />
+          <path d="M3.6 3.8h6.2A2.2 2.2 0 0 1 12 6v13.4a2.2 2.2 0 0 0-2.2-2.2H3.6z" />
+          <path d="M20.4 3.8h-6.2A2.2 2.2 0 0 0 12 6v13.4a2.2 2.2 0 0 1 2.2-2.2h6.2z" />
         </svg>
       );
     case "receipt":
       return (
         <svg {...common}>
-          <path d="M5 3.5h14v17l-2.3-1.5-2.3 1.5-2.4-1.5-2.3 1.5L7.3 19 5 20.5z" />
-          <path d="M8.5 8h7M8.5 12h7M8.5 16h4" />
+          <path d="M4.5 3h15v18l-2.5-1.6L14.5 21 12 19.4 9.5 21l-2.5-1.6L4.5 21z" />
+          <path d="M8 8h8M8 12h8M8 16h5" />
         </svg>
       );
     case "chart":
@@ -86,29 +87,30 @@ export function Icon({ name, size = 22, ...rest }: Props) {
     case "calculator":
       return (
         <svg {...common}>
-          <rect x="4.5" y="2.5" width="15" height="19" rx="2.5" />
-          <path d="M8 6.5h8v3H8zM8 13.5h.01M12 13.5h.01M16 13.5h.01M8 17.5h.01M12 17.5h.01M16 17.5h.01" />
+          <rect x="3.8" y="2.8" width="16.4" height="18.4" rx="2.6" />
+          <path d="M7.5 6.5h9v3.2h-9zM8 13.5h.01M12 13.5h.01M16 13.5h.01M8 17.5h.01M12 17.5h.01M16 17.5h.01" />
         </svg>
       );
     case "box":
       return (
         <svg {...common}>
-          <path d="m12 2.8 8 4.2v9.9l-8 4.3-8-4.3V7z" />
-          <path d="m4.4 7.2 7.6 4 7.6-4M12 11.2v9.9" />
+          <path d="m12 2.4 8.8 4.6v10L12 21.6 3.2 17V7z" />
+          <path d="m3.7 7.1 8.3 4.3 8.3-4.3M12 11.4v10.2" />
         </svg>
       );
     case "cloud":
       return (
         <svg {...common}>
-          <path d="M7 18.5a4.5 4.5 0 0 1-.6-9 6 6 0 0 1 11.5 1.7A3.7 3.7 0 0 1 17.5 18.5z" />
+          <path d="M4.8 19a5 5 0 0 1-.5-10 6.8 6.8 0 0 1 13 1.8A4.3 4.3 0 0 1 18.8 19z" />
           <path d="M12 11.5v6M9.5 15l2.5 2.5 2.5-2.5" />
         </svg>
       );
     case "settings":
       return (
         <svg {...common}>
-          <circle cx="12" cy="12" r="3" />
-          <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+          <path d="M4 7h8.5M17.5 7H20M4 17h2.5M11.5 17H20" />
+          <circle cx="15" cy="7" r="2.3" />
+          <circle cx="9" cy="17" r="2.3" />
         </svg>
       );
     case "search":
@@ -216,6 +218,13 @@ export function Icon({ name, size = 22, ...rest }: Props) {
           <path d="M12 7v5l3.5 2" />
         </svg>
       );
+    case "calendar":
+      return (
+        <svg {...common}>
+          <rect x="3.5" y="5" width="17" height="15.5" rx="2.4" />
+          <path d="M3.5 9.5h17M8 3v4M16 3v4M8 13h.01M12 13h.01M16 13h.01M8 17h.01M12 17h.01" />
+        </svg>
+      );
     case "lock":
       return (
         <svg {...common}>
@@ -244,8 +253,8 @@ export function Icon({ name, size = 22, ...rest }: Props) {
     case "coffee":
       return (
         <svg {...common}>
-          <path d="M4 8.5h13v6.5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z" />
-          <path d="M17 10h1.5a2.5 2.5 0 0 1 0 5H17M7 2.5v2.5M11 2.5v2.5M15 2.5v2.5" />
+          <path d="M4 8.8h12.5v6.2a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z" />
+          <path d="M16.5 10.2h1.3a2.6 2.6 0 0 1 0 5.2h-1.3M7 2.8v2.8M10.5 2.8v2.8M14 2.8v2.8" />
         </svg>
       );
     case "edit":

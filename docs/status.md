@@ -3,13 +3,13 @@
 Dokumen ini menggantikan klaim di blueprint awal. Yang tertulis di sini sudah
 diverifikasi dengan build/test, bukan rencana.
 
-Terakhir diperbarui: 5 November 2026.
+Terakhir diperbarui: 6 November 2026.
 
 ## Sudah jalan
 
 | Fitur | Bukti |
 |-------|-------|
-| Kasir offline (tambah keranjang, diskon, pajak, layanan, pembulatan, bayar, kembalian) | `npm run build` + `npm test` (103 assertion) |
+| Kasir offline (tambah keranjang, diskon, pajak, layanan, pembulatan, bayar, kembalian) | `npm run build` + `npm test` (108 assertion) |
 | Menu & harga diisi sendiri oleh user (katalog kosong di awal) | `src/components/CatalogEditor.tsx`, `src/data/catalogRepo.ts` |
 | Katalog dibaca dari database, bukan daftar hardcoded | `loadCatalog()` di `App.tsx` |
 | Checkout atomik: order + item + pembayaran + stok + snapshot HPP dalam transaksi manual yang diserialkan | `src/data/orderRepository.ts#checkoutAtomicAsync`, `src/data/tx.ts` |
@@ -37,6 +37,8 @@ Terakhir diperbarui: 5 November 2026.
 | Sync: timeout 15s, single-flight, klasifikasi 2xx/409/429/4xx, event_id UUID | `src/data/sync.ts` |
 | Security hardening: void PIN salted PBKDF2, sync API key in-memory/sessionStorage, CSP meta, Android networkSecurityConfig | `src/data/settings.ts`, `src/data/sync.ts`, `index.html`, `network_security_config.xml` |
 | Backup terenkripsi: PBKDF2 600k, salt/IV acak, checksum SHA-256 | `src/data/cryptoBackup.ts` |
+| Laporan penjualan per periode: omzet, laba, HPP, produk terlaris, metode bayar, grafik tren | `src/components/SalesReport.tsx`, `salesTrend()` di `src/domain/sales.ts`, 5 assertion tren di `npm test` |
+| Smoke test UI headless: alur kasir → bayar → struk → riwayat → laporan/grafik, layout tablet & ponsel | `npm run smoke:ui` (31 cek, Chromium/CDP) |
 | APK memuat bundle terbaru | `npm run android:assets` (diverifikasi lewat isi APK) |
 
 ## Belum selesai / perlu hardware
@@ -47,10 +49,9 @@ Terakhir diperbarui: 5 November 2026.
 | Logo raster di struk | `EscPosRaster.java` + 8 unit test lulus; belum diuji cetak |
 | Backup ke file di Android | Plugin `BackupPlugin` selesai; chooser Android belum diuji di perangkat |
 | Sinkronisasi cloud | Mock server + outbox ada; server produksi belum ada |
-| Laporan laba agregat per periode | Data snapshot sudah siap, query/layar belum ada |
 | Konversi satuan (kg↔g) | Sudah ada untuk input pembelian/koreksi; densitas (ml↔g) belum didukung |
 | Kuantitas stok | Masih REAL, dibulatkan 3 desimal tiap update (anti drift), belum integer milli |
-| Test UI/end-to-end | Belum ada; yang ada hanya test domain |
+| Test E2E perangkat | Smoke UI browser sudah ada; alur refund/resep/stok di Android belum diuji otomatis |
 | Signing release | Perlu keystore produksi (lihat `android/keystore.properties`) |
 
 ## Aturan yang dipegang
