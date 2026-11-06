@@ -47,5 +47,5 @@ export function unitPriceFor(product: Product, variant: ProductVariant | null): 
 }
 
 export function variantsOf(product: CatalogProduct): ProductVariant[] {
-  return product.variants.filter((v) => v.isActive);
+  return Array.isArray(product.variants) ? product.variants.filter((v) => v.isActive) : [];
 }
