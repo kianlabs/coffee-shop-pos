@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node scripts/test-domain.mjs",
     "smoke:ui": "node scripts/smoke-ui.mjs",
+    "test:e2e": "node scripts/test-e2e-exhaustive.mjs",
     "android:assets": "npm run build && node scripts/sync-android-assets.mjs",
     "apk": "bash scripts/build-apk.sh",
     "mock:sync": "node scripts/mock-sync-server.mjs --port 8787"
