@@ -1,5 +1,7 @@
 export type PrintOptions = {
   copies?: number;
+  /** PNG base64 logo untuk dicetak di awal struk. */
+  logoBase64?: string;
 };
 
 export interface PrinterPort {
@@ -74,7 +76,7 @@ export async function printerStatus(): Promise<PrinterStatus> {
   return plugin.status();
 }
 
-function printViaHiddenIframe(text: string, title: string): void {
+function printViaHiddenIframe(text: string, title: string, logoBase64?: string): void {
   // Iframe tersembunyi same-origin (bukan window.open) — tanpa risiko open-redirect.
   const escaped = text
     .replace(/&/g, "&amp;")
@@ -92,10 +94,15 @@ function printViaHiddenIframe(text: string, title: string): void {
     iframe.remove();
     throw new Error("Cetak gagal — browser memblokir iframe cetak.");
   }
+  const logoHtml = logoBase64
+    ? `<div style="text-align:center;margin-bottom:8px;"><img src="${logoBase64.startsWith("data:") ? logoBase64 : `data:image/png;base64,${logoBase64}`}" style="max-width:160px;max-height:80px;height:auto;object-fit:contain;" alt="Logo" /></div>`
+    : "";
   doc.open();
   doc.write(
     `<!doctype html><html><head><title>${title.replace(/</g, "&lt;")}</title></head>` +
-      `<body><pre style="font-family:monospace;font-size:12px;width:58mm;white-space:pre-wrap;">${escaped}</pre>` +
+      `<body style="margin:0;padding:8px 0;width:58mm;text-align:center;">` +
+      logoHtml +
+      `<pre style="font-family:monospace;font-size:12px;width:58mm;white-space:pre-wrap;text-align:left;margin:0;">${escaped}</pre>` +
       `</body></html>`,
   );
   doc.close();
@@ -127,7 +134,7 @@ export class WebPrinter implements PrinterPort {
   async print(text: string, opts?: PrintOptions): Promise<void> {
     const copies = opts?.copies && opts.copies > 0 ? Math.trunc(opts.copies) : 1;
     for (let i = 0; i < copies; i += 1) {
-      printViaHiddenIframe(text, `struk-${i + 1}`);
+      printViaHiddenIframe(text, `struk-${i + 1}`, opts?.logoBase64);
       // Beri jeda antar kopi agar job cetak tak saling menimpa.
       if (i + 1 < copies) {
         await delay(500);
@@ -137,8 +144,9 @@ export class WebPrinter implements PrinterPort {
 }
 
 // ESC/POS: INIT + teks + feed + CUT.
+// Feed dinaikkan menjadi 6 baris agar teks terbawah keluar melewati tear bar printer 58mm manual.
 const ESC_INIT = [0x1b, 0x40];
-const ESC_FEED = [0x0a, 0x0a, 0x0a];
+const ESC_FEED = [0x0a, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a];
 const ESC_CUT = [0x1d, 0x56, 0x42, 0x00];
 
 /**
@@ -265,6 +273,13 @@ export class EscPosPrinter implements PrinterPort {
     const copies = opts?.copies && opts.copies > 0 ? Math.trunc(opts.copies) : 1;
     const base64 = bytesToBase64(buildEscPosBytes(text));
     for (let i = 0; i < copies; i += 1) {
+      if (opts?.logoBase64) {
+        try {
+          await printLogo(opts.logoBase64, this);
+        } catch (logoErr) {
+          console.warn("Gagal mencetak logo raster:", logoErr);
+        }
+      }
       await sendToNative(base64);
     }
   }
@@ -294,13 +309,17 @@ export async function loadLogoPngBase64(assetPath: string = LOGO_ASSET_PATH): Pr
 }
 
 /** Cetak logo raster; fallback ke teks `[LOGO]` hanya bila PNG tidak ada. */
-export async function printLogo(port?: PrinterPort): Promise<void> {
+export async function printLogo(customBase64?: string, port?: PrinterPort): Promise<void> {
   const p = port ?? activePrinter();
   const native = capacitorPrinter();
   if (native && typeof native.printLogo === "function") {
-    const png = await loadLogoPngBase64();
+    let png = customBase64;
+    if (!png) {
+      png = (await loadLogoPngBase64()) ?? undefined;
+    }
     if (png) {
-      await native.printLogo({ dataPngBase64: png });
+      const cleanB64 = png.replace(/^data:image\/[a-z]+;base64,/, "");
+      await native.printLogo({ dataPngBase64: cleanB64 });
       return;
     }
   }

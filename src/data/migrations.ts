@@ -1,5 +1,5 @@
 export const DB_NAME = "coffee_shop_pos";
-export const DB_VERSION = 6;
+export const DB_VERSION = 7;
 
 export const UPGRADE_V1: string[] = [
   `PRAGMA foreign_keys = ON;`,
@@ -283,4 +283,17 @@ export const UPGRADE_V6: string[] = [
   `UPDATE product_variants SET is_active = 0
      WHERE id IN ('var-kopi-susu-reg','var-kopi-susu-lg','var-americano-reg','var-americano-lg','var-matcha-reg','var-matcha-lg')
        AND is_active = 1;`,
+];
+
+/**
+ * UPGRADE_V7 — Partial index refund & indexing order_items.
+ * Menyertakan 'order_refund' pada uq_stock_movements_ref dan mempercepat pencarian item order terurut.
+ */
+export const UPGRADE_V7: string[] = [
+  `DROP INDEX IF EXISTS uq_stock_movements_ref;`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS uq_stock_movements_ref
+     ON stock_movements(reference_type, reference_id, movement_type, ingredient_id)
+     WHERE reference_type IN ('order', 'order_void', 'order_refund');`,
+  `CREATE INDEX IF NOT EXISTS idx_order_items_order_created
+     ON order_items(order_id, created_at ASC);`,
 ];

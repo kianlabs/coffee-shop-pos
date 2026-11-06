@@ -158,8 +158,8 @@ export function validateCheckout(input: CheckoutInput): string | null {
   if (!Number.isInteger(serviceCharge) || serviceCharge < 0) {
     return "Biaya layanan harus bilangan bulat Rupiah ≥ 0.";
   }
-  if (!Number.isInteger(rounding) || rounding > 0) {
-    return "Pembulatan harus bilangan bulat Rupiah ≤ 0.";
+  if (!Number.isInteger(rounding) || rounding > 0 || rounding <= -1000) {
+    return "Pembulatan harus bilangan bulat Rupiah antara -999 dan 0.";
   }
   const subtotal = calcSubtotal(input.lines);
   if (discount > subtotal) {

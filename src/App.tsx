@@ -47,9 +47,12 @@ import {
 import { paymentLabel, renderReceiptText } from "./data/receipt";
 import {
   applyRounding,
+  clearPinLockout,
+  getPinLockoutState,
   getSettings,
   hashVoidPin,
   migrateLegacyVoidPin,
+  recordPinFailure,
   saveSettings,
   verifyVoidPin,
   type PosSettings,
@@ -183,7 +186,20 @@ function loadStoredCart(): CartLine[] {
     return parsed.filter((l): l is CartLine => {
       if (!l || typeof l !== "object") return false;
       const o = l as Record<string, unknown>;
-      return typeof o.productId === "string" && typeof o.qty === "number" && o.qty > 0;
+      return (
+        typeof o.productId === "string" &&
+        o.productId.length > 0 &&
+        typeof o.productName === "string" &&
+        o.productName.length > 0 &&
+        typeof o.unitPriceRp === "number" &&
+        Number.isInteger(o.unitPriceRp) &&
+        o.unitPriceRp >= 0 &&
+        typeof o.qty === "number" &&
+        Number.isInteger(o.qty) &&
+        o.qty > 0 &&
+        (o.variantId === null || typeof o.variantId === "string") &&
+        (o.variantName === null || typeof o.variantName === "string")
+      );
     });
   } catch {
     return [];
@@ -270,10 +286,13 @@ export default function App() {
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState<string | null>(null);
   const [pinAttempts, setPinAttempts] = useState(0);
+  const [actionBusyId, setActionBusyId] = useState<string | null>(null);
   const [pinVerifying, setPinVerifying] = useState(false);
   // PIN baru tidak pernah masuk ke PosSettings sebagai plaintext; hanya
   // di-hash saat tombol simpan ditekan.
   const [voidPinDraft, setVoidPinDraft] = useState("");
+  const [currentPinDraft, setCurrentPinDraft] = useState("");
+  const [openCashDraft, setOpenCashDraft] = useState<number>(0);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [printerDevices, setPrinterDevices] = useState<PrinterDevice[]>([]);
   const [printerState, setPrinterState] = useState<PrinterStatus>({
@@ -486,6 +505,14 @@ export default function App() {
     return catalog.products.filter((p) => p.categoryId === categoryId && p.isActive);
   }, [catalog.products, categoryId, deferredSearch]);
 
+  const variantsMap = useMemo(() => {
+    const map = new Map<string, ProductVariant[]>();
+    for (const p of catalog.products) {
+      map.set(p.id, variantsOf(p));
+    }
+    return map;
+  }, [catalog.products]);
+
   const subtotal = calcSubtotal(cart);
   const serviceCharge = Math.max(0, Math.trunc(posSettings.serviceChargeRp) || 0);
   const baseTotal = calcTotal(subtotal, discount, tax) + serviceCharge;
@@ -642,7 +669,10 @@ export default function App() {
       // Cetak otomatis setelah commit: struk gagal tidak membatalkan penjualan.
       if (posSettings.autoPrint) {
         const port = activePrinter();
-        port.print(receiptText).catch((err: unknown) => {
+        const printOpts = {
+          logoBase64: posSettings.printLogo ? (posSettings.logoBase64 || "assets/logo.png") : undefined,
+        };
+        port.print(receiptText, printOpts).catch((err: unknown) => {
           setStatus({
             kind: "error",
             msg: `Order tersimpan, tapi struk gagal dicetak: ${
@@ -667,6 +697,7 @@ export default function App() {
     if (!window.confirm(`Void order ${label}? Tindakan permanen.`)) {
       return;
     }
+    setActionBusyId(orderId);
     try {
       setOrders(await repo.void(orderId));
       setStatus({ kind: "ok", msg: `Order ${label} dibatalkan (void).`, scope: "riwayat" });
@@ -676,6 +707,8 @@ export default function App() {
         msg: e instanceof Error ? e.message : "Void gagal.",
         scope: "riwayat",
       });
+    } finally {
+      setActionBusyId(null);
     }
   }
 
@@ -687,6 +720,7 @@ export default function App() {
     ) {
       return;
     }
+    setActionBusyId(orderId);
     try {
       setOrders(await repo.refund(orderId));
       setStatus({ kind: "ok", msg: `Order ${label} berhasil di-refund.`, scope: "riwayat" });
@@ -696,14 +730,24 @@ export default function App() {
         msg: e instanceof Error ? e.message : "Refund gagal.",
         scope: "riwayat",
       });
+    } finally {
+      setActionBusyId(null);
     }
   }
 
   async function handleVoid(orderId: string) {
     const label = orders.find((o) => o.id === orderId)?.receiptNumber ?? orderId;
-    // PIN lewat modal, bukan window.prompt: prompt tidak menyamarkan input dan
-    // tidak bisa dibatasi percobaannya.
     if (posSettings.requireVoidPin) {
+      const lockout = getPinLockoutState();
+      if (lockout.lockedUntil && Date.now() < lockout.lockedUntil) {
+        const remainingSec = Math.ceil((lockout.lockedUntil - Date.now()) / 1000);
+        setStatus({
+          kind: "error",
+          msg: `Akses PIN terkunci karena 3x salah. Tunggu ${remainingSec} detik lagi.`,
+          scope: "riwayat",
+        });
+        return;
+      }
       if (posSettings.voidPinHash === "" || posSettings.voidPinSalt === "") {
         setStatus({
           kind: "error",
@@ -714,7 +758,7 @@ export default function App() {
       }
       setPinInput("");
       setPinError(null);
-      setPinAttempts(0);
+      setPinAttempts(lockout.attempts);
       setPinRequest({ action: "void", orderId, label });
       return;
     }
@@ -723,8 +767,17 @@ export default function App() {
 
   async function handleRefund(orderId: string) {
     const label = orders.find((o) => o.id === orderId)?.receiptNumber ?? orderId;
-    // Refund memakai PIN pengaman yang sama dengan void bila proteksi PIN aktif.
     if (posSettings.requireVoidPin) {
+      const lockout = getPinLockoutState();
+      if (lockout.lockedUntil && Date.now() < lockout.lockedUntil) {
+        const remainingSec = Math.ceil((lockout.lockedUntil - Date.now()) / 1000);
+        setStatus({
+          kind: "error",
+          msg: `Akses PIN terkunci karena 3x salah. Tunggu ${remainingSec} detik lagi.`,
+          scope: "riwayat",
+        });
+        return;
+      }
       if (posSettings.voidPinHash === "" || posSettings.voidPinSalt === "") {
         setStatus({
           kind: "error",
@@ -735,7 +788,7 @@ export default function App() {
       }
       setPinInput("");
       setPinError(null);
-      setPinAttempts(0);
+      setPinAttempts(lockout.attempts);
       setPinRequest({ action: "refund", orderId, label });
       return;
     }
@@ -744,22 +797,34 @@ export default function App() {
 
   async function confirmVoidPin() {
     if (!pinRequest || pinVerifying) return;
+    const lockout = getPinLockoutState();
+    if (lockout.lockedUntil && Date.now() < lockout.lockedUntil) {
+      const remainingSec = Math.ceil((lockout.lockedUntil - Date.now()) / 1000);
+      setPinError(`Akses terkunci karena 3x salah. Coba lagi dalam ${remainingSec} detik.`);
+      return;
+    }
     setPinVerifying(true);
     try {
       const ok = await verifyVoidPin(pinInput, posSettings);
       if (!ok) {
-        const next = pinAttempts + 1;
-        setPinAttempts(next);
+        const updated = recordPinFailure();
         setPinInput("");
-        if (next >= 3) {
+        setPinAttempts(updated.attempts);
+        if (updated.lockedUntil) {
           const actionText = pinRequest.action === "refund" ? "refund" : "void";
           setPinRequest(null);
-          setStatus({ kind: "error", msg: `PIN salah 3x — ${actionText} dibatalkan.`, scope: "riwayat" });
+          setStatus({
+            kind: "error",
+            msg: `PIN salah 3x — akses ${actionText} dikunci selama 5 menit.`,
+            scope: "riwayat",
+          });
           return;
         }
-        setPinError(`PIN salah. Sisa ${3 - next} percobaan.`);
+        setPinError(`PIN salah (percobaan ${updated.attempts} dari 3).`);
         return;
       }
+      clearPinLockout();
+      setPinAttempts(0);
       const req = pinRequest;
       setPinRequest(null);
       setPinInput("");
@@ -776,10 +841,61 @@ export default function App() {
     }
   }
 
+  function handleLogoFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setStatus({ kind: "error", msg: "File harus berupa gambar (PNG/JPEG).", scope: "pengaturan" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const maxW = 384;
+        const scale = img.width > maxW ? maxW / img.width : 1;
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const b64 = canvas.toDataURL("image/png");
+        setSettingsDraft((prev) => ({ ...prev, logoBase64: b64 }));
+        setStatus({ kind: "ok", msg: "Logo berhasil dipilih. Klik 'Simpan Pengaturan' untuk menerapkan.", scope: "pengaturan" });
+      };
+      img.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  }
+
   async function handleSaveSettings() {
     if (settingsSaving) return;
     const newPin = voidPinDraft.trim();
-    const hasStoredPin = settingsDraft.voidPinHash !== "" && settingsDraft.voidPinSalt !== "";
+    const hasStoredPin = posSettings.voidPinHash !== "" && posSettings.voidPinSalt !== "";
+
+    // Proteksi Otorisasi: verifikasi PIN lama bila mematikan requireVoidPin atau mengganti PIN
+    const isSecurityChange = (posSettings.requireVoidPin && !settingsDraft.requireVoidPin) || newPin !== "";
+    if (hasStoredPin && isSecurityChange) {
+      if (currentPinDraft.trim() === "") {
+        setStatus({
+          kind: "error",
+          msg: "Masukkan PIN saat ini untuk memverifikasi perubahan keamanan.",
+          scope: "pengaturan",
+        });
+        return;
+      }
+      const isAuth = await verifyVoidPin(currentPinDraft.trim(), posSettings);
+      if (!isAuth) {
+        setStatus({
+          kind: "error",
+          msg: "PIN saat ini salah. Perubahan pengaturan keamanan ditolak.",
+          scope: "pengaturan",
+        });
+        return;
+      }
+    }
+
     if (newPin !== "" && newPin.length < 4) {
       setStatus({
         kind: "error",
@@ -807,6 +923,7 @@ export default function App() {
       setPosSettings(saved);
       setSettingsDraft(saved);
       setVoidPinDraft("");
+      setCurrentPinDraft("");
       setStatus({ kind: "ok", msg: "Pengaturan disimpan.", scope: "pengaturan" });
     } catch (e) {
       setStatus({
@@ -895,7 +1012,7 @@ export default function App() {
       const { shift: closed, summary } = closeShift(shift, all);
       setShift(null);
       setLastShiftSummary(
-        `Shift ${closed.cashierName || "(tanpa nama)"} ditutup: ${summary.orderCount} order, total ${formatRupiah(summary.grandTotalRp)}.`,
+        `Shift ${closed.cashierName || "(tanpa nama)"} ditutup: ${summary.orderCount} order, omzet ${formatRupiah(summary.grandTotalRp)}${shift.openCashRp > 0 ? ` (modal awal ${formatRupiah(shift.openCashRp)})` : ""}.`,
       );
       setStatus({
         kind: "ok",
@@ -917,14 +1034,19 @@ export default function App() {
     order: Order,
     scope: "kasir" | "riwayat" = "riwayat",
   ): Promise<boolean> {
+    if (actionBusyId === order.id) return false;
+    setActionBusyId(order.id);
     const label = order.receiptNumber;
     const receiptOpts = {
       storeName: posSettings.storeName,
       cashierName: posSettings.cashierName,
     };
     const port = activePrinter();
+    const printOpts = {
+      logoBase64: posSettings.printLogo ? (posSettings.logoBase64 || "assets/logo.png") : undefined,
+    };
     try {
-      await port.print(renderReceiptText(order, receiptOpts));
+      await port.print(renderReceiptText(order, receiptOpts), printOpts);
       setStatus({ kind: "ok", msg: `Struk ${label} terkirim ke ${port.name()}.`, scope });
       return true;
     } catch (e) {
@@ -935,6 +1057,8 @@ export default function App() {
         scope,
       });
       return false;
+    } finally {
+      setActionBusyId(null);
     }
   }
 
@@ -1204,6 +1328,12 @@ export default function App() {
 
   const groupedOrders = useMemo(() => groupByDate(filteredOrders), [filteredOrders]);
 
+  const isShiftTruncated = useMemo(() => {
+    if (!shift || orders.length < 200) return false;
+    const oldestInState = orders[orders.length - 1];
+    return Boolean(oldestInState && oldestInState.createdAt > shift.openedAt);
+  }, [shift, orders]);
+
   const shiftSummary = useMemo(() => (shift ? summarizeShift(shift, orders) : null), [shift, orders]);
 
   const todayLabel = new Date().toLocaleDateString("id-ID", {
@@ -1371,7 +1501,7 @@ export default function App() {
                       <ProductItem
                         key={product.id}
                         product={product}
-                        variants={variantsOf(product)}
+                        variants={variantsMap.get(product.id) ?? []}
                         onAdd={addToCart}
                       />
                     ))}
@@ -1562,61 +1692,84 @@ export default function App() {
                     <button
                       className={payMethod === "cash" ? "is-active" : ""}
                       aria-pressed={payMethod === "cash"}
-                      onClick={() => setPayMethod("cash")}
+                      onClick={() => {
+                        setPayMethod("cash");
+                        if (payAmount === 0) setPayAmount(total);
+                      }}
                     >
                       Tunai
                     </button>
                     <button
                       className={payMethod === "qris_manual" ? "is-active" : ""}
                       aria-pressed={payMethod === "qris_manual"}
-                      onClick={() => setPayMethod("qris_manual")}
+                      onClick={() => {
+                        setPayMethod("qris_manual");
+                        setPayAmount(total);
+                      }}
                     >
                       QRIS
                     </button>
                     <button
                       className={payMethod === "other" ? "is-active" : ""}
                       aria-pressed={payMethod === "other"}
-                      onClick={() => setPayMethod("other")}
+                      onClick={() => {
+                        setPayMethod("other");
+                        setPayAmount(total);
+                      }}
                     >
                       Lainnya
                     </button>
                   </div>
 
-                  <div className="pay-amount-row">
-                    <label className="pay-amount-label" htmlFor="pay-amount">
-                      Dibayar (Rp)
-                    </label>
-                    <input
-                      id="pay-amount"
-                      className="pay-amount-input"
-                      type="number"
-                      min={0}
-                      inputMode="numeric"
-                      value={payAmount}
-                      onChange={(e) => setPayAmount(Math.max(0, Number(e.target.value) || 0))}
-                    />
-                  </div>
+                  {payMethod === "cash" ? (
+                    <>
+                      <div className="pay-amount-row">
+                        <label className="pay-amount-label" htmlFor="pay-amount">
+                          Dibayar (Rp)
+                        </label>
+                        <input
+                          id="pay-amount"
+                          className="pay-amount-input"
+                          type="number"
+                          min={0}
+                          inputMode="numeric"
+                          value={payAmount}
+                          onChange={(e) => setPayAmount(Math.max(0, Number(e.target.value) || 0))}
+                        />
+                      </div>
 
-                  {quickCash.length > 0 && (
-                    <div className="quick-cash" role="group" aria-label="Nominal cepat">
-                      {quickCash.map((value) => (
-                        <button key={value} onClick={() => setPayAmount(value)}>
-                          {value === total ? "Uang pas" : formatRupiah(value)}
-                        </button>
-                      ))}
+                      {quickCash.length > 0 && (
+                        <div className="quick-cash" role="group" aria-label="Nominal cepat">
+                          {quickCash.map((value) => (
+                            <button key={value} onClick={() => setPayAmount(value)}>
+                              {value === total ? "Uang pas" : formatRupiah(value)}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="change-row">
+                        <span>{payAmount < total ? "Kurang" : "Kembalian"}</span>
+                        <strong className={payAmount < total ? "is-short" : ""}>
+                          {formatRupiah(
+                            payAmount < total
+                              ? Math.max(0, total - payAmount)
+                              : Math.max(0, payAmount - total),
+                          )}
+                        </strong>
+                      </div>
+                    </>
+                  ) : payMethod === "qris_manual" ? (
+                    <div className="pay-noncash-hint">
+                      <Icon name="check" size={15} />
+                      <span>Cek notifikasi pembayaran QRIS berhasil sebelum lanjut</span>
+                    </div>
+                  ) : (
+                    <div className="pay-noncash-hint">
+                      <Icon name="info" size={15} />
+                      <span>Pastikan slip EDC / transfer bank sudah tervalidasi</span>
                     </div>
                   )}
-
-                  <div className="change-row">
-                    <span>{payAmount < total ? "Kurang" : "Kembalian"}</span>
-                    <strong className={payAmount < total ? "is-short" : ""}>
-                      {formatRupiah(
-                        payAmount < total
-                          ? Math.max(0, total - payAmount)
-                          : Math.max(0, payAmount - total),
-                      )}
-                    </strong>
-                  </div>
 
                   <button
                     className="primary pay-btn"
@@ -1755,17 +1908,17 @@ export default function App() {
                                   size={15}
                                 />
                               </button>
-                              <button className="ghost small" onClick={() => void handlePrint(order)}>
+                              <button className="ghost small" disabled={actionBusyId === order.id} onClick={() => void handlePrint(order)}>
                                 <Icon name="printer" size={15} />
                                 Cetak
                               </button>
                               {order.status === "completed" && (
                                 <>
-                                  <button className="warn small" onClick={() => void handleRefund(order.id)}>
+                                  <button className="warn small" disabled={actionBusyId === order.id} onClick={() => void handleRefund(order.id)}>
                                     <Icon name="refresh" size={15} />
                                     Refund
                                   </button>
-                                  <button className="danger small" onClick={() => handleVoid(order.id)}>
+                                  <button className="danger small" disabled={actionBusyId === order.id} onClick={() => handleVoid(order.id)}>
                                     <Icon name="trash" size={15} />
                                     Void
                                   </button>
@@ -2145,6 +2298,18 @@ export default function App() {
                     />
                     Minta PIN saat void
                   </label>
+                  {posSettings.voidPinHash !== "" && (
+                    <label>
+                      PIN saat ini (verifikasi otorisasi)
+                      <input
+                        type="password"
+                        value={currentPinDraft}
+                        onChange={(e) => setCurrentPinDraft(e.target.value.slice(0, 32))}
+                        placeholder="masukkan PIN saat ini untuk simpan"
+                        autoComplete="current-password"
+                      />
+                    </label>
+                  )}
                   <label>
                     PIN void (baru)
                     <input
@@ -2161,7 +2326,7 @@ export default function App() {
                   </label>
                   <p className="muted">
                     {settingsDraft.voidPinHash !== ""
-                      ? "PIN sudah diset. Isi kolom di atas untuk menggantinya."
+                      ? "PIN sudah diset. Masukkan PIN saat ini bila ingin mengubah keamanan/PIN."
                       : "PIN disimpan sebagai hash PBKDF2 + salt, bukan teks biasa."}
                   </p>
                 </section>
@@ -2217,6 +2382,90 @@ export default function App() {
 
                 <section className="settings-card">
                   <div className="settings-card-head">
+                    <Icon name="store" />
+                    <div>
+                      <h3>Logo Struk</h3>
+                      <p>Cetak logo di bagian atas struk thermal 58 mm.</p>
+                    </div>
+                  </div>
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={settingsDraft.printLogo}
+                      onChange={(e) =>
+                        setSettingsDraft({ ...settingsDraft, printLogo: e.target.checked })
+                      }
+                    />
+                    Cetak logo di struk
+                  </label>
+                  {settingsDraft.printLogo && (
+                    <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 10 }}>
+                      <div
+                        style={{
+                          padding: 12,
+                          border: "1px dashed var(--line)",
+                          borderRadius: 8,
+                          textAlign: "center",
+                          background: "var(--surface-2)",
+                        }}
+                      >
+                        <img
+                          src={settingsDraft.logoBase64 || "assets/logo.png"}
+                          alt="Pratinjau Logo"
+                          style={{
+                            maxWidth: 160,
+                            maxHeight: 70,
+                            objectFit: "contain",
+                            margin: "0 auto",
+                            display: "block",
+                          }}
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = "none";
+                          }}
+                        />
+                        <span className="muted" style={{ fontSize: "0.75rem", display: "block", marginTop: 6 }}>
+                          {settingsDraft.logoBase64 ? "Menggunakan logo kustom" : "Menggunakan logo bawaan (assets/logo.png)"}
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <label
+                          className="button ghost small"
+                          style={{
+                            margin: 0,
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                          }}
+                        >
+                          <Icon name="upload" size={15} />
+                          Pilih Gambar Logo
+                          <input
+                            type="file"
+                            accept="image/png, image/jpeg, image/webp"
+                            style={{ display: "none" }}
+                            onChange={handleLogoFileChange}
+                          />
+                        </label>
+                        {settingsDraft.logoBase64 !== "" && (
+                          <button
+                            type="button"
+                            className="ghost small"
+                            onClick={() => {
+                              setSettingsDraft((prev) => ({ ...prev, logoBase64: "" }));
+                              setStatus({ kind: "info", msg: "Logo dikembalikan ke bawaan.", scope: "pengaturan" });
+                            }}
+                          >
+                            Reset Bawaan
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </section>
+
+                <section className="settings-card">
+                  <div className="settings-card-head">
                     <Icon name="clock" />
                     <div>
                       <h3>Shift</h3>
@@ -2231,11 +2480,13 @@ export default function App() {
                         </span>
                         <span>
                           Dibuka {new Date(shift.openedAt).toLocaleString("id-ID")}
+                          {shift.openCashRp > 0 && ` · Modal awal: ${formatRupiah(shift.openCashRp)}`}
                         </span>
                         {shiftSummary && (
                           <span>
-                            {shiftSummary.orderCount} order ·{" "}
+                            {isShiftTruncated ? "≥" : ""}{shiftSummary.orderCount} order ·{" "}
                             <strong>{formatRupiah(shiftSummary.grandTotalRp)}</strong>
+                            {isShiftTruncated && <small className="muted"> (dari 200 order terbaru)</small>}
                           </span>
                         )}
                       </div>
@@ -2251,12 +2502,25 @@ export default function App() {
                           Tidak ada shift berjalan. Kasir:{" "}
                           <strong>{posSettings.cashierName || "(belum diisi)"}</strong>
                         </span>
+                        <label style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+                          <span style={{ fontSize: "0.8rem", color: "var(--text-2)" }}>Modal awal kas laci:</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1000"
+                            value={openCashDraft || ""}
+                            onChange={(e) => setOpenCashDraft(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                            placeholder="Rp0"
+                            style={{ maxWidth: 200 }}
+                          />
+                        </label>
                       </div>
                       <button
                         className="primary"
                         onClick={() => {
                           setLastShiftSummary(null);
-                          setShift(openShift(posSettings.cashierName));
+                          setShift(openShift(posSettings.cashierName, openCashDraft));
+                          setOpenCashDraft(0);
                           setStatus({ kind: "ok", msg: "Shift dibuka.", scope: "pengaturan" });
                         }}
                       >
@@ -2350,7 +2614,21 @@ export default function App() {
 
             <details className="cart-extra" style={{ marginTop: 12 }}>
               <summary>Lihat struk</summary>
-              <pre className="receipt-preview">{lastReceipt.text}</pre>
+              <div style={{ background: "var(--surface)", padding: 12, borderRadius: 8, marginTop: 8 }}>
+                {posSettings.printLogo && (
+                  <div style={{ textAlign: "center", marginBottom: 8 }}>
+                    <img
+                      src={posSettings.logoBase64 || "assets/logo.png"}
+                      alt="Logo Toko"
+                      style={{ maxWidth: 140, maxHeight: 70, objectFit: "contain", display: "inline-block" }}
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = "none";
+                      }}
+                    />
+                  </div>
+                )}
+                <pre className="receipt-preview" style={{ margin: 0 }}>{lastReceipt.text}</pre>
+              </div>
             </details>
 
             <div className="modal-actions">

@@ -14,6 +14,10 @@ export type PosSettings = {
   blockNegativeStock: boolean;
   /** true = struk langsung dicetak setelah transaksi tersimpan. */
   autoPrint: boolean;
+  /** true = cetak logo di bagian atas struk thermal / struk web. */
+  printLogo: boolean;
+  /** PNG base64 untuk logo struk (kosong = pakai logo default assets/logo.png). */
+  logoBase64: string;
 };
 
 /** DEFAULT: semua nilai aman — tanpa biaya tambahan, tanpa pembulatan, tanpa PIN. */
@@ -24,9 +28,11 @@ export const DEFAULT_SETTINGS: PosSettings = {
   voidPinHash: "",
   voidPinSalt: "",
   cashierName: "",
-  storeName: "KOPI POS",
+  storeName: "RAHARDJO COFFEE",
   blockNegativeStock: false,
   autoPrint: true,
+  printLogo: true,
+  logoBase64: "",
 };
 
 /** OWASP 2023 untuk PBKDF2-HMAC-SHA256 (sama dengan backup terenkripsi). */
@@ -154,6 +160,8 @@ function sanitize(raw: Partial<PosSettings> & Record<string, unknown>): PosSetti
   const storeName = storeRaw.trim() === "" ? DEFAULT_SETTINGS.storeName : storeRaw;
   const blockNegativeStock = raw.blockNegativeStock === true;
   const autoPrint = raw.autoPrint !== false;
+  const printLogo = raw.printLogo !== false;
+  const logoBase64 = toString(raw.logoBase64, "");
   return {
     serviceChargeRp,
     roundingStep,
@@ -164,6 +172,8 @@ function sanitize(raw: Partial<PosSettings> & Record<string, unknown>): PosSetti
     storeName,
     blockNegativeStock,
     autoPrint,
+    printLogo,
+    logoBase64,
   };
 }
 
@@ -256,4 +266,51 @@ export function applyRounding(totalRp: number, step: RoundingStep): RoundedTotal
     return { rounded: total, roundingRp: 0 };
   }
   return { rounded, roundingRp: rounded - total };
+}
+
+export const PIN_LOCKOUT_KEY = "pos.pin_lockout.v1";
+export const MAX_PIN_ATTEMPTS = 3;
+export const PIN_LOCKOUT_MS = 5 * 60 * 1000; // 5 menit
+
+export type PinLockoutState = {
+  attempts: number;
+  lockedUntil: number | null;
+};
+
+export function getPinLockoutState(): PinLockoutState {
+  try {
+    const raw = localStorage.getItem(PIN_LOCKOUT_KEY);
+    if (!raw) return { attempts: 0, lockedUntil: null };
+    const parsed = JSON.parse(raw);
+    const lockedUntil = typeof parsed?.lockedUntil === "number" ? parsed.lockedUntil : null;
+    const attempts = typeof parsed?.attempts === "number" ? parsed.attempts : 0;
+    if (lockedUntil && Date.now() >= lockedUntil) {
+      clearPinLockout();
+      return { attempts: 0, lockedUntil: null };
+    }
+    return { attempts, lockedUntil };
+  } catch {
+    return { attempts: 0, lockedUntil: null };
+  }
+}
+
+export function recordPinFailure(): PinLockoutState {
+  const current = getPinLockoutState();
+  const nextAttempts = current.attempts + 1;
+  const lockedUntil = nextAttempts >= MAX_PIN_ATTEMPTS ? Date.now() + PIN_LOCKOUT_MS : null;
+  const state: PinLockoutState = { attempts: nextAttempts, lockedUntil };
+  try {
+    localStorage.setItem(PIN_LOCKOUT_KEY, JSON.stringify(state));
+  } catch {
+    // Abaikan kegagalan storage
+  }
+  return state;
+}
+
+export function clearPinLockout(): void {
+  try {
+    localStorage.removeItem(PIN_LOCKOUT_KEY);
+  } catch {
+    // Abaikan kegagalan storage
+  }
 }

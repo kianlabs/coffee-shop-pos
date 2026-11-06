@@ -222,7 +222,13 @@ public class PrinterPlugin extends Plugin {
 
       BluetoothSocket newSocket = null;
       try {
-        adapter.cancelDiscovery(); // discovery memperlambat/menggagalkan connect
+        try {
+          if (adapter.isDiscovering()) {
+            adapter.cancelDiscovery(); // discovery memperlambat/menggagalkan connect
+          }
+        } catch (SecurityException se) {
+          Log.w(TAG, "Gagal membatalkan discovery (tidak ada izin scan, abaikan): " + se.getMessage());
+        }
         newSocket = device.createRfcommSocketToServiceRecord(SPP_UUID);
         connectWithTimeout(newSocket);
         OutputStream out = newSocket.getOutputStream();
@@ -336,8 +342,27 @@ public class PrinterPlugin extends Plugin {
     }
 
     io().execute(() -> {
-      // Decode di thread I/O: PNG besar bisa alokasi puluhan MB.
-      final Bitmap decoded = BitmapFactory.decodeByteArray(raw, 0, raw.length);
+      // Periksa dimensi tanpa alokasi memori penuh
+      BitmapFactory.Options boundsOpts = new BitmapFactory.Options();
+      boundsOpts.inJustDecodeBounds = true;
+      BitmapFactory.decodeByteArray(raw, 0, raw.length, boundsOpts);
+      if (boundsOpts.outWidth <= 0 || boundsOpts.outHeight <= 0) {
+        call.reject("File gambar logo tidak valid.");
+        return;
+      }
+      if (boundsOpts.outWidth > 2048 || boundsOpts.outHeight > 2048) {
+        call.reject("Dimensi logo terlalu besar (maksimal 2048x2048 piksel).");
+        return;
+      }
+
+      // Decode di thread I/O dengan pengaman OutOfMemoryError
+      final Bitmap decoded;
+      try {
+        decoded = BitmapFactory.decodeByteArray(raw, 0, raw.length);
+      } catch (OutOfMemoryError oom) {
+        call.reject("Memori perangkat tidak mencukupi untuk memproses logo.");
+        return;
+      }
       if (decoded == null) {
         call.reject("PNG tidak bisa di-decode.");
         return;
@@ -362,6 +387,8 @@ public class PrinterPlugin extends Plugin {
         ret.put("width", EscPosRaster.paddedWidth(w));
         ret.put("height", h);
         call.resolve(ret);
+      } catch (OutOfMemoryError oom) {
+        call.reject("Memori tidak mencukupi saat meraster logo.");
       } catch (IOException e) {
         closeQuietly();
         call.reject("Koneksi printer terputus saat mencetak logo. Hubungkan ulang lalu coba lagi.", e);

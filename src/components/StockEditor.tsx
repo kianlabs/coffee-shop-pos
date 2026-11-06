@@ -155,7 +155,7 @@ export function StockEditor() {
     // Total belanja = buyQty * buyCost
     // costPerBaseUnit = totalBelanja / convertedQty
     const totalExpenditure = buyQty * buyCost;
-    const costPerBaseUnit = Math.round(totalExpenditure / convertedQty);
+    const costPerBaseUnit = Math.round((totalExpenditure / convertedQty) * 100) / 100;
 
     setBusy(true);
     try {

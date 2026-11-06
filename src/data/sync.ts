@@ -1,4 +1,5 @@
 import { getDb } from "./db";
+import { runSerializedWrite } from "./tx";
 
 /**
  * Client sync untuk sync_outbox -> POST /v1/sync/events (lihat api/openapi.yaml).
@@ -551,13 +552,15 @@ export async function markAcked(ids: string[]): Promise<void> {
   if (ids.length === 0) return;
   const db = await getDb();
   const now = new Date().toISOString();
-  // UPDATE satu-per-satu agar kompatibel dengan binding positional SQLite.
-  for (const id of ids) {
-    await db.run(
-      `UPDATE sync_outbox SET status = 'acknowledged', acknowledged_at = ?, last_error = NULL, next_attempt_at = NULL WHERE id = ?;`,
-      [now, id],
-    );
-  }
+  await runSerializedWrite(async () => {
+    // UPDATE satu-per-satu agar kompatibel dengan binding positional SQLite.
+    for (const id of ids) {
+      await db.run(
+        `UPDATE sync_outbox SET status = 'acknowledged', acknowledged_at = ?, last_error = NULL, next_attempt_at = NULL WHERE id = ?;`,
+        [now, id],
+      );
+    }
+  });
 }
 
 /** Backoff eksponensial manual: 30s * 2^attempt, maks 1 jam. Hasil ISO string. */
@@ -570,32 +573,36 @@ export function computeNextAttemptAt(attemptCount: number, nowMs = Date.now()): 
 export async function markRetry(ids: string[], message: string): Promise<void> {
   if (ids.length === 0) return;
   const db = await getDb();
-  for (const id of ids) {
-    let attempt = 0;
-    try {
-      const res = await db.query(`SELECT attempt_count AS a FROM sync_outbox WHERE id = ?;`, [id]);
-      const row = res.values?.[0] as { a?: number } | undefined;
-      attempt = typeof row?.a === "number" ? row.a : 0;
-    } catch {
-      attempt = 0;
+  await runSerializedWrite(async () => {
+    for (const id of ids) {
+      let attempt = 0;
+      try {
+        const res = await db.query(`SELECT attempt_count AS a FROM sync_outbox WHERE id = ?;`, [id]);
+        const row = res.values?.[0] as { a?: number } | undefined;
+        attempt = typeof row?.a === "number" ? row.a : 0;
+      } catch {
+        attempt = 0;
+      }
+      await db.run(
+        `UPDATE sync_outbox SET attempt_count = ?, next_attempt_at = ?, last_error = ? WHERE id = ?;`,
+        [attempt + 1, computeNextAttemptAt(attempt), message.slice(0, 500), id],
+      );
     }
-    await db.run(
-      `UPDATE sync_outbox SET attempt_count = ?, next_attempt_at = ?, last_error = ? WHERE id = ?;`,
-      [attempt + 1, computeNextAttemptAt(attempt), message.slice(0, 500), id],
-    );
-  }
+  });
 }
 
 /** Tandai event gagal permanen (4xx non-retryable). Tidak di-retry otomatis. */
 export async function markFailed(ids: string[], message: string): Promise<void> {
   if (ids.length === 0) return;
   const db = await getDb();
-  for (const id of ids) {
-    await db.run(
-      `UPDATE sync_outbox SET status = 'failed', last_error = ?, next_attempt_at = NULL WHERE id = ?;`,
-      [message.slice(0, 500), id],
-    );
-  }
+  await runSerializedWrite(async () => {
+    for (const id of ids) {
+      await db.run(
+        `UPDATE sync_outbox SET status = 'failed', last_error = ?, next_attempt_at = NULL WHERE id = ?;`,
+        [message.slice(0, 500), id],
+      );
+    }
+  });
 }
 
 /**
@@ -604,10 +611,12 @@ export async function markFailed(ids: string[], message: string): Promise<void> 
  */
 export async function requeueFailedEvents(): Promise<void> {
   const db = await getDb();
-  await db.run(
-    `UPDATE sync_outbox SET status = 'pending', attempt_count = 0, next_attempt_at = NULL, last_error = NULL
-     WHERE status = 'failed';`,
-  );
+  await runSerializedWrite(async () => {
+    await db.run(
+      `UPDATE sync_outbox SET status = 'pending', attempt_count = 0, next_attempt_at = NULL, last_error = NULL
+       WHERE status = 'failed';`,
+    );
+  });
 }
 
 // ---------------------------------------------------------------------------

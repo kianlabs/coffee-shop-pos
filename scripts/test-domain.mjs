@@ -84,6 +84,8 @@ check("diskon > subtotal ditolak", typeof orders.validateCheckout(baseCheckout({
 check("bayar kurang ditolak", typeof orders.validateCheckout(baseCheckout({ payment: { method: "cash", amountRp: 1000, paidAt: "2026-11-05T10:00:00.000Z" } })), "string");
 check("metode bayar asing ditolak", typeof orders.validateCheckout(baseCheckout({ payment: { method: "kripto", amountRp: 30000, paidAt: "2026-11-05T10:00:00.000Z" } })), "string");
 check("pembulatan positif ditolak", typeof orders.validateCheckout(baseCheckout({ roundingRp: 500 })), "string");
+check("pembulatan terlalu negatif ditolak", typeof orders.validateCheckout(baseCheckout({ roundingRp: -1000 })), "string");
+check("pembulatan negatif valid lolos", orders.validateCheckout(baseCheckout({ roundingRp: -50, payment: { method: "cash", amountRp: 29950, paidAt: "2026-11-05T10:00:00.000Z" } })), null);
 check("checkout valid lolos", orders.validateCheckout(baseCheckout()), null);
 
 console.log("\n[2b] alokasi diskon ke item");

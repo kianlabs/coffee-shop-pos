@@ -55,13 +55,13 @@ function assertValidLine(line: RecipeLineInput): void {
 export function calcHppForLine(items: RecipeLineInput[]): HppResult {
   const lines: HppLine[] = items.map((item) => {
     assertValidLine(item);
-    const cost = Math.trunc(item.costPerUnitRp);
+    const cost = Math.max(0, item.costPerUnitRp);
     const lineCostRp = Math.round(item.qtyPerUnit * cost);
     return {
       ingredientId: item.ingredientId,
       ingredientName: item.ingredientName,
       qtyPerUnit: item.qtyPerUnit,
-      costPerUnitRp: cost,
+      costPerUnitRp: Math.round(cost * 100) / 100,
       lineCostRp,
     };
   });
@@ -132,7 +132,7 @@ export function snapshotForOrder(
       ingredientName: l.ingredientName,
       qty,
       costPerUnitRp: l.costPerUnitRp,
-      lineCostRp: Math.round(qty * l.costPerUnitRp),
+      lineCostRp: l.lineCostRp * qtyOrdered,
     };
   });
   let hppTotalRp = 0;

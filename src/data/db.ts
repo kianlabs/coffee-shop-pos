@@ -4,7 +4,7 @@ import {
   SQLiteConnection,
   type SQLiteDBConnection,
 } from "@capacitor-community/sqlite";
-import { DB_NAME, DB_VERSION, UPGRADE_V1, UPGRADE_V2, UPGRADE_V3, UPGRADE_V4, UPGRADE_V5, UPGRADE_V6 } from "./migrations";
+import { DB_NAME, DB_VERSION, UPGRADE_V1, UPGRADE_V2, UPGRADE_V3, UPGRADE_V4, UPGRADE_V5, UPGRADE_V6, UPGRADE_V7 } from "./migrations";
 import { DEFAULT_CATEGORIES } from "../domain/catalog";
 
 let sqlite: SQLiteConnection | null = null;
@@ -41,20 +41,22 @@ async function openConnection(): Promise<SQLiteDBConnection> {
       { toVersion: 4, statements: UPGRADE_V4 },
       { toVersion: 5, statements: UPGRADE_V5 },
       { toVersion: 6, statements: UPGRADE_V6 },
+      { toVersion: 7, statements: UPGRADE_V7 },
     ],
   }).catch(() => undefined);
   const exists = await sql.isConnection(DB_NAME, false).catch(() => ({ result: false }));
   const opened = exists.result
     ? await sql.retrieveConnection(DB_NAME, false)
     : await sql.createConnection(DB_NAME, false, "no-encryption", DB_VERSION, false);
-  conn = opened;
   await opened.open();
   await applyConnectionPragmas(opened);
   await ensureV3Columns(opened);
   await ensureV4Columns(opened);
   await ensureV5Indexes(opened);
   await ensureV6EmptyCatalog(opened);
+  await ensureV7Indexes(opened);
   await seedCategories(opened);
+  conn = opened;
   return opened;
 }
 
@@ -208,6 +210,19 @@ async function ensureV6EmptyCatalog(db: SQLiteDBConnection): Promise<void> {
       await db.execute(statement);
     } catch {
       // Tabel belum ada / data sudah bersih.
+    }
+  }
+}
+
+/**
+ * V7: partial index untuk order_refund dan indexing order_items.
+ */
+async function ensureV7Indexes(db: SQLiteDBConnection): Promise<void> {
+  for (const statement of UPGRADE_V7) {
+    try {
+      await db.execute(statement);
+    } catch {
+      // Index sudah ada atau belum ada tabel v2.
     }
   }
 }

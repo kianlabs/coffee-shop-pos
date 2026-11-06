@@ -152,14 +152,23 @@ async function loadAllOrders(db: SQLiteDBConnection, limit?: number): Promise<Or
   // rekap shift terpotong diam-diam (Number.isFinite(Infinity) === false).
   const capped =
     typeof limit === "number" && Number.isFinite(limit) ? Math.max(0, Math.trunc(limit)) : Number.POSITIVE_INFINITY;
-  const orderRowsAll = (await db.query("SELECT * FROM orders ORDER BY created_at DESC;")).values;
+  const querySql = Number.isFinite(capped)
+    ? `SELECT * FROM orders ORDER BY created_at DESC LIMIT ${capped};`
+    : "SELECT * FROM orders ORDER BY created_at DESC;";
+  const orderRowsAll = (await db.query(querySql)).values;
   const orderRows = (Array.isArray(orderRowsAll) ? orderRowsAll : []).slice(0, capped) as OrderRow[];
   if (orderRows.length === 0) {
     return [];
   }
   const wanted = new Set(orderRows.map((o) => o.id));
-  const itemRowsAll = (await db.query("SELECT * FROM order_items ORDER BY created_at ASC;")).values;
-  const payRowsAll = (await db.query("SELECT * FROM payments;")).values;
+  const itemSql = Number.isFinite(capped)
+    ? `SELECT * FROM order_items WHERE order_id IN (SELECT id FROM orders ORDER BY created_at DESC LIMIT ${capped}) ORDER BY created_at ASC;`
+    : "SELECT * FROM order_items ORDER BY created_at ASC;";
+  const paySql = Number.isFinite(capped)
+    ? `SELECT * FROM payments WHERE order_id IN (SELECT id FROM orders ORDER BY created_at DESC LIMIT ${capped});`
+    : "SELECT * FROM payments;";
+  const itemRowsAll = (await db.query(itemSql)).values;
+  const payRowsAll = (await db.query(paySql)).values;
   const itemRows = ((Array.isArray(itemRowsAll) ? itemRowsAll : []) as OrderItemRow[]).filter((r) => wanted.has(r.order_id));
   const payRows = ((Array.isArray(payRowsAll) ? payRowsAll : []) as PaymentRow[]).filter((r) => wanted.has(r.order_id));
   const itemsByOrder = new Map<string, OrderItemRow[]>();
@@ -419,16 +428,18 @@ async function tableSqlAllows(db: SQLiteDBConnection, table: string, value: stri
   }
 }
 
-export async function voidOrderAsync(orderId: string): Promise<Order[]> {
+export async function voidOrderAsync(orderId: string, limit = 200): Promise<Order[]> {
   const db = await getDb();
   return runSerializedWrite(async () => {
     const now = new Date().toISOString();
     await withTransaction(db, async () => {
       // Transisi status kondisional: dua void bersamaan hanya boleh satu yang
       // menang. `changes === 0` berarti sudah di-void/refund (atau tak ada).
+      // WAJIB transaction = false supaya klaim status masuk ke transaksi manual withTransaction.
       const claim = await db.run(
         "UPDATE orders SET status = 'voided', updated_at = ? WHERE id = ? AND status = 'completed';",
         [now, orderId],
+        false,
       );
       const changed = typeof claim.changes?.changes === "number" ? claim.changes.changes : 0;
       if (changed !== 1) {
@@ -469,11 +480,11 @@ export async function voidOrderAsync(orderId: string): Promise<Order[]> {
       }
       await execStatements(db, txn);
     });
-    return loadAllOrders(db);
+    return loadAllOrders(db, limit);
   });
 }
 
-export async function refundOrderAsync(orderId: string): Promise<Order[]> {
+export async function refundOrderAsync(orderId: string, limit = 200): Promise<Order[]> {
   const db = await getDb();
   return runSerializedWrite(async () => {
     const now = new Date().toISOString();
@@ -481,9 +492,11 @@ export async function refundOrderAsync(orderId: string): Promise<Order[]> {
       // Transisi status kondisional: WHERE id = ? AND status = 'completed'.
       // Dua refund/void bersamaan hanya boleh satu yang menang.
       // `changes === 0` berarti sudah di-void/refund atau tidak ditemukan.
+      // WAJIB transaction = false supaya klaim status masuk ke transaksi manual withTransaction.
       const claim = await db.run(
         "UPDATE orders SET status = 'refunded', updated_at = ? WHERE id = ? AND status = 'completed';",
         [now, orderId],
+        false,
       );
       const changed = typeof claim.changes?.changes === "number" ? claim.changes.changes : 0;
       if (changed !== 1) {
@@ -532,7 +545,7 @@ export async function refundOrderAsync(orderId: string): Promise<Order[]> {
       }
       await execStatements(db, txn);
     });
-    return loadAllOrders(db);
+    return loadAllOrders(db, limit);
   });
 }
 

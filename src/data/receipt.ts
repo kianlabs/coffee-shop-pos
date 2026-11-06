@@ -75,6 +75,9 @@ export function renderReceiptText(order: Order, opts?: ReceiptOptions): string {
   if (order.status === "voided") {
     rows.push(center("*** VOID ***"));
   }
+  if (order.status === "refunded") {
+    rows.push(center("*** REFUND ***"));
+  }
   rows.push(`No: ${order.receiptNumber}`);
   rows.push(`Tgl: ${new Date(order.createdAt).toLocaleString("id-ID")}`);
   if (opts?.cashierName) {
@@ -112,6 +115,9 @@ export function renderReceiptText(order: Order, opts?: ReceiptOptions): string {
   rows.push("-".repeat(WIDTH));
   if (order.status === "voided") {
     rows.push(center("*** VOID ***"));
+  }
+  if (order.status === "refunded") {
+    rows.push(center("*** REFUND ***"));
   }
   rows.push("Terima kasih".padStart(22));
   rows.push(`ID: ${order.id.slice(0, 8)}`);

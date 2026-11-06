@@ -20,11 +20,21 @@ export const ProductItem = memo(function ProductItem({
 }: ProductItemProps) {
   return (
     <article className="product-card">
-      <h3 title={product.name}>{product.name}</h3>
+      <div className="product-card-header">
+        <h3 title={product.name}>{product.name}</h3>
+        {variants.length > 0 && (
+          <span className="product-variant-badge">{variants.length} varian</span>
+        )}
+      </div>
       {/* Harga + aksi dikelompokkan di kaki kartu supaya sejajar antar kartu
           dalam satu baris, termasuk saat tetangganya punya varian. */}
       <div className="product-actions">
-        <div className="product-price">{formatRupiah(product.basePriceRp)}</div>
+        <div className="product-price">
+          {variants.length > 0 ? (
+            <span className="price-from">mulai </span>
+          ) : null}
+          {formatRupiah(product.basePriceRp)}
+        </div>
         {variants.length === 0 ? (
           <button
             className="add-btn"
@@ -43,7 +53,7 @@ export const ProductItem = memo(function ProductItem({
                 onClick={() => onAdd(product, variant)}
                 aria-label={`Tambah ${product.name} ${variant.name}`}
               >
-                <span>{variant.name}</span>
+                <span className="variant-name">{variant.name}</span>
                 <span className="money">{formatRupiah(unitPriceFor(product, variant))}</span>
               </button>
             ))}

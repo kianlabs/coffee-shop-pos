@@ -9,7 +9,14 @@ Terakhir diperbarui: 6 November 2026.
 
 | Fitur | Bukti |
 |-------|-------|
-| Kasir offline (tambah keranjang, diskon, pajak, layanan, pembulatan, bayar, kembalian) | `npm run build` + `npm test` (108 assertion) |
+| Kasir offline (tambah keranjang, diskon, pajak, layanan, pembulatan, bayar, kembalian) | `npm run build` + `npm test` (110 assertion) |
+| Proteksi atomik void & refund SQLite (`transaction=false`) | `src/data/orderRepository.ts` |
+| Migrasi V7: penjagaan stok refund (`uq_stock_movements_ref`) & indeks komposit | `src/data/migrations.ts#UPGRADE_V7` |
+| Inisialisasi DB aman dari balapan startup | `src/data/db.ts#openConnection` |
+| Background sync outbox diserialkan via `runSerializedWrite` | `src/data/sync.ts` |
+| Proteksi brute force PIN persisten (lockout 5 menit) & verifikasi PIN lama di Pengaturan | `src/data/settings.ts`, `src/App.tsx` |
+| Proteksi crash Bluetooth Android 12+ & pencegahan OOM pada logo struk | `PrinterPlugin.java`, `proguard-rules.pro` |
+| Ergonomi touch target tablet (min 40–44px untuk qty, varian, menu) | `src/styles/theme.css` |
 | Menu & harga diisi sendiri oleh user (katalog kosong di awal) | `src/components/CatalogEditor.tsx`, `src/data/catalogRepo.ts` |
 | Katalog dibaca dari database, bukan daftar hardcoded | `loadCatalog()` di `App.tsx` |
 | Checkout atomik: order + item + pembayaran + stok + snapshot HPP dalam transaksi manual yang diserialkan | `src/data/orderRepository.ts#checkoutAtomicAsync`, `src/data/tx.ts` |
