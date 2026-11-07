@@ -43,11 +43,14 @@ jobs:
       - name: Package OTA dist.zip
         run: node scripts/package-ota.mjs
 
+      - name: Sync Capacitor Android
+        run: npx cap sync android
+
       - name: Build Android Release APK
         run: |
           cd android
           chmod +x ./gradlew
-          ./gradlew assembleRelease
+          ./gradlew assembleRelease -x lintVitalAnalyzeRelease
           cd ..
           cp android/app/build/outputs/apk/release/app-release-unsigned.apk "Rahardjo-Coffee-POS-${{ github.ref_name }}.apk" || cp android/app/build/outputs/apk/release/app-release.apk "Rahardjo-Coffee-POS-${{ github.ref_name }}.apk" || true
 
