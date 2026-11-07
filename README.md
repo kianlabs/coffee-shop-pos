@@ -180,6 +180,31 @@ File APK siap instalasi akan dihasilkan di `android/app/build/outputs/apk/debug/
 
 ---
 
+## 🔄 Pembaruan Aplikasi Live OTA (Over-The-Air via GitHub Releases)
+
+Aplikasi ini dilengkapi sistem **Live Update OTA otomatis** berbasis `@capgo/capacitor-updater`. Anda tidak perlu mengirim file APK baru ke klien setiap kali ada pembaruan tampilan atau fitur kasir!
+
+### Cara Merilis Versi Baru (Developer):
+Cukup buat git tag baru dan push ke GitHub:
+```bash
+# 1. Buat tag versi baru dan push ke GitHub
+git tag v1.0.1
+git push origin v1.0.1
+```
+**GitHub Actions** (`.github/workflows/release.yml`) akan otomatis:
+1. Menjalankan seluruh suite pengujian (`typecheck`, `npm test`, `test:e2e`).
+2. Mengompresi web bundle menjadi paket OTA `dist.zip` (~150 KB).
+3. Meng-compile file APK Android terbaru.
+4. Menerbitkan rilis resmi di GitHub Releases secara otomatis.
+
+### Pengalaman di Sisi Klien (Kasir / Owner):
+- Tablet kasir mengecek rilis terbaru secara otomatis di latar belakang saat terhubung Wi-Fi toko.
+- Begitu versi baru terdeteksi, muncul banner/pill **"Update v1.0.1"** di bagian atas kasir dan kartu **Sistem & Pembaruan** di menu Pengaturan.
+- Kasir cukup menekan **"Perbarui & Terapkan"**: paket 150 KB diunduh dalam hitungan detik, aplikasi me-reload, dan fitur baru langsung aktif seketika tanpa menghapus data SQLite maupun riwayat penjualan.
+- **Auto-Rollback Protection**: Jika versi baru mengalami crash saat startup, sistem secara otomatis me-rollback kembali ke versi stabil sebelumnya.
+
+---
+
 ## 🖨️ Panduan Hardware Thermal Printer 58mm
 
 Aplikasi ini kompatibel dengan hampir seluruh printer thermal Bluetooth 58mm standar di pasaran (Panda, VSC, Eppos, Iware, RPP02N, Zjiang, MTP-2, GOOJPRT):
