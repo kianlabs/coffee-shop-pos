@@ -60,6 +60,13 @@ import {
 import { closeShift, openShift, summarizeShift, type Shift } from "./domain/shifts";
 import { ProductItem } from "./components/ProductItem";
 import { Icon, type IconName } from "./components/Icon";
+import {
+  checkForAppUpdate,
+  downloadAndApplyUpdate,
+  initAppUpdater,
+  type AvailableUpdate,
+} from "./services/appUpdater.ts";
+import { APP_VERSION } from "./version.ts";
 
 // Layar admin jarang dibuka saat jam sibuk — dipisah dari bundle awal supaya
 // kasir lebih cepat tampil di tablet.
@@ -301,6 +308,12 @@ export default function App() {
     name: null,
   });
   const [printerBusy, setPrinterBusy] = useState(false);
+  // --- OTA Live Update State ---
+  const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate | null>(null);
+  const [updateChecking, setUpdateChecking] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState<number | null>(null);
+  const [updateStatusMsg, setUpdateStatusMsg] = useState<string | null>(null);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
   // --- UI state khusus tampilan ---
   const [search, setSearch] = useState("");
   const [cartOpen, setCartOpen] = useState(false);
@@ -342,6 +355,19 @@ export default function App() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Inisialisasi OTA Updater & silent check pembaruan di latar belakang
+  useEffect(() => {
+    void initAppUpdater();
+    const timer = setTimeout(() => {
+      void checkForAppUpdate().then((res) => {
+        if (res.hasUpdate && res.update) {
+          setAvailableUpdate(res.update);
+        }
+      });
+    }, 3500);
+    return () => clearTimeout(timer);
   }, []);
 
   // Keranjang & shift bertahan saat WebView di-kill / HP kehabisan baterai.
@@ -936,6 +962,38 @@ export default function App() {
     }
   }
 
+  async function handleCheckUpdateManual() {
+    setUpdateChecking(true);
+    setUpdateStatusMsg("Menghubungkan ke GitHub Releases…");
+    try {
+      const res = await checkForAppUpdate();
+      if (res.hasUpdate && res.update) {
+        setAvailableUpdate(res.update);
+        setShowUpdateModal(true);
+        setUpdateStatusMsg(null);
+      } else {
+        setAvailableUpdate(null);
+        setUpdateStatusMsg(res.message || "Aplikasi sudah versi terbaru.");
+      }
+    } catch (e) {
+      setUpdateStatusMsg(e instanceof Error ? e.message : "Gagal memeriksa pembaruan.");
+    } finally {
+      setUpdateChecking(false);
+    }
+  }
+
+  async function handleApplyUpdate(update: AvailableUpdate) {
+    setUpdateProgress(0);
+    try {
+      await downloadAndApplyUpdate(update, (pct) => {
+        setUpdateProgress(pct);
+      });
+    } catch (e) {
+      setUpdateProgress(null);
+      alert(e instanceof Error ? e.message : "Gagal memasang pembaruan.");
+    }
+  }
+
   async function handleScanPrinters() {
     setPrinterBusy(true);
     try {
@@ -1408,6 +1466,17 @@ export default function App() {
             </p>
           </div>
           <div className="topbar-right">
+            {availableUpdate && (
+              <button
+                type="button"
+                className="ota-update-pill"
+                onClick={() => setShowUpdateModal(true)}
+                title="Pembaruan tersedia di GitHub Releases"
+              >
+                <Icon name="cloud" size={14} />
+                <span>Update v{availableUpdate.version}</span>
+              </button>
+            )}
             <span className={`status-chip ${online ? "is-ok" : "is-warn"}`}>
               <Icon name={online ? "wifi" : "wifiOff"} />
               {online ? "Online" : "Offline"}
@@ -2535,6 +2604,56 @@ export default function App() {
                     </p>
                   )}
                 </section>
+
+                <section className="settings-card">
+                  <div className="settings-card-head">
+                    <Icon name="cloud" />
+                    <div>
+                      <h3>Sistem & Pembaruan</h3>
+                      <p>Pembaruan live OTA tanpa install ulang APK.</p>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span>Versi Aplikasi:</span>
+                      <strong>v{APP_VERSION}</strong>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span>Sumber Rilis:</span>
+                      <span className="muted" style={{ fontSize: "0.85rem" }}>GitHub Releases</span>
+                    </div>
+                    {updateStatusMsg && (
+                      <div className="ota-status-msg">{updateStatusMsg}</div>
+                    )}
+                    {availableUpdate && (
+                      <div className="ota-available-box">
+                        <div>
+                          <strong>Versi {availableUpdate.tagName} Tersedia!</strong>
+                          <p style={{ margin: "4px 0 0", fontSize: "0.85rem", color: "var(--text-2)" }}>
+                            Ukuran: {(availableUpdate.sizeBytes / (1024 * 1024)).toFixed(2)} MB
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          className="primary small"
+                          onClick={() => setShowUpdateModal(true)}
+                        >
+                          Lihat Detail
+                        </button>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      className="ghost small"
+                      disabled={updateChecking}
+                      onClick={() => void handleCheckUpdateManual()}
+                      style={{ marginTop: 6 }}
+                    >
+                      <Icon name="refresh" size={15} />
+                      {updateChecking ? "Memeriksa…" : "Periksa Pembaruan"}
+                    </button>
+                  </div>
+                </section>
               </div>
 
               <div className="sticky-save">
@@ -2717,6 +2836,74 @@ export default function App() {
                 onClick={() => void confirmVoidPin()}
               >
                 {pinVerifying ? "Memeriksa…" : "Lanjut"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showUpdateModal && availableUpdate && (
+        <div
+          className="modal-backdrop"
+          onClick={() => {
+            if (updateProgress === null) setShowUpdateModal(false);
+          }}
+        >
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: 520 }}
+          >
+            <div className="modal-head">
+              <div>
+                <div className="modal-title">Pembaruan Tersedia</div>
+                <div className="modal-sub">Versi baru siap diunduh dan dipasang</div>
+              </div>
+              {updateProgress === null && (
+                <button
+                  className="modal-close"
+                  aria-label="Tutup"
+                  onClick={() => setShowUpdateModal(false)}
+                >
+                  <Icon name="close" size={18} />
+                </button>
+              )}
+            </div>
+            <div className="ota-modal-body">
+              <div className="ota-meta-row">
+                <span>Versi saat ini: <strong>v{APP_VERSION}</strong></span>
+                <span>Versi baru: <strong style={{ color: "var(--accent)" }}>{availableUpdate.tagName}</strong></span>
+                <span>Ukuran paket: <strong>{(availableUpdate.sizeBytes / (1024 * 1024)).toFixed(2)} MB</strong></span>
+              </div>
+              <div className="ota-notes-box">
+                <strong style={{ display: "block", marginBottom: 6, color: "var(--text-1)" }}>
+                  Catatan Rilis:
+                </strong>
+                {availableUpdate.notes}
+              </div>
+              {updateProgress !== null && (
+                <div className="ota-progress-wrap">
+                  <div className="ota-progress-bar" style={{ width: `${updateProgress}%` }} />
+                  <span className="ota-progress-text">Mengunduh: {updateProgress}%</span>
+                </div>
+              )}
+            </div>
+            <div className="modal-actions">
+              <button
+                disabled={updateProgress !== null}
+                onClick={() => setShowUpdateModal(false)}
+              >
+                Nanti Saja
+              </button>
+              <button
+                className="primary"
+                disabled={updateProgress !== null}
+                onClick={() => void handleApplyUpdate(availableUpdate)}
+              >
+                <Icon name="download" size={16} />
+                {updateProgress !== null ? "Memasang…" : "Perbarui & Terapkan"}
               </button>
             </div>
           </div>
