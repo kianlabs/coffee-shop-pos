@@ -4,6 +4,7 @@ import { formatPct, marginFor, type HppMode, type VariantHppMode } from "../doma
 import { loadHppProducts, saveHppDrafts, type HppDraft, type HppProductView } from "../data/productRepo";
 import { isNativePlatform } from "../data/db";
 import { Icon } from "./Icon";
+import { MoneyInput } from "./MoneyInput";
 import { RecipeEditor } from "./RecipeEditor";
 
 type Draft = { mode: string; manualRp: number };
@@ -224,17 +225,13 @@ export function HppEditor() {
                     </option>
                   ))}
                 </select>
-                <input
+                <MoneyInput
                   aria-label={`HPP manual ${p.name}`}
-                  type="number"
-                  min={0}
-                  step={100}
-                  inputMode="numeric"
                   value={d.manualRp}
                   disabled={d.mode !== "manual"}
-                  onChange={(e) =>
+                  onChange={(val) =>
                     patchDraft(productKey(p.id), {
-                      manualRp: Math.max(0, Math.trunc(Number(e.target.value) || 0)),
+                      manualRp: Math.max(0, val),
                     })
                   }
                 />
@@ -302,17 +299,13 @@ export function HppEditor() {
                               </option>
                             ))}
                           </select>
-                          <input
+                          <MoneyInput
                             aria-label={`HPP manual varian ${p.name} ${v.name}`}
-                            type="number"
-                            min={0}
-                            step={100}
-                            inputMode="numeric"
                             value={vd.manualRp}
                             disabled={vd.mode !== "manual"}
-                            onChange={(e) =>
+                            onChange={(val) =>
                               patchDraft(variantKey(v.id), {
-                                manualRp: Math.max(0, Math.trunc(Number(e.target.value) || 0)),
+                                manualRp: Math.max(0, val),
                               })
                             }
                             style={{ width: 120, textAlign: "right" }}

@@ -190,6 +190,29 @@ async function ensureV4Columns(db: SQLiteDBConnection): Promise<void> {
  * V2 tidak membuat aplikasi gagal dibuka.
  */
 async function ensureV5Indexes(db: SQLiteDBConnection): Promise<void> {
+  const cleanupStmts = [
+    `UPDATE recipes SET is_active = 0
+       WHERE is_active = 1 AND rowid NOT IN (
+         SELECT MIN(rowid) FROM recipes WHERE is_active = 1 GROUP BY product_id, IFNULL(variant_id, '')
+       );`,
+    `DELETE FROM order_item_cost_snapshots
+       WHERE rowid NOT IN (
+         SELECT MIN(rowid) FROM order_item_cost_snapshots GROUP BY order_item_id, ingredient_id
+       );`,
+    `DELETE FROM stock_movements
+       WHERE reference_type IN ('order', 'order_void') AND rowid NOT IN (
+         SELECT MIN(rowid) FROM stock_movements
+         WHERE reference_type IN ('order', 'order_void')
+         GROUP BY reference_type, reference_id, movement_type, ingredient_id
+       );`,
+  ];
+  for (const statement of cleanupStmts) {
+    try {
+      await db.execute(statement);
+    } catch {
+      // Tabel belum ada / data sudah bersih.
+    }
+  }
   for (const statement of UPGRADE_V5) {
     try {
       await db.execute(statement);

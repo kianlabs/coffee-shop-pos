@@ -21,6 +21,7 @@ execFileSync(
     "src/domain/units.ts",
     "src/domain/recipe.ts",
     "src/data/settings.ts",
+    "src/data/receipt.ts",
     "--ignoreConfig",
     "--outDir",
     OUT,
@@ -43,6 +44,7 @@ const settings = require(path.join(OUT, "data/settings.js"));
 const sales = require(path.join(OUT, "domain/sales.js"));
 const units = require(path.join(OUT, "domain/units.js"));
 const recipeDomain = require(path.join(OUT, "domain/recipe.js"));
+const receipt = require(path.join(OUT, "data/receipt.js"));
 
 let pass = 0;
 let fail = 0;
@@ -75,6 +77,16 @@ check("calcSubtotal", money.calcSubtotal([line(15000, 2), line(8000, 1)]), 38000
 check("calcTotal normal", money.calcTotal(30000, 0, 0, 0, 0), 30000);
 check("calcTotal tidak negatif", money.calcTotal(1000, 5000, 0), 0);
 check("formatRupiah", money.formatRupiah(15000), "Rp15.000");
+check("formatThousands 50000", money.formatThousands(50000), "50.000");
+check("formatThousands 1250000", money.formatThousands(1250000), "1.250.000");
+check("formatThousands 0", money.formatThousands(0), "0");
+check("formatThousands string", money.formatThousands("20000"), "20.000");
+check("formatThousands kosong", money.formatThousands(""), "");
+check("parseThousands 50.000", money.parseThousands("50.000"), 50000);
+check("parseThousands 1.250.000", money.parseThousands("1.250.000"), 1250000);
+check("parseThousands tanpa titik", money.parseThousands("50000"), 50000);
+check("parseThousands dengan prefix Rp", money.parseThousands("Rp 50.000"), 50000);
+check("parseThousands kosong", money.parseThousands(""), 0);
 
 console.log("\n[2] validasi checkout");
 check("keranjang kosong ditolak", typeof orders.validateCheckout(baseCheckout({ lines: [] })), "string");
@@ -86,6 +98,9 @@ check("metode bayar asing ditolak", typeof orders.validateCheckout(baseCheckout(
 check("pembulatan positif ditolak", typeof orders.validateCheckout(baseCheckout({ roundingRp: 500 })), "string");
 check("pembulatan terlalu negatif ditolak", typeof orders.validateCheckout(baseCheckout({ roundingRp: -1000 })), "string");
 check("pembulatan negatif valid lolos", orders.validateCheckout(baseCheckout({ roundingRp: -50, payment: { method: "cash", amountRp: 29950, paidAt: "2026-11-05T10:00:00.000Z" } })), null);
+check("pembayaran non-tunai pas lolos", orders.validateCheckout(baseCheckout({ payment: { method: "qris_manual", amountRp: 30000, paidAt: "2026-11-05T10:00:00.000Z" } })), null);
+check("pembayaran non-tunai kurang ditolak", typeof orders.validateCheckout(baseCheckout({ payment: { method: "qris_manual", amountRp: 25000, paidAt: "2026-11-05T10:00:00.000Z" } })), "string");
+check("pembayaran non-tunai lebih ditolak", typeof orders.validateCheckout(baseCheckout({ payment: { method: "qris_manual", amountRp: 35000, paidAt: "2026-11-05T10:00:00.000Z" } })), "string");
 check("checkout valid lolos", orders.validateCheckout(baseCheckout()), null);
 
 console.log("\n[2b] alokasi diskon ke item");
@@ -131,6 +146,12 @@ check("calcHppTotal 6600x2", hpp.calcHppTotal(6600, 2), 13200);
 check("calcHppTotal qty 0", hpp.calcHppTotal(6600, 0), 0);
 check("calcHppTotal unit negatif", hpp.calcHppTotal(-500, 2), 0);
 check("calcHppTotal unit desimal dipotong", hpp.calcHppTotal(100.9, 3), 300);
+const lastCosts = hpp.resolveLastCost([
+  { ingredientId: "susu", costPerUnitRp: 18.5, effectiveAt: "2026-11-05T08:00:00.000Z" },
+  { ingredientId: "air", costPerUnitRp: 0.26, effectiveAt: "2026-11-05T08:00:00.000Z" },
+]);
+check("resolveLastCost simpan 2 desimal susu", lastCosts.get("susu"), 18.5);
+check("resolveLastCost simpan 2 desimal air", lastCosts.get("air"), 0.26);
 
 console.log("\n[6] shift");
 const shift = { id: "s1", cashierName: "A", openedAt: "2026-11-05T08:00:00.000Z", closedAt: null, openCashRp: 0 };
@@ -179,6 +200,21 @@ console.log("\n[7] ringkasan penjualan");
   check("HPP snapshot 22000", sum.totalHppRp, 22000);
   check("laba 38000", sum.grossProfitRp, 38000);
   check("margin 69.1%", sum.profitMarginPct, 69.1);
+  const sampleWithFin = [
+    {
+      ...row("f1", "2026-11-05T09:00:00.000Z", "completed", 30950, 10000),
+      lines: [{ productId: "p1", variantId: null, productName: "Kopi", variantName: null, unitPriceRp: 15000, qty: 2, lineTotalRp: 30000, discountRp: 0, netTotalRp: 30000, hppTotal: 10000 }],
+      subtotalRp: 30000,
+      taxRp: 2000,
+      serviceChargeRp: 1000,
+      roundingRp: -50,
+      totalRp: 30950,
+      payment: { method: "cash", amountRp: 30950, paidAt: "2026-11-05T09:00:00.000Z" },
+    },
+  ];
+  const sumFin = sales.summarizeSales(sampleWithFin, start, end);
+  check("laba memperhitungkan pembulatan dan service", sumFin.grossProfitRp, 20950);
+  check("margin dihitung dari net sales tanpa pajak", sumFin.profitMarginPct, 72.4);
   check("1 void", sum.voidedCount, 1);
   const tp = sales.topProducts(sample, start, end);
   check("terlaris qty 4", tp[0].qty, 4);
@@ -329,6 +365,17 @@ console.log("\n[11] refund");
   const shiftTest = { id: "s-ref", cashierName: "K", openedAt: "2026-11-05T08:00:00.000Z", closedAt: null, openCashRp: 0 };
   const shiftSum = shifts.summarizeShift(shiftTest, [row("e", "2026-11-05T09:00:00.000Z", "refunded", 35000, 10000)]);
   check("rekap shift mengecualikan order refunded", [shiftSum.orderCount, shiftSum.grandTotalRp], [0, 0]);
+}
+
+{
+  console.log("\n[12] struk 58mm");
+  const normalLine = receipt.line("Subtotal", "Rp15.000");
+  check("line normal 32 karakter", normalLine.length, 32);
+
+  const longLeft = "Item Dengan Nama Yang Sangat Panjang Sekali";
+  const truncatedLine = receipt.line(longLeft, "Rp100.000");
+  check("line panjang dibatasi 32 karakter", truncatedLine.length, 32);
+  check("left panjang dipotong dengan elipsis", truncatedLine.includes("…"), true);
 }
 
 rmSync(OUT, { recursive: true, force: true });

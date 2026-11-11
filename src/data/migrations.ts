@@ -240,25 +240,15 @@ export const UPGRADE_V4: string[] = [
  * - satu snapshot HPP per (order_item, ingredient).
  * - satu resep aktif per (product, variant) → tidak ada lagi `LIMIT 1` acak.
  *
- * Memakai `CREATE UNIQUE INDEX IF NOT EXISTS` (idempotent), bukan ALTER TABLE,
- * supaya aman dijalankan berulang di DB lama.
+ * PENTING: Jangan masukkan query `DELETE FROM` di dalam UPGRADE_V5 karena
+ * bug di @capacitor-community/sqlite: pada saat onUpgrade dijalankan,
+ * library mengintersep statement DELETE untuk sync tracking (isLastModified)
+ * padahal koneksi DB internal belum berstatus isOpen, memicu crash fatal:
+ * "DeleteSQL isLastModified: Database not opened".
+ * Pembersihan duplikat lama dijalankan secara aman di ensureV5Indexes()
+ * setelah db.open() selesai.
  */
 export const UPGRADE_V5: string[] = [
-  // Rapikan duplikat lama dulu — kalau tidak, CREATE UNIQUE INDEX gagal.
-  `UPDATE recipes SET is_active = 0
-     WHERE is_active = 1 AND rowid NOT IN (
-       SELECT MIN(rowid) FROM recipes WHERE is_active = 1 GROUP BY product_id, IFNULL(variant_id, '')
-     );`,
-  `DELETE FROM order_item_cost_snapshots
-     WHERE rowid NOT IN (
-       SELECT MIN(rowid) FROM order_item_cost_snapshots GROUP BY order_item_id, ingredient_id
-     );`,
-  `DELETE FROM stock_movements
-     WHERE reference_type IN ('order', 'order_void') AND rowid NOT IN (
-       SELECT MIN(rowid) FROM stock_movements
-       WHERE reference_type IN ('order', 'order_void')
-       GROUP BY reference_type, reference_id, movement_type, ingredient_id
-     );`,
   `CREATE UNIQUE INDEX IF NOT EXISTS uq_stock_movements_ref
      ON stock_movements(reference_type, reference_id, movement_type, ingredient_id)
      WHERE reference_type IN ('order', 'order_void');`,

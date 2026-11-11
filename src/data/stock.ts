@@ -177,7 +177,7 @@ export async function recordPurchase(
         {
           statement:
             "INSERT INTO ingredient_cost_history (id, ingredient_id, cost_per_unit_rp, effective_at, created_at) VALUES (?, ?, ?, ?, ?);",
-          values: [costId, ingredientId, Math.trunc(costPerUnitRp), now, now],
+          values: [costId, ingredientId, Math.round(costPerUnitRp * 100) / 100, now, now],
         },
         {
           statement: "UPDATE ingredients SET stock_qty = ROUND(stock_qty + ?, 3) WHERE id = ?;",
@@ -265,9 +265,17 @@ export async function prepareConsumption(
   const planned: Planned[] = [];
   const need = new Map<string, number>();
   const names = new Map<string, string>();
+  const hppModeCache = new Map<string, boolean>();
 
   for (const line of lines) {
     if (!line.orderItemId || !(line.qty > 0)) continue;
+    const cacheKey = `${line.productId}::${line.variantId ?? ""}`;
+    let isManualOrNone = hppModeCache.get(cacheKey);
+    if (isManualOrNone === undefined) {
+      isManualOrNone = await isProductOrVariantHppManualOrNone(db, line.productId, line.variantId);
+      hppModeCache.set(cacheKey, isManualOrNone);
+    }
+    if (isManualOrNone) continue;
     const recipe = await findActiveRecipe(db, line.productId, line.variantId);
     if (!recipe) continue;
     const items = await loadRecipeItems(db, recipe.id);
@@ -493,6 +501,41 @@ export async function prepareRefundReversal(
     restoredLines += 1;
   }
   return { statements, restoredLines };
+}
+
+async function isProductOrVariantHppManualOrNone(
+  db: SQLiteDBConnection,
+  productId: string,
+  variantId: string | null,
+): Promise<boolean> {
+  if (!productId) return false;
+  if (variantId) {
+    try {
+      const vRes = await db.query(
+        "SELECT hpp_mode FROM product_variants WHERE id = ? LIMIT 1;",
+        [variantId],
+      );
+      const vRow = rowsOf(vRes)[0];
+      const vMode = vRow ? String(vRow.hpp_mode ?? "") : "";
+      if (vMode === "manual" || vMode === "none") return true;
+      if (vMode === "recipe") return false;
+    } catch {
+      // Kolom hpp_mode belum tentu ada di DB versi lama.
+    }
+  }
+  try {
+    const pRes = await db.query(
+      "SELECT hpp_mode FROM products WHERE id = ? LIMIT 1;",
+      [productId],
+    );
+    const pRow = rowsOf(pRes)[0];
+    const pMode = pRow ? String(pRow.hpp_mode ?? "") : "";
+    if (pMode === "manual" || pMode === "none") return true;
+    return false;
+  } catch {
+    // Kolom hpp_mode belum tentu ada di DB versi lama.
+    return false;
+  }
 }
 
 async function findActiveRecipe(

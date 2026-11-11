@@ -38,7 +38,7 @@ public class BackupPlugin extends Plugin {
   /** Cegah path traversal: hanya huruf, angka, titik, garis bawah, strip. */
   private String safeName(String raw) {
     String base = raw == null ? "" : raw.replaceAll("[^A-Za-z0-9._-]", "_");
-    if (base.isEmpty()) {
+    if (base.isEmpty() || base.equals(".") || base.equals("..") || base.contains("..")) {
       base = "pos-backup-" + System.currentTimeMillis() + ".json";
     }
     return base;
@@ -53,7 +53,12 @@ public class BackupPlugin extends Plugin {
     }
     String fileName = safeName(call.getString("fileName"));
     try {
-      File out = new File(backupDir(), fileName);
+      File dir = backupDir();
+      File out = new File(dir, fileName);
+      if (!out.getCanonicalPath().startsWith(dir.getCanonicalPath() + File.separator)) {
+        call.reject("Path file tidak valid (di luar folder backup).");
+        return;
+      }
       try (FileOutputStream fos = new FileOutputStream(out)) {
         fos.write(content.getBytes(StandardCharsets.UTF_8));
         fos.flush();
@@ -71,7 +76,12 @@ public class BackupPlugin extends Plugin {
   public void share(PluginCall call) {
     String fileName = safeName(call.getString("fileName"));
     try {
-      File file = new File(backupDir(), fileName);
+      File dir = backupDir();
+      File file = new File(dir, fileName);
+      if (!file.getCanonicalPath().startsWith(dir.getCanonicalPath() + File.separator)) {
+        call.reject("Path file tidak valid (di luar folder backup).");
+        return;
+      }
       if (!file.exists()) {
         call.reject("File backup tidak ditemukan.");
         return;

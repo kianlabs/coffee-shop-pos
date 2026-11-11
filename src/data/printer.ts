@@ -144,8 +144,9 @@ export class WebPrinter implements PrinterPort {
 }
 
 // ESC/POS: INIT + teks + feed + CUT.
+// Inisialisasi printer (ESC @) dan set Code Page 0 CP437 (ESC t 0).
 // Feed dinaikkan menjadi 6 baris agar teks terbawah keluar melewati tear bar printer 58mm manual.
-const ESC_INIT = [0x1b, 0x40];
+const ESC_INIT = [0x1b, 0x40, 0x1b, 0x74, 0x00];
 const ESC_FEED = [0x0a, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a];
 const ESC_CUT = [0x1d, 0x56, 0x42, 0x00];
 

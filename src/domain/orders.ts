@@ -169,6 +169,16 @@ export function validateCheckout(input: CheckoutInput): string | null {
   if (!Number.isInteger(input.payment.amountRp)) {
     return "Nominal bayar harus bilangan bulat Rupiah.";
   }
+  if (
+    input.payment.method !== "cash" &&
+    input.payment.method !== "qris_manual" &&
+    input.payment.method !== "other"
+  ) {
+    return "Metode bayar tidak valid.";
+  }
+  if (input.payment.method !== "cash" && input.payment.amountRp !== total) {
+    return "Pembayaran non-tunai harus pas sesuai total (tidak boleh ada kembalian tunai).";
+  }
   if (input.payment.amountRp < total) {
     return "Nominal bayar kurang dari total.";
   }
@@ -178,13 +188,6 @@ export function validateCheckout(input: CheckoutInput): string | null {
     input.idempotencyKey.length > 128
   ) {
     return "Idempotency key tidak valid.";
-  }
-  if (
-    input.payment.method !== "cash" &&
-    input.payment.method !== "qris_manual" &&
-    input.payment.method !== "other"
-  ) {
-    return "Metode bayar tidak valid.";
   }
   if (typeof input.payment.paidAt !== "string" || Number.isNaN(Date.parse(input.payment.paidAt))) {
     return "Tanggal bayar tidak valid.";

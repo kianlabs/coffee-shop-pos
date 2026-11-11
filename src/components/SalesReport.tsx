@@ -167,6 +167,18 @@ export function SalesReport({ orders }: { orders: Order[] }) {
           <div className="stat-value">{summary.voidedCount}</div>
           <div className="stat-sub">{formatRupiah(summary.voidedTotalRp)} dibatalkan</div>
         </div>
+        {summary.refundedCount > 0 && (
+          <div className="stat-card">
+            <div className="stat-top">
+              <span className="stat-label">Transaksi refund</span>
+              <span className="stat-icon">
+                <Icon name="refresh" size={15} />
+              </span>
+            </div>
+            <div className="stat-value">{summary.refundedCount}</div>
+            <div className="stat-sub">{formatRupiah(summary.refundedTotalRp)} dikembalikan</div>
+          </div>
+        )}
       </div>
 
       <section className="card report-chart-card">

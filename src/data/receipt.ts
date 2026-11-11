@@ -11,7 +11,11 @@ const SHOP_NAME = "KOPI POS";
 // raster tersedia, isi logoText via opts (lihat printLogoPlaceholder di
 // src/data/printer.ts). Tanpa file, template tetap jalan (tanpa logo).
 
-function line(left: string, right: string): string {
+export function line(left: string, right: string): string {
+  if (left.length + right.length >= WIDTH) {
+    const maxLeft = Math.max(1, WIDTH - right.length - 1);
+    left = `${left.slice(0, Math.max(0, maxLeft - 1))}…`;
+  }
   const gap = Math.max(1, WIDTH - left.length - right.length);
   return left + " ".repeat(gap) + right;
 }

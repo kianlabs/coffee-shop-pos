@@ -37,3 +37,37 @@ export function formatRupiah(amountRp: Rupiah): string {
   const safe = Number.isFinite(amountRp) ? Math.trunc(amountRp) : 0;
   return "Rp" + safe.toLocaleString("id-ID");
 }
+
+/**
+ * Format angka atau string angka dengan pemisah ribuan titik (standar id-ID) tanpa prefix 'Rp'.
+ * Contoh: 10000 -> "10.000", "500000" -> "500.000", 0 -> "0", "" -> ""
+ */
+export function formatThousands(value: number | string | null | undefined): string {
+  if (value === "" || value === null || value === undefined) return "";
+  const str = String(value).trim();
+  if (str === "") return "";
+  const isNegative = str.startsWith("-");
+  const digits = str.replace(/\D/g, "");
+  if (!digits) return isNegative ? "-" : "";
+  const num = Number(digits);
+  const formatted = num.toLocaleString("id-ID");
+  return isNegative ? `-${formatted}` : formatted;
+}
+
+/**
+ * Parsing string berformat ribuan bertitik menjadi integer murni (Rupiah).
+ * Mengabaikan karakter non-digit (termasuk titik pemisah dan prefix 'Rp').
+ * Contoh: "10.000" -> 10000, "Rp 50.000" -> 50000, "" -> 0, "50000" -> 50000
+ */
+export function parseThousands(value: string | number | null | undefined): Rupiah {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? Math.trunc(value) : 0;
+  }
+  if (!value) return 0;
+  const str = String(value).trim();
+  const isNegative = str.startsWith("-");
+  const digits = str.replace(/\D/g, "");
+  if (!digits) return 0;
+  const num = parseInt(digits, 10);
+  return isNegative ? -num : num;
+}

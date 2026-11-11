@@ -51,9 +51,9 @@ CREATE TABLE IF NOT EXISTS ingredients (
 CREATE TABLE IF NOT EXISTS ingredient_cost_history (
     id TEXT PRIMARY KEY,
     ingredient_id TEXT NOT NULL REFERENCES ingredients(id),
-    cost_per_unit_rp REAL NOT NULL CHECK (cost_per_unit_rp >= 0),
+    cost_per_unit_rp INTEGER NOT NULL CHECK (cost_per_unit_rp >= 0),
     effective_at TEXT NOT NULL,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_cost_history_ingredient_effective
 ON ingredient_cost_history(ingredient_id, effective_at DESC);
@@ -143,15 +143,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_cost_snapshot_item ON order_item_cost_snaps
 
 CREATE TABLE IF NOT EXISTS stock_movements (
     id TEXT PRIMARY KEY,
-    ingredient_id TEXT NOT NULL REFERENCES ingredients(id),
-    movement_type TEXT NOT NULL CHECK (movement_type IN (
-        'purchase','sale_consumption','waste',
-        'adjustment_in','adjustment_out','return_in'
-    )),
+    ingredient_id TEXT REFERENCES ingredients(id),
+    product_id TEXT REFERENCES products(id),
     qty REAL NOT NULL,
+    movement_type TEXT NOT NULL CHECK (movement_type IN (
+        'purchase_received','sale_consumption','waste',
+        'adjustment_in','adjustment_out','return_in','return_out'
+    )),
     reference_type TEXT,
     reference_id TEXT,
     reason TEXT,
+    actor TEXT,
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_stock_movements_ingredient_date
@@ -192,3 +194,9 @@ CREATE TABLE IF NOT EXISTS sync_outbox (
 );
 CREATE INDEX IF NOT EXISTS idx_sync_outbox_pending
 ON sync_outbox(status, next_attempt_at, created_at);
+
+CREATE TABLE IF NOT EXISTS app_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);

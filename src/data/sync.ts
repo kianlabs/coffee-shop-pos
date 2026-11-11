@@ -552,15 +552,11 @@ export async function markAcked(ids: string[]): Promise<void> {
   if (ids.length === 0) return;
   const db = await getDb();
   const now = new Date().toISOString();
-  await runSerializedWrite(async () => {
-    // UPDATE satu-per-satu agar kompatibel dengan binding positional SQLite.
-    for (const id of ids) {
-      await db.run(
-        `UPDATE sync_outbox SET status = 'acknowledged', acknowledged_at = ?, last_error = NULL, next_attempt_at = NULL WHERE id = ?;`,
-        [now, id],
-      );
-    }
-  });
+  const stmts = ids.map((id) => ({
+    statement: `UPDATE sync_outbox SET status = 'acknowledged', acknowledged_at = ?, last_error = NULL, next_attempt_at = NULL WHERE id = ?;`,
+    values: [now, id],
+  }));
+  await runSerializedWrite(() => db.executeTransaction(stmts, false));
 }
 
 /** Backoff eksponensial manual: 30s * 2^attempt, maks 1 jam. Hasil ISO string. */
@@ -573,36 +569,42 @@ export function computeNextAttemptAt(attemptCount: number, nowMs = Date.now()): 
 export async function markRetry(ids: string[], message: string): Promise<void> {
   if (ids.length === 0) return;
   const db = await getDb();
-  await runSerializedWrite(async () => {
-    for (const id of ids) {
-      let attempt = 0;
-      try {
-        const res = await db.query(`SELECT attempt_count AS a FROM sync_outbox WHERE id = ?;`, [id]);
-        const row = res.values?.[0] as { a?: number } | undefined;
-        attempt = typeof row?.a === "number" ? row.a : 0;
-      } catch {
-        attempt = 0;
+  const attempts = new Map<string, number>();
+  try {
+    const placeholders = ids.map(() => "?").join(", ");
+    const res = await db.query(
+      `SELECT id, attempt_count AS a FROM sync_outbox WHERE id IN (${placeholders});`,
+      ids,
+    );
+    for (const row of (res.values ?? []) as { id?: string; a?: number }[]) {
+      if (row.id) {
+        attempts.set(row.id, typeof row.a === "number" ? row.a : 0);
       }
-      await db.run(
-        `UPDATE sync_outbox SET attempt_count = ?, next_attempt_at = ?, last_error = ? WHERE id = ?;`,
-        [attempt + 1, computeNextAttemptAt(attempt), message.slice(0, 500), id],
-      );
     }
+  } catch {
+    // Abaikan error query; default attempt = 0
+  }
+  const err = message.slice(0, 500);
+  const stmts = ids.map((id) => {
+    const attempt = attempts.get(id) ?? 0;
+    return {
+      statement: `UPDATE sync_outbox SET attempt_count = ?, next_attempt_at = ?, last_error = ? WHERE id = ?;`,
+      values: [attempt + 1, computeNextAttemptAt(attempt), err, id],
+    };
   });
+  await runSerializedWrite(() => db.executeTransaction(stmts, false));
 }
 
 /** Tandai event gagal permanen (4xx non-retryable). Tidak di-retry otomatis. */
 export async function markFailed(ids: string[], message: string): Promise<void> {
   if (ids.length === 0) return;
   const db = await getDb();
-  await runSerializedWrite(async () => {
-    for (const id of ids) {
-      await db.run(
-        `UPDATE sync_outbox SET status = 'failed', last_error = ?, next_attempt_at = NULL WHERE id = ?;`,
-        [message.slice(0, 500), id],
-      );
-    }
-  });
+  const err = message.slice(0, 500);
+  const stmts = ids.map((id) => ({
+    statement: `UPDATE sync_outbox SET status = 'failed', last_error = ?, next_attempt_at = NULL WHERE id = ?;`,
+    values: [err, id],
+  }));
+  await runSerializedWrite(() => db.executeTransaction(stmts, false));
 }
 
 /**

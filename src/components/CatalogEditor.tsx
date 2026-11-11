@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { formatRupiah } from "../domain/money";
+import { formatRupiah, formatThousands, parseThousands } from "../domain/money";
 import type { Catalog, CatalogProduct } from "../domain/catalog";
 import {
   createCategory,
@@ -12,6 +12,7 @@ import {
   updateVariant,
 } from "../data/catalogRepo";
 import { Icon } from "./Icon";
+import { MoneyInput } from "./MoneyInput";
 
 type Draft = { name: string; price: string; categoryId: string };
 
@@ -92,8 +93,12 @@ export function CatalogEditor({ onChanged }: { onChanged?: () => void }) {
   }
 
   function parsePrice(raw: string): number {
-    const n = Number(raw.replace(/[^\d]/g, ""));
-    return Number.isFinite(n) ? n : 0;
+    const trimmed = raw.trim();
+    if (trimmed.includes("-") || Number(trimmed) < 0) {
+      return 0;
+    }
+    const n = Number(trimmed.replace(/[^\d]/g, ""));
+    return Number.isFinite(n) && n >= 0 ? n : 0;
   }
 
   function startEdit(p: CatalogProduct) {
@@ -195,15 +200,12 @@ export function CatalogEditor({ onChanged }: { onChanged?: () => void }) {
           </label>
           <label>
             Harga jual (Rp)
-            <input
+            <MoneyInput
               aria-label="Harga"
-              type="number"
-              min={0}
-              step={500}
-              inputMode="numeric"
-              placeholder="mis. 18000"
-              value={draft.price}
-              onChange={(e) => setDraft({ ...draft, price: e.target.value })}
+              placeholder="mis. 18.000"
+              value={parseThousands(draft.price)}
+              allowEmpty
+              onChange={(val) => setDraft({ ...draft, price: val > 0 ? String(val) : "" })}
             />
           </label>
           <label>
@@ -225,7 +227,13 @@ export function CatalogEditor({ onChanged }: { onChanged?: () => void }) {
             <button
               className="primary block"
               style={{ minHeight: 44 }}
-              disabled={busy || draft.name.trim() === "" || !draft.categoryId}
+              disabled={
+                busy ||
+                draft.name.trim() === "" ||
+                !draft.categoryId ||
+                draft.price.includes("-") ||
+                Number(draft.price) < 0
+              }
               onClick={() =>
                 void run(async () => {
                   await createProduct({
@@ -243,9 +251,15 @@ export function CatalogEditor({ onChanged }: { onChanged?: () => void }) {
           </div>
         </div>
         {draft.price !== "" && (
-          <p className="muted" style={{ marginTop: 8 }}>
-            Harga jual: {formatRupiah(parsePrice(draft.price))}
-          </p>
+          draft.price.includes("-") || Number(draft.price) < 0 ? (
+            <p className="danger-note" style={{ color: "var(--danger)", marginTop: 8 }}>
+              Harga tidak boleh negatif
+            </p>
+          ) : (
+            <p className="muted" style={{ marginTop: 8 }}>
+              Harga jual: {formatRupiah(parsePrice(draft.price))}
+            </p>
+          )
         )}
       </section>
 
@@ -287,15 +301,12 @@ export function CatalogEditor({ onChanged }: { onChanged?: () => void }) {
                         </label>
                         <label>
                           Harga (Rp)
-                          <input
+                          <MoneyInput
                             aria-label={`Harga ${p.name}`}
-                            type="number"
-                            min={0}
-                            step={500}
-                            inputMode="numeric"
-                            value={editDraft.price}
-                            onChange={(e) =>
-                              setEditDraft({ ...editDraft, price: e.target.value })
+                            value={parseThousands(editDraft.price)}
+                            allowEmpty
+                            onChange={(val) =>
+                              setEditDraft({ ...editDraft, price: val > 0 ? String(val) : "" })
                             }
                           />
                         </label>
@@ -318,7 +329,12 @@ export function CatalogEditor({ onChanged }: { onChanged?: () => void }) {
                         <div className="menu-row-actions" style={{ alignItems: "flex-end" }}>
                           <button
                             className="primary"
-                            disabled={busy}
+                            disabled={
+                              busy ||
+                              editDraft.name.trim() === "" ||
+                              editDraft.price.includes("-") ||
+                              Number(editDraft.price) < 0
+                            }
                             onClick={() =>
                               void run(async () => {
                                 await updateProduct(p.id, {
@@ -426,13 +442,13 @@ export function CatalogEditor({ onChanged }: { onChanged?: () => void }) {
                             value={variantName}
                             onChange={(e) => setVariantName(e.target.value.slice(0, 40))}
                           />
-                          <input
+                          <MoneyInput
                             aria-label="Tambahan harga"
-                            type="number"
-                            inputMode="numeric"
                             placeholder="+Rp"
-                            value={variantDelta}
-                            onChange={(e) => setVariantDelta(e.target.value)}
+                            value={parseThousands(variantDelta)}
+                            allowEmpty
+                            allowNegative
+                            onChange={(val) => setVariantDelta(val !== 0 ? String(val) : "")}
                           />
                           <button
                             className="small"

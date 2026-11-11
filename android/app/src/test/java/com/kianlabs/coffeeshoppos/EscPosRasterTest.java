@@ -95,8 +95,49 @@ public class EscPosRasterTest {
   }
 
   @Test
+  public void toEscPosRaster_centersNarrowImageWithBytePadding() {
+    // 8 piksel (1 byte) -> diff = 48 - 1 = 47. leftPad = 23, rightPad = 24.
+    int[] px = { BLACK, BLACK, BLACK, BLACK, BLACK, BLACK, BLACK, BLACK };
+    byte[] out = EscPosRaster.toEscPosRaster(8, 1, px, 128);
+
+    assertEquals(0x1D, out[0] & 0xFF);
+    assertEquals(0x76, out[1] & 0xFF);
+    assertEquals(0x30, out[2] & 0xFF);
+    assertEquals(0x00, out[3] & 0xFF);
+    assertEquals(48, out[4] & 0xFF); // 48 byte per baris (384 dot)
+    assertEquals(0, out[5] & 0xFF);
+    assertEquals(1, out[6] & 0xFF); // 1 baris
+    assertEquals(0, out[7] & 0xFF);
+    assertEquals(8 + 48, out.length);
+
+    // 23 byte padding kiri adalah 0x00
+    for (int i = 0; i < 23; i++) {
+      assertEquals(0x00, out[8 + i] & 0xFF);
+    }
+    // Byte data gambar di tengah adalah 0xFF (8 dot hitam)
+    assertEquals(0xFF, out[8 + 23] & 0xFF);
+    // 24 byte padding kanan adalah 0x00
+    for (int i = 0; i < 24; i++) {
+      assertEquals(0x00, out[8 + 24 + i] & 0xFF);
+    }
+  }
+
+  @Test
+  public void toEscPosRaster_fullWidthRequiresNoPadding() {
+    int[] px = new int[384];
+    Arrays.fill(px, WHITE);
+    px[0] = BLACK;
+    byte[] out = EscPosRaster.toEscPosRaster(384, 1, px, 128);
+
+    assertEquals(48, out[4] & 0xFF);
+    assertEquals(8 + 48, out.length);
+    assertEquals(0x80, out[8] & 0xFF); // Dot pertama langsung hitam di kolom paling kiri
+  }
+
+  @Test
   public void rejectsInvalidDimensions() {
     assertThrows(IllegalArgumentException.class, () -> EscPosRaster.fromArgb(0, 1, new int[0], 128));
     assertThrows(IllegalArgumentException.class, () -> EscPosRaster.fromArgb(8, 8, new int[10], 128));
+    assertThrows(IllegalArgumentException.class, () -> EscPosRaster.toEscPosRaster(0, 1, new int[0], 128));
   }
 }

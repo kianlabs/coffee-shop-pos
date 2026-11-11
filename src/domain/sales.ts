@@ -122,6 +122,7 @@ export function summarizeSales(all: Order[], start: Date, end: Date): SalesSumma
   let totalDiscountRp = 0;
   let totalTaxRp = 0;
   let totalServiceRp = 0;
+  let totalRoundingRp = 0;
   let voidedCount = 0;
   let voidedTotalRp = 0;
   let refundedCount = 0;
@@ -146,6 +147,7 @@ export function summarizeSales(all: Order[], start: Date, end: Date): SalesSumma
     totalDiscountRp += o.discountRp;
     totalTaxRp += o.taxRp;
     totalServiceRp += o.serviceChargeRp ?? 0;
+    totalRoundingRp += o.roundingRp ?? 0;
 
     for (const l of o.lines) {
       const h = lineHpp(l);
@@ -153,6 +155,10 @@ export function summarizeSales(all: Order[], start: Date, end: Date): SalesSumma
       grossProfitRp += lineNet(l) - h;
     }
   }
+
+  grossProfitRp += totalRoundingRp;
+  grossProfitRp += totalServiceRp;
+  const netSalesRp = grandTotalRp - totalTaxRp;
 
   return {
     start: start.toISOString(),
@@ -169,7 +175,7 @@ export function summarizeSales(all: Order[], start: Date, end: Date): SalesSumma
     refundedTotalRp,
     totalHppRp,
     grossProfitRp,
-    profitMarginPct: grandTotalRp > 0 ? Math.round((grossProfitRp / grandTotalRp) * 1000) / 10 : null,
+    profitMarginPct: netSalesRp > 0 ? Math.round((grossProfitRp / netSalesRp) * 1000) / 10 : null,
   };
 }
 

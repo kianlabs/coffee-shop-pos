@@ -271,7 +271,7 @@ export function RecipeEditor({
             </div>
 
             {validationError && lines.length > 0 && (
-              <p className="muted" style={{ marginTop: 8 }}>
+              <p className="danger-note" style={{ color: "var(--danger)", marginTop: 8 }}>
                 {validationError}
               </p>
             )}

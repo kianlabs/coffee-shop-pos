@@ -670,7 +670,11 @@ export async function exportBackupJsonAsync(): Promise<string> {
       // v3 = menambahkan `ledger` (stock_movements + order_item_cost_snapshots).
       schemaVersion: 3,
       exportedAt: new Date().toISOString(),
-      posSettings: getSettings(),
+      posSettings: {
+        ...getSettings(),
+        voidPinHash: "",
+        voidPinSalt: "",
+      },
       catalog,
       ledger,
       orders,
@@ -866,9 +870,10 @@ export async function importBackupJsonAsync(json: string): Promise<number> {
       values: [o.id, o.receiptNumber, o.idempotencyKey, o.status, o.subtotalRp, o.discountRp, o.taxRp, (o.serviceChargeRp ?? 0), (o.roundingRp ?? 0), o.totalRp, o.notes, o.createdAt, o.createdAt],
     });
     o.lines.forEach((l, idx) => {
+      const unitHpp = l.qty > 0 && typeof l.hppTotal === "number" ? Math.round(l.hppTotal / l.qty) : 0;
       txn.push({
         statement:
-          "INSERT INTO order_items (id, order_id, product_id, variant_id, product_name_snapshot, variant_name_snapshot, quantity, unit_price_rp, discount_rp, line_total_rp, hpp_total_rp, recipe_version_snapshot, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?);",
+          "INSERT INTO order_items (id, order_id, product_id, variant_id, product_name_snapshot, variant_name_snapshot, quantity, unit_price_rp, discount_rp, line_total_rp, hpp_total_rp, recipe_version_snapshot, created_at, hpp_unit_rp, hpp_source, hpp_detail_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?);",
         values: [
           `${o.id}-item-${idx}`,
           o.id,
@@ -880,7 +885,11 @@ export async function importBackupJsonAsync(json: string): Promise<number> {
           l.unitPriceRp,
           l.discountRp ?? 0,
           l.lineTotalRp,
+          l.hppTotal ?? 0,
           o.createdAt,
+          unitHpp,
+          "backup",
+          null,
         ],
       });
     });
@@ -892,22 +901,22 @@ export async function importBackupJsonAsync(json: string): Promise<number> {
     if (o.status === "completed") {
       txn.push({
         statement:
-          "INSERT INTO sync_outbox (id, event_type, aggregate_type, aggregate_id, payload_json, schema_version, status, attempt_count, next_attempt_at, last_error, created_at, acknowledged_at) VALUES (?, 'order.completed', 'order', ?, ?, 1, 'pending', 0, NULL, NULL, ?, NULL);",
-        values: [`${o.id}-evt`, o.id, JSON.stringify({ orderId: o.id, totalRp: o.totalRp }), o.createdAt],
+          "INSERT INTO sync_outbox (id, event_type, aggregate_type, aggregate_id, payload_json, schema_version, status, attempt_count, next_attempt_at, last_error, created_at, acknowledged_at) VALUES (?, 'order.completed', 'order', ?, ?, 1, 'acknowledged', 0, NULL, NULL, ?, ?);",
+        values: [`${o.id}-evt`, o.id, JSON.stringify({ orderId: o.id, totalRp: o.totalRp }), o.createdAt, o.createdAt],
       });
     } else if (o.status === "voided") {
       // Order void juga harus sampai ke cloud, kalau tidak server menganggapnya
       // penjualan sah selamanya.
       txn.push({
         statement:
-          "INSERT INTO sync_outbox (id, event_type, aggregate_type, aggregate_id, payload_json, schema_version, status, attempt_count, next_attempt_at, last_error, created_at, acknowledged_at) VALUES (?, 'order.voided', 'order', ?, ?, 1, 'pending', 0, NULL, NULL, ?, NULL);",
-        values: [`${o.id}-void-evt`, o.id, JSON.stringify({ orderId: o.id }), o.createdAt],
+          "INSERT INTO sync_outbox (id, event_type, aggregate_type, aggregate_id, payload_json, schema_version, status, attempt_count, next_attempt_at, last_error, created_at, acknowledged_at) VALUES (?, 'order.voided', 'order', ?, ?, 1, 'acknowledged', 0, NULL, NULL, ?, ?);",
+        values: [`${o.id}-void-evt`, o.id, JSON.stringify({ orderId: o.id }), o.createdAt, o.createdAt],
       });
     } else if (o.status === "refunded") {
       txn.push({
         statement:
-          "INSERT INTO sync_outbox (id, event_type, aggregate_type, aggregate_id, payload_json, schema_version, status, attempt_count, next_attempt_at, last_error, created_at, acknowledged_at) VALUES (?, 'order.refunded', 'order', ?, ?, 1, 'pending', 0, NULL, NULL, ?, NULL);",
-        values: [`${o.id}-refund-evt`, o.id, JSON.stringify({ orderId: o.id }), o.createdAt],
+          "INSERT INTO sync_outbox (id, event_type, aggregate_type, aggregate_id, payload_json, schema_version, status, attempt_count, next_attempt_at, last_error, created_at, acknowledged_at) VALUES (?, 'order.refunded', 'order', ?, ?, 1, 'acknowledged', 0, NULL, NULL, ?, ?);",
+        values: [`${o.id}-refund-evt`, o.id, JSON.stringify({ orderId: o.id }), o.createdAt, o.createdAt],
       });
     }
   }

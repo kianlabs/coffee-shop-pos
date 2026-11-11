@@ -3,6 +3,7 @@ import { formatRupiah } from "../domain/money";
 import { adjustStock, loadIngredients, recordPurchase, type IngredientRow } from "../data/stock";
 import { isNativePlatform } from "../data/db";
 import { Icon } from "./Icon";
+import { MoneyInput } from "./MoneyInput";
 import {
   COMMON_BASE_UNITS,
   convertQty,
@@ -390,14 +391,12 @@ export function StockEditor() {
             </label>
             <label style={{ gridColumn: "1 / -1" }}>
               Harga per {buyInputUnit || "satuan"} (Rp)
-              <input
+              <MoneyInput
                 aria-label="Harga per satuan"
-                type="number"
-                min={0}
-                inputMode="numeric"
-                value={buyCost || ""}
-                onChange={(e) => setBuyCost(Math.max(0, Math.trunc(Number(e.target.value) || 0)))}
+                value={buyCost}
+                allowEmpty
                 placeholder="Rp/satuan"
+                onChange={(val) => setBuyCost(Math.max(0, val))}
               />
             </label>
             <div style={{ display: "flex", alignItems: "flex-end", gridColumn: "1 / -1" }}>

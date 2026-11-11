@@ -59,6 +59,7 @@ import {
 } from "./data/settings";
 import { closeShift, openShift, summarizeShift, type Shift } from "./domain/shifts";
 import { ProductItem } from "./components/ProductItem";
+import { MoneyInput } from "./components/MoneyInput";
 import { Icon, type IconName } from "./components/Icon";
 import {
   checkForAppUpdate,
@@ -66,7 +67,7 @@ import {
   initAppUpdater,
   type AvailableUpdate,
 } from "./services/appUpdater.ts";
-import { APP_VERSION } from "./version.ts";
+import { APP_VERSION, GITHUB_REPO } from "./version.ts";
 
 // Layar admin jarang dibuka saat jam sibuk — dipisah dari bundle awal supaya
 // kasir lebih cepat tampil di tablet.
@@ -539,6 +540,14 @@ export default function App() {
     return map;
   }, [catalog.products]);
 
+  const categoryNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const cat of catalog.categories) {
+      map.set(cat.id, cat.name);
+    }
+    return map;
+  }, [catalog.categories]);
+
   const subtotal = calcSubtotal(cart);
   const serviceCharge = Math.max(0, Math.trunc(posSettings.serviceChargeRp) || 0);
   const baseTotal = calcTotal(subtotal, discount, tax) + serviceCharge;
@@ -632,10 +641,45 @@ export default function App() {
       setStatus({ kind: "error", msg: "Database belum siap.", scope: "kasir" });
       return;
     }
-    if (payAmount < total) {
+    for (const item of cart) {
+      const product = catalog.products.find((p) => p.id === item.productId);
+      if (!product || product.isActive === false) {
+        setStatus({
+          kind: "error",
+          msg: `Menu "${item.productName}" sudah dinonaktifkan di katalog. Harap perbarui keranjang.`,
+          scope: "kasir",
+        });
+        return;
+      }
+
+      const variant = item.variantId
+        ? (product.variants ?? []).find((v) => v.id === item.variantId)
+        : null;
+
+      if (item.variantId && (!variant || variant.isActive === false)) {
+        setStatus({
+          kind: "error",
+          msg: `Varian "${item.variantName || "pilihan"}" pada menu "${item.productName}" sudah dinonaktifkan. Harap perbarui keranjang.`,
+          scope: "kasir",
+        });
+        return;
+      }
+
+      const expectedPrice = unitPriceFor(product, variant ?? null);
+      if (item.unitPriceRp !== expectedPrice) {
+        setStatus({
+          kind: "error",
+          msg: `Harga menu "${item.productName}" berubah di katalog. Harap perbarui keranjang.`,
+          scope: "kasir",
+        });
+        return;
+      }
+    }
+    const effectivePayAmount = payMethod === "cash" ? payAmount : total;
+    if (payMethod === "cash" && effectivePayAmount < total) {
       setStatus({
         kind: "error",
-        msg: `Nominal bayar kurang ${formatRupiah(total - payAmount)}.`,
+        msg: `Nominal bayar kurang ${formatRupiah(total - effectivePayAmount)}.`,
         scope: "kasir",
       });
       return;
@@ -662,7 +706,7 @@ export default function App() {
         roundingRp: roundingCalc.roundingRp,
         payment: {
           method: payMethod,
-          amountRp: payAmount,
+          amountRp: effectivePayAmount,
           paidAt: new Date().toISOString(),
         },
         notes: notes.trim() === "" ? null : notes.trim(),
@@ -966,7 +1010,7 @@ export default function App() {
     setUpdateChecking(true);
     setUpdateStatusMsg("Menghubungkan ke GitHub Releases…");
     try {
-      const res = await checkForAppUpdate();
+      const res = await checkForAppUpdate(GITHUB_REPO, APP_VERSION, true);
       if (res.hasUpdate && res.update) {
         setAvailableUpdate(res.update);
         setShowUpdateModal(true);
@@ -1372,6 +1416,14 @@ export default function App() {
     return [...values].slice(0, 4);
   }, [total]);
 
+  const cartQtyByProductId = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const item of cart) {
+      map.set(item.productId, (map.get(item.productId) ?? 0) + item.qty);
+    }
+    return map;
+  }, [cart]);
+
   const filteredOrders = useMemo(() => {
     const query = deferredHistoryQuery.trim().toLowerCase();
     return orders.filter((order) => {
@@ -1483,7 +1535,7 @@ export default function App() {
             </span>
             <span className={`status-chip is-optional ${shift ? "is-ok" : ""}`}>
               <Icon name="clock" />
-              {shift ? "Shift buka" : "Shift tutup"}
+              {shift ? `Shift buka · ${shift.cashierName || "Kasir"}` : "Shift tutup"}
             </span>
             {pendingCount !== null && pendingCount > 0 && (
               <span className="status-chip is-warn is-optional">
@@ -1571,6 +1623,8 @@ export default function App() {
                         key={product.id}
                         product={product}
                         variants={variantsMap.get(product.id) ?? []}
+                        categoryName={categoryNameMap.get(product.categoryId)}
+                        cartQuantity={cartQtyByProductId.get(product.id) ?? 0}
                         onAdd={addToCart}
                       />
                     ))}
@@ -1705,24 +1759,20 @@ export default function App() {
                         <div className="field-row">
                           <label style={{ flex: "1 1 100px", marginBottom: 0 }}>
                             Diskon (Rp)
-                            <input
-                              type="number"
-                              min={0}
-                              inputMode="numeric"
+                            <MoneyInput
+                              aria-label="Diskon"
                               value={discount}
-                              onChange={(e) =>
-                                setDiscount(Math.max(0, Number(e.target.value) || 0))
-                              }
+                              allowEmpty
+                              onChange={(val) => setDiscount(Math.max(0, val))}
                             />
                           </label>
                           <label style={{ flex: "1 1 100px", marginBottom: 0 }}>
                             Pajak (Rp)
-                            <input
-                              type="number"
-                              min={0}
-                              inputMode="numeric"
+                            <MoneyInput
+                              aria-label="Pajak"
                               value={tax}
-                              onChange={(e) => setTax(Math.max(0, Number(e.target.value) || 0))}
+                              allowEmpty
+                              onChange={(val) => setTax(Math.max(0, val))}
                             />
                           </label>
                         </div>
@@ -1796,14 +1846,11 @@ export default function App() {
                         <label className="pay-amount-label" htmlFor="pay-amount">
                           Dibayar (Rp)
                         </label>
-                        <input
+                        <MoneyInput
                           id="pay-amount"
                           className="pay-amount-input"
-                          type="number"
-                          min={0}
-                          inputMode="numeric"
                           value={payAmount}
-                          onChange={(e) => setPayAmount(Math.max(0, Number(e.target.value) || 0))}
+                          onChange={(val) => setPayAmount(Math.max(0, val))}
                         />
                       </div>
 
@@ -1817,7 +1864,7 @@ export default function App() {
                         </div>
                       )}
 
-                      <div className="change-row">
+                      <div className={`change-row ${payAmount >= total && total > 0 ? "is-change-paid" : ""}`}>
                         <span>{payAmount < total ? "Kurang" : "Kembalian"}</span>
                         <strong className={payAmount < total ? "is-short" : ""}>
                           {formatRupiah(
@@ -1846,12 +1893,13 @@ export default function App() {
                       processing ||
                       cart.length === 0 ||
                       (!dbReady && !browserReady) ||
-                      payAmount < total
+                      (payMethod === "cash" && payAmount < total)
                     }
                     aria-busy={processing}
                     onClick={() => void handleCheckout()}
                   >
-                    {processing ? "Memproses…" : `Bayar ${formatRupiah(total)}`}
+                    <Icon name="check" size={18} />
+                    <span>{processing ? "Memproses…" : `Bayar ${formatRupiah(total)}`}</span>
                   </button>
                 </div>
               </aside>
@@ -2573,12 +2621,11 @@ export default function App() {
                         </span>
                         <label style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
                           <span style={{ fontSize: "0.8rem", color: "var(--text-2)" }}>Modal awal kas laci:</span>
-                          <input
-                            type="number"
-                            min="0"
-                            step="1000"
-                            value={openCashDraft || ""}
-                            onChange={(e) => setOpenCashDraft(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                          <MoneyInput
+                            aria-label="Modal awal kas"
+                            value={openCashDraft}
+                            allowEmpty
+                            onChange={(val) => setOpenCashDraft(Math.max(0, val))}
                             placeholder="Rp0"
                             style={{ maxWidth: 200 }}
                           />

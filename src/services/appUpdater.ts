@@ -10,6 +10,7 @@ export interface AvailableUpdate {
   downloadUrl: string;
   sizeBytes: number;
   publishedAt: string;
+  checksum?: string;
 }
 
 export interface CheckUpdateResult {
@@ -58,14 +59,50 @@ export async function initAppUpdater(): Promise<void> {
   }
 }
 
+export const APP_UPDATE_LAST_CHECK_KEY = "last_app_update_check";
+export const APP_UPDATE_COOLDOWN_MS = 60 * 60 * 1000; // 1 jam
+
+function getLastCheckTimestamp(): number {
+  try {
+    const raw = localStorage.getItem(APP_UPDATE_LAST_CHECK_KEY);
+    return raw ? parseInt(raw, 10) || 0 : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function setLastCheckTimestamp(ts: number): void {
+  try {
+    localStorage.setItem(APP_UPDATE_LAST_CHECK_KEY, String(ts));
+  } catch {
+    // Abaikan jika localStorage tidak dapat diakses
+  }
+}
+
 /**
  * Mengecek apakah ada rilis terbaru di GitHub Releases yang memiliki asset `dist.zip`.
+ * Menyimpan timestamp pengecekan terakhir di localStorage dengan batas cooldown minimal 1 jam
+ * agar tidak terkena rate limit GitHub API (403 Forbidden).
  */
 export async function checkForAppUpdate(
   repo = GITHUB_REPO,
   currentVersion = APP_VERSION,
+  force = false,
 ): Promise<CheckUpdateResult> {
+  const now = Date.now();
+  const lastCheck = getLastCheckTimestamp();
+  if (!force && lastCheck > 0 && now - lastCheck < APP_UPDATE_COOLDOWN_MS) {
+    const remainingMinutes = Math.ceil((APP_UPDATE_COOLDOWN_MS - (now - lastCheck)) / 60000);
+    return {
+      hasUpdate: false,
+      currentVersion,
+      update: null,
+      message: `Pengecekan update dibatasi cooldown 1 jam (tersisa ~${remainingMinutes} menit).`,
+    };
+  }
+
   try {
+    setLastCheckTimestamp(now);
     const res = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
       headers: { Accept: "application/vnd.github.v3+json" },
     });
@@ -77,6 +114,14 @@ export async function checkForAppUpdate(
           currentVersion,
           update: null,
           message: "Belum ada rilis di repositori ini.",
+        };
+      }
+      if (res.status === 403) {
+        return {
+          hasUpdate: false,
+          currentVersion,
+          update: null,
+          message: "Batas akses GitHub API terlampaui (rate limit 403). Silakan coba lagi nanti.",
         };
       }
       return {
@@ -129,6 +174,23 @@ export async function checkForAppUpdate(
       };
     }
 
+    // Cari asset checksum sha256 bila tersedia
+    let checksum: string | undefined;
+    const shaAsset = data.assets?.find(
+      (a) => a.name.toLowerCase() === "dist.zip.sha256" || a.name.toLowerCase().endsWith(".sha256"),
+    );
+    if (shaAsset) {
+      try {
+        const shaRes = await fetch(shaAsset.browser_download_url);
+        if (shaRes.ok) {
+          const shaText = await shaRes.text();
+          checksum = shaText.trim().split(/\s+/)[0];
+        }
+      } catch {
+        // Abaikan bila download checksum gagal; update tetap dicoba
+      }
+    }
+
     const cleanVer = remoteTag.replace(/^v/, "");
     return {
       hasUpdate: true,
@@ -141,6 +203,7 @@ export async function checkForAppUpdate(
         downloadUrl: zipAsset.browser_download_url,
         sizeBytes: zipAsset.size,
         publishedAt: data.published_at || new Date().toISOString(),
+        ...(checksum ? { checksum } : {}),
       },
     };
   } catch (err) {
@@ -176,10 +239,11 @@ export async function downloadAndApplyUpdate(
   }
 
   try {
-    // 1. Download bundle zip
+    // 1. Download bundle zip (dengan checksum bila tersedia)
     const downloaded = await CapacitorUpdater.download({
       url: update.downloadUrl,
       version: update.version,
+      ...(update.checksum ? { checksum: update.checksum } : {}),
     });
 
     // 2. Set bundle baru sebagai versi aktif

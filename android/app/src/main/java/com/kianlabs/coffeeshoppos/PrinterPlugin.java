@@ -381,10 +381,10 @@ public class PrinterPlugin extends Plugin {
         }
         int[] pixels = new int[w * h];
         work.getPixels(pixels, 0, w, 0, 0, w, h);
-        byte[] raster = EscPosRaster.fromArgb(w, h, pixels, EscPosRaster.DEFAULT_THRESHOLD);
+        byte[] raster = EscPosRaster.toEscPosRaster(w, h, pixels, EscPosRaster.DEFAULT_THRESHOLD);
         writeAll(raster);
         JSObject ret = new JSObject();
-        ret.put("width", EscPosRaster.paddedWidth(w));
+        ret.put("width", w < EscPosRaster.MAX_WIDTH_58MM ? EscPosRaster.MAX_WIDTH_58MM : EscPosRaster.paddedWidth(w));
         ret.put("height", h);
         call.resolve(ret);
       } catch (OutOfMemoryError oom) {

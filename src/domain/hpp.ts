@@ -96,7 +96,7 @@ export function resolveLastCost(entries: CostHistoryEntry[]): Map<string, Rupiah
     if (!cur || e.effectiveAt > cur.effectiveAt) best.set(e.ingredientId, e);
   }
   const out = new Map<string, Rupiah>();
-  for (const [id, e] of best) out.set(id, Math.trunc(e.costPerUnitRp));
+  for (const [id, e] of best) out.set(id, Math.round(e.costPerUnitRp * 100) / 100);
   return out;
 }
 
