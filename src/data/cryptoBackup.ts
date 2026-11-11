@@ -35,7 +35,7 @@ const MIN_ITERATIONS = 10_000;
 const MAX_ITERATIONS = 5_000_000;
 
 /** Samakan dengan "version" di package.json saat rilis. */
-export const APP_VERSION = "1.0.0";
+export const APP_VERSION = "1.0.1";
 
 export type EncryptedBackup = {
   format: typeof ENC_BACKUP_FORMAT;

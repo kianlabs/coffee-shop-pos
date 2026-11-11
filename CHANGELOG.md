@@ -5,6 +5,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [1.0.1] - 2026-11-11
+
+### Fixed
+- **Kasir Cart Layout & Scroll**:
+  - Pinned baris Kembalian (`.change-row`) dan tombol Bayar (`.pay-btn`) di bagian bawah `.cart-action-bar` agar tidak pernah terpotong saat numpad aktif.
+  - Membungkus area keranjang dengan `.cart-middle` (`min-height: 0; overflow-y: auto`) sehingga item panjang dan numpad dapat di-scroll lancar.
+- **SQLite Android PRAGMA Handling**:
+  - Mengubah eksekusi `PRAGMA busy_timeout` dan `PRAGMA journal_mode = WAL` menggunakan `db.query()` untuk menghilangkan error Logcat Android SQLite.
+
+### Added
+- **Touch Numpad Setting**:
+  - Touch Numpad kasir aktif secara default saat metode Tunai dipilih.
+  - Menambahkan toggle pengaturan "Papan Angka Kasir (Touch Numpad)" di menu Pengaturan.
+
+---
+
 ## [1.0.0] - 2026-11-07
 
 ### Added
