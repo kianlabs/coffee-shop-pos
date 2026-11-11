@@ -90,6 +90,9 @@ export function renderReceiptText(order: Order, opts?: ReceiptOptions): string {
   if (opts?.shiftName) {
     rows.push(fitWidth(`Shift: ${opts.shiftName}`));
   }
+  if (order.notes) {
+    rows.push(fitWidth(`Ket: ${order.notes}`));
+  }
   rows.push("-".repeat(WIDTH));
   for (const l of order.lines) {
     rows.push(itemLine(l.productName, l.variantName, l.qty));

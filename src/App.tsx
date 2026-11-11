@@ -143,6 +143,27 @@ type CartLine = {
   qty: number;
 };
 
+type HeldOrder = {
+  id: string;
+  cart: CartLine[];
+  notes: string;
+  orderType: "dine-in" | "take-away";
+  discount: number;
+  tax: number;
+  total: number;
+  heldAt: string;
+};
+
+const QUICK_NOTES = [
+  "Less sugar",
+  "No sugar",
+  "Less ice",
+  "Extra shot",
+  "Panas",
+  "Dingin",
+  "Pisah kantong",
+];
+
 type View = "kasir" | "riwayat" | "laporan" | "menu" | "hpp" | "stok" | "backup" | "pengaturan";
 
 type Status = {
@@ -263,6 +284,21 @@ export default function App() {
   const [payAmount, setPayAmount] = useState<number>(0);
   const [payMethod, setPayMethod] = useState<PaymentMethod>("cash");
   const [notes, setNotes] = useState<string>("");
+  const [orderType, setOrderType] = useState<"dine-in" | "take-away">("dine-in");
+  const [heldOrders, setHeldOrders] = useState<HeldOrder[]>(() => {
+    try {
+      const raw = localStorage.getItem("pos_held_orders");
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("pos_held_orders", JSON.stringify(heldOrders));
+    } catch {}
+  }, [heldOrders]);
   const [status, setStatus] = useState<Status | null>(null);
   const [processing, setProcessing] = useState<boolean>(false);
   const [view, setView] = useState<View>("kasir");
@@ -624,8 +660,78 @@ export default function App() {
     setDiscount(0);
     setTax(0);
     setNotes("");
+    setOrderType("dine-in");
     setPayAmount(0);
     setStatus({ kind: "info", msg: "Keranjang dikosongkan.", scope: "kasir" });
+  }
+
+  function holdCurrentOrder() {
+    if (cart.length === 0) return;
+    const newHold: HeldOrder = {
+      id: `hold-${Date.now()}`,
+      cart: [...cart],
+      notes,
+      orderType,
+      discount,
+      tax,
+      total,
+      heldAt: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+    };
+    setHeldOrders((prev) => [newHold, ...prev]);
+    setCart([]);
+    setNotes("");
+    setOrderType("dine-in");
+    setDiscount(0);
+    setTax(0);
+    setPayAmount(0);
+    setStatus({
+      kind: "info",
+      msg: "Pesanan ditahan (diparkir). Antrean berikutnya dapat dilayani.",
+      scope: "kasir",
+    });
+  }
+
+  function restoreHeldOrder(held: HeldOrder) {
+    if (cart.length > 0) {
+      if (!window.confirm("Masih ada pesanan aktif di keranjang. Ganti dengan pesanan yang ditahan ini?")) {
+        return;
+      }
+    }
+    setCart(held.cart);
+    setNotes(held.notes);
+    setOrderType(held.orderType);
+    setDiscount(held.discount);
+    setTax(held.tax);
+    setHeldOrders((prev) => prev.filter((h) => h.id !== held.id));
+    setStatus({
+      kind: "info",
+      msg: "Pesanan yang ditahan berhasil dipulihkan ke keranjang.",
+      scope: "kasir",
+    });
+  }
+
+  function handleNumpadKey(key: string) {
+    let str = payAmount > 0 ? String(payAmount) : "";
+    if (key === "⌫") {
+      str = str.slice(0, -1);
+    } else if (key === "000") {
+      if (str !== "" && str !== "0") str += "000";
+    } else {
+      if (str === "0") str = "";
+      str += key;
+    }
+    if (str.length > 10) str = str.slice(0, 10);
+    const parsed = parseInt(str || "0", 10);
+    setPayAmount(Math.min(999_999_999_999, parsed));
+  }
+
+  function appendQuickNote(preset: string) {
+    setNotes((prev) => {
+      const trimmed = prev.trim();
+      if (!trimmed) return preset;
+      if (trimmed.includes(preset)) return prev;
+      return `${trimmed}, ${preset}`;
+    });
   }
 
   async function handleCheckout() {
@@ -698,6 +804,8 @@ export default function App() {
     const key = cartKeyRef.current.key;
     setProcessing(true);
     try {
+      const typeTag = orderType === "take-away" ? "Take Away" : "Dine In";
+      const combinedNotes = `[${typeTag}]${notes.trim() ? ` ${notes.trim()}` : ""}`;
       const payload = {
         lines,
         discountRp: discount,
@@ -709,7 +817,7 @@ export default function App() {
           amountRp: effectivePayAmount,
           paidAt: new Date().toISOString(),
         },
-        notes: notes.trim() === "" ? null : notes.trim(),
+        notes: combinedNotes,
         idempotencyKey: key,
       };
       const { order, duplicate } = await repo.checkout(payload);
@@ -721,6 +829,7 @@ export default function App() {
       setDiscount(0);
       setTax(0);
       setNotes("");
+      setOrderType("dine-in");
       setCartOpen(false);
       // Prepend optimistik — tanpa bump ordersVersion agar tak double full-scan.
       setOrders((prev) => [order, ...prev.filter((o) => o.id !== order.id)]);
@@ -1543,13 +1652,16 @@ export default function App() {
                 {pendingCount} pending
               </span>
             )}
-            <span
-              className={`status-chip is-optional ${printerState.connected ? "is-ok" : ""}`}
-              title={printerState.connected ? printerState.name ?? "Printer terhubung" : "Printer belum terhubung"}
+            <button
+              type="button"
+              className={`status-chip is-optional chip hoverable ${printerState.connected ? "is-ok" : ""}`}
+              onClick={() => setView("pengaturan")}
+              title={printerState.connected ? printerState.name ?? "Printer terhubung" : "Printer belum terhubung. Klik untuk buka pengaturan"}
+              style={{ background: "transparent", border: "1px solid var(--line)" }}
             >
               <Icon name="printer" />
-              {printerState.connected ? "Printer" : "No printer"}
-            </span>
+              {printerState.connected ? "Printer OK" : "No printer"}
+            </button>
           </div>
         </header>
 
@@ -1652,10 +1764,21 @@ export default function App() {
                   </div>
                   <div style={{ display: "flex", gap: 6 }}>
                     {cart.length > 0 && (
-                      <button className="ghost small" onClick={clearCart}>
-                        <Icon name="trash" size={15} />
-                        Kosongkan
-                      </button>
+                      <>
+                        <button
+                          className="ghost small"
+                          type="button"
+                          onClick={holdCurrentOrder}
+                          title="Tahan pesanan ini untuk melayani antrean berikutnya"
+                        >
+                          <Icon name="clock" size={14} />
+                          Tahan
+                        </button>
+                        <button className="ghost small" onClick={clearCart}>
+                          <Icon name="trash" size={15} />
+                          Kosongkan
+                        </button>
+                      </>
                     )}
                     <button
                       className="cart-close icon-only ghost"
@@ -1663,6 +1786,49 @@ export default function App() {
                       onClick={() => setCartOpen(false)}
                     >
                       <Icon name="close" />
+                    </button>
+                  </div>
+                </div>
+
+                {heldOrders.length > 0 && (
+                  <div className="held-orders-bar" role="region" aria-label="Pesanan ditahan">
+                    <div className="held-orders-info">
+                      <Icon name="clock" size={13} />
+                      <span>{heldOrders.length} ditahan</span>
+                    </div>
+                    <div className="held-orders-actions">
+                      {heldOrders.map((h, idx) => (
+                        <button
+                          key={h.id}
+                          type="button"
+                          className="held-restore-btn"
+                          onClick={() => restoreHeldOrder(h)}
+                          title={`Ditahan pukul ${h.heldAt}`}
+                        >
+                          #{idx + 1} {formatRupiah(h.total)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="cart-order-type-row">
+                  <div className="segmented cart-order-type" role="group" aria-label="Tipe pesanan">
+                    <button
+                      type="button"
+                      className={orderType === "dine-in" ? "is-active" : ""}
+                      aria-pressed={orderType === "dine-in"}
+                      onClick={() => setOrderType("dine-in")}
+                    >
+                      Makan di Tempat
+                    </button>
+                    <button
+                      type="button"
+                      className={orderType === "take-away" ? "is-active" : ""}
+                      aria-pressed={orderType === "take-away"}
+                      onClick={() => setOrderType("take-away")}
+                    >
+                      Bawa Pulang
                     </button>
                   </div>
                 </div>
@@ -1798,6 +1964,18 @@ export default function App() {
                             maxLength={1000}
                           />
                         </label>
+                        <div className="quick-note-chips" role="group" aria-label="Pilihan catatan cepat">
+                          {QUICK_NOTES.map((qn) => (
+                            <button
+                              key={qn}
+                              type="button"
+                              className="quick-note-chip"
+                              onClick={() => appendQuickNote(qn)}
+                            >
+                              + {qn}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </details>
                   </div>
@@ -1863,6 +2041,19 @@ export default function App() {
                           ))}
                         </div>
                       )}
+
+                      <div className="cash-numpad" role="group" aria-label="Numpad nominal bayar">
+                        {["1", "2", "3", "4", "5", "6", "7", "8", "9", "000", "0", "⌫"].map((key) => (
+                          <button
+                            key={key}
+                            type="button"
+                            className={`cash-numpad-btn ${key === "⌫" ? "is-delete" : ""}`}
+                            onClick={() => handleNumpadKey(key)}
+                          >
+                            {key}
+                          </button>
+                        ))}
+                      </div>
 
                       <div className={`change-row ${payAmount >= total && total > 0 ? "is-change-paid" : ""}`}>
                         <span>{payAmount < total ? "Kurang" : "Kembalian"}</span>

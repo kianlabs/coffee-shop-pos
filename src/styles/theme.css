@@ -1620,6 +1620,159 @@ label.check input {
   box-shadow: 0 2px 6px rgba(28, 25, 23, 0.15);
 }
 
+/* ==========================================================================
+   FITUR KASIR CEPAT: NUMPAD SENTUH, ORDER TYPE, QUICK NOTES & HOLD ORDER
+   ========================================================================== */
+
+.cart-order-type-row {
+  margin-bottom: 8px;
+}
+
+.cart-order-type.segmented {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.cart-order-type.segmented button {
+  min-height: 36px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.held-orders-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  border-radius: var(--radius-sm);
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  font-size: 0.78rem;
+  font-weight: 650;
+  animation: fadeIn 0.15s ease;
+}
+
+.held-orders-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.held-orders-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+}
+
+.held-restore-btn {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  color: #78350f;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.1s ease;
+}
+
+.held-restore-btn:hover {
+  background: #fde68a;
+}
+
+.cash-numpad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  margin: 6px 0;
+}
+
+.cash-numpad-btn {
+  min-height: 42px;
+  padding: 6px 4px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  color: var(--text);
+  font-family: var(--font-mono, monospace);
+  font-size: 1rem;
+  font-weight: 750;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.1s ease, border-color 0.1s ease, transform 0.05s ease;
+}
+
+.cash-numpad-btn:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: var(--text-2);
+}
+
+.cash-numpad-btn:active:not(:disabled) {
+  transform: scale(0.96);
+  background: var(--surface-3);
+}
+
+.cash-numpad-btn.is-delete {
+  font-family: inherit;
+  font-size: 0.9rem;
+  color: #dc2626;
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.cash-numpad-btn.is-delete:hover:not(:disabled) {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.quick-note-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.quick-note-chip {
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-2);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.1s ease;
+}
+
+.quick-note-chip:hover {
+  background: var(--surface-3);
+  color: var(--text);
+  border-color: var(--text-2);
+}
+
+.quick-note-chip:active {
+  transform: scale(0.96);
+}
+
+.chip.hoverable {
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.chip.hoverable:hover {
+  border-color: var(--text-2);
+  background: var(--surface-2);
+}
+
 .cart-close {
   display: none;
 }
