@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { formatRupiah, formatThousands, parseThousands } from "../domain/money";
-import type { Catalog, CatalogProduct } from "../domain/catalog";
+import type { Catalog, CatalogProduct, ProductVariant } from "../domain/catalog";
 import {
   createCategory,
   createProduct,
@@ -15,6 +15,65 @@ import { Icon } from "./Icon";
 import { MoneyInput } from "./MoneyInput";
 
 type Draft = { name: string; price: string; categoryId: string };
+
+function VariantRowItem({
+  variant,
+  basePrice,
+  busy,
+  onUpdate,
+  onDeactivate,
+}: {
+  variant: ProductVariant;
+  basePrice: number;
+  busy: boolean;
+  onUpdate: (id: string, patch: { name?: string; priceDeltaRp?: number }) => Promise<void>;
+  onDeactivate: (id: string) => Promise<void>;
+}) {
+  const [name, setName] = useState(variant.name);
+  const [delta, setDelta] = useState(variant.priceDeltaRp);
+
+  useEffect(() => {
+    setName(variant.name);
+    setDelta(variant.priceDeltaRp);
+  }, [variant.name, variant.priceDeltaRp]);
+
+  return (
+    <div className="variant-row">
+      <input
+        aria-label={`Nama varian ${variant.name}`}
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onBlur={() => {
+          const next = name.trim();
+          if (next && next !== variant.name) {
+            void onUpdate(variant.id, { name: next });
+          }
+        }}
+      />
+      <MoneyInput
+        aria-label={`Selisih harga ${variant.name}`}
+        value={delta}
+        allowNegative
+        onChange={(val) => setDelta(val)}
+        onBlur={() => {
+          if (delta !== variant.priceDeltaRp) {
+            void onUpdate(variant.id, { priceDeltaRp: delta });
+          }
+        }}
+      />
+      <span className="variant-price">
+        = {formatRupiah(basePrice + delta)}
+      </span>
+      <button
+        className="danger small"
+        disabled={busy}
+        onClick={() => void onDeactivate(variant.id)}
+      >
+        Hapus
+      </button>
+    </div>
+  );
+}
 
 export function CatalogEditor({ onChanged }: { onChanged?: () => void }) {
   const [catalog, setCatalog] = useState<Catalog>({ categories: [], products: [] });
@@ -396,44 +455,18 @@ export function CatalogEditor({ onChanged }: { onChanged?: () => void }) {
                           </p>
                         )}
                         {p.variants.map((v) => (
-                          <div key={v.id} className="variant-row">
-                            <input
-                              aria-label={`Nama varian ${v.name}`}
-                              defaultValue={v.name}
-                              onBlur={(e) => {
-                                const next = e.target.value.trim();
-                                if (next && next !== v.name)
-                                  void run(
-                                    () => updateVariant(v.id, { name: next }),
-                                    "Varian diperbarui.",
-                                  );
-                              }}
-                            />
-                            <input
-                              aria-label={`Selisih harga ${v.name}`}
-                              type="number"
-                              inputMode="numeric"
-                              defaultValue={v.priceDeltaRp}
-                              onBlur={(e) => {
-                                const next = Math.trunc(Number(e.target.value) || 0);
-                                if (next !== v.priceDeltaRp)
-                                  void run(
-                                    () => updateVariant(v.id, { priceDeltaRp: next }),
-                                    "Varian diperbarui.",
-                                  );
-                              }}
-                            />
-                            <span className="variant-price">
-                              = {formatRupiah(p.basePriceRp + v.priceDeltaRp)}
-                            </span>
-                            <button
-                              className="danger small"
-                              disabled={busy}
-                              onClick={() => void run(() => deactivateVariant(v.id), "Varian dihapus.")}
-                            >
-                              Hapus
-                            </button>
-                          </div>
+                          <VariantRowItem
+                            key={v.id}
+                            variant={v}
+                            basePrice={p.basePriceRp}
+                            busy={busy}
+                            onUpdate={async (id, patch) => {
+                              await run(() => updateVariant(id, patch), "Varian diperbarui.");
+                            }}
+                            onDeactivate={async (id) => {
+                              await run(() => deactivateVariant(id), "Varian dihapus.");
+                            }}
+                          />
                         ))}
                         <div className="variant-row" style={{ marginTop: 8 }}>
                           <input

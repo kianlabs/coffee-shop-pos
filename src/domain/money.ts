@@ -61,13 +61,20 @@ export function formatThousands(value: number | string | null | undefined): stri
  */
 export function parseThousands(value: string | number | null | undefined): Rupiah {
   if (typeof value === "number") {
-    return Number.isFinite(value) ? Math.trunc(value) : 0;
+    if (!Number.isFinite(value)) return 0;
+    const clamped = Math.trunc(value);
+    if (!Number.isSafeInteger(clamped) || clamped > 999_999_999_999) return 999_999_999_999;
+    if (clamped < -999_999_999_999) return -999_999_999_999;
+    return clamped;
   }
   if (!value) return 0;
   const str = String(value).trim();
   const isNegative = str.startsWith("-");
   const digits = str.replace(/\D/g, "");
   if (!digits) return 0;
-  const num = parseInt(digits, 10);
+  let num = parseInt(digits, 10);
+  if (!Number.isSafeInteger(num) || num > 999_999_999_999) {
+    num = 999_999_999_999;
+  }
   return isNegative ? -num : num;
 }

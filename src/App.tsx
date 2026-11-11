@@ -2343,14 +2343,14 @@ export default function App() {
                   </div>
                   <label>
                     Biaya layanan (Rp)
-                    <input
-                      type="number"
-                      min={0}
+                    <MoneyInput
+                      aria-label="Biaya layanan"
                       value={settingsDraft.serviceChargeRp}
-                      onChange={(e) =>
+                      allowEmpty
+                      onChange={(val) =>
                         setSettingsDraft({
                           ...settingsDraft,
-                          serviceChargeRp: Math.max(0, Number(e.target.value) || 0),
+                          serviceChargeRp: Math.max(0, val),
                         })
                       }
                     />

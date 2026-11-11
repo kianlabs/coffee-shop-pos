@@ -86,6 +86,8 @@ check("parseThousands 50.000", money.parseThousands("50.000"), 50000);
 check("parseThousands 1.250.000", money.parseThousands("1.250.000"), 1250000);
 check("parseThousands tanpa titik", money.parseThousands("50000"), 50000);
 check("parseThousands dengan prefix Rp", money.parseThousands("Rp 50.000"), 50000);
+check("parseThousands nilai negatif", money.parseThousands("-5.000"), -5000);
+check("parseThousands jepit integer aman", money.parseThousands("999999999999999"), 999999999999);
 check("parseThousands kosong", money.parseThousands(""), 0);
 
 console.log("\n[2] validasi checkout");

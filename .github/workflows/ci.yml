@@ -31,8 +31,10 @@ jobs:
       - name: Typecheck (TypeScript Strict)
         run: npm run typecheck
 
-      - name: Run Domain Unit Tests (110 Tests)
-        run: npm test
+      - name: Run Domain & Semver Tests
+        run: |
+          npm test
+          node scripts/test-updater.mjs
 
       - name: Build Web Production Assets
         run: npm run build

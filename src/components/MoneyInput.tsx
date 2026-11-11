@@ -41,6 +41,9 @@ export function MoneyInput({
     const digitsBefore = raw.slice(0, cursorPos).replace(/\D/g, "").length;
 
     let num = digits ? parseInt(digits, 10) : 0;
+    if (!Number.isSafeInteger(num) || num > 999_999_999_999) {
+      num = 999_999_999_999;
+    }
     if (isNeg) num = -num;
 
     onChange(num);
