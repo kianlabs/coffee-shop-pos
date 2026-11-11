@@ -18,6 +18,8 @@ export type PosSettings = {
   printLogo: boolean;
   /** PNG base64 untuk logo struk (kosong = pakai logo default assets/logo.png). */
   logoBase64: string;
+  /** true = tampilkan papan angka sentuh (touch numpad) kasir saat bayar tunai (default: true). */
+  showCashNumpad: boolean;
 };
 
 /** DEFAULT: semua nilai aman — tanpa biaya tambahan, tanpa pembulatan, tanpa PIN. */
@@ -33,6 +35,7 @@ export const DEFAULT_SETTINGS: PosSettings = {
   autoPrint: true,
   printLogo: true,
   logoBase64: "",
+  showCashNumpad: true,
 };
 
 /** OWASP 2023 untuk PBKDF2-HMAC-SHA256 (sama dengan backup terenkripsi). */
@@ -162,6 +165,7 @@ function sanitize(raw: Partial<PosSettings> & Record<string, unknown>): PosSetti
   const autoPrint = raw.autoPrint !== false;
   const printLogo = raw.printLogo !== false;
   const logoBase64 = toString(raw.logoBase64, "");
+  const showCashNumpad = raw.showCashNumpad !== false;
   return {
     serviceChargeRp,
     roundingStep,
@@ -174,6 +178,7 @@ function sanitize(raw: Partial<PosSettings> & Record<string, unknown>): PosSetti
     autoPrint,
     printLogo,
     logoBase64,
+    showCashNumpad,
   };
 }
 

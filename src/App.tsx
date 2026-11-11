@@ -1833,7 +1833,8 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="cart-body">
+                <div className="cart-middle">
+                  <div className="cart-body">
                   {cart.length === 0 ? (
                     <div className="cart-empty">
                       <Icon name="cart" size={36} />
@@ -2042,29 +2043,20 @@ export default function App() {
                         </div>
                       )}
 
-                      <div className="cash-numpad" role="group" aria-label="Numpad nominal bayar">
-                        {["1", "2", "3", "4", "5", "6", "7", "8", "9", "000", "0", "⌫"].map((key) => (
-                          <button
-                            key={key}
-                            type="button"
-                            className={`cash-numpad-btn ${key === "⌫" ? "is-delete" : ""}`}
-                            onClick={() => handleNumpadKey(key)}
-                          >
-                            {key}
-                          </button>
-                        ))}
-                      </div>
-
-                      <div className={`change-row ${payAmount >= total && total > 0 ? "is-change-paid" : ""}`}>
-                        <span>{payAmount < total ? "Kurang" : "Kembalian"}</span>
-                        <strong className={payAmount < total ? "is-short" : ""}>
-                          {formatRupiah(
-                            payAmount < total
-                              ? Math.max(0, total - payAmount)
-                              : Math.max(0, payAmount - total),
-                          )}
-                        </strong>
-                      </div>
+                      {posSettings.showCashNumpad && (
+                        <div className="cash-numpad" role="group" aria-label="Numpad nominal bayar">
+                          {["1", "2", "3", "4", "5", "6", "7", "8", "9", "000", "0", "⌫"].map((key) => (
+                            <button
+                              key={key}
+                              type="button"
+                              className={`cash-numpad-btn ${key === "⌫" ? "is-delete" : ""}`}
+                              onClick={() => handleNumpadKey(key)}
+                            >
+                              {key}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </>
                   ) : payMethod === "qris_manual" ? (
                     <div className="pay-noncash-hint">
@@ -2077,22 +2069,37 @@ export default function App() {
                       <span>Pastikan slip EDC / transfer bank sudah tervalidasi</span>
                     </div>
                   )}
-
-                  <button
-                    className="primary pay-btn"
-                    disabled={
-                      processing ||
-                      cart.length === 0 ||
-                      (!dbReady && !browserReady) ||
-                      (payMethod === "cash" && payAmount < total)
-                    }
-                    aria-busy={processing}
-                    onClick={() => void handleCheckout()}
-                  >
-                    <Icon name="check" size={18} />
-                    <span>{processing ? "Memproses…" : `Bayar ${formatRupiah(total)}`}</span>
-                  </button>
                 </div>
+              </div>
+
+              <div className="cart-action-bar">
+                {payMethod === "cash" && (
+                  <div className={`change-row ${payAmount >= total && total > 0 ? "is-change-paid" : ""}`}>
+                    <span>{payAmount < total ? "Kurang" : "Kembalian"}</span>
+                    <strong className={payAmount < total ? "is-short" : ""}>
+                      {formatRupiah(
+                        payAmount < total
+                          ? Math.max(0, total - payAmount)
+                          : Math.max(0, payAmount - total),
+                      )}
+                    </strong>
+                  </div>
+                )}
+                <button
+                  className="primary pay-btn"
+                  disabled={
+                    processing ||
+                    cart.length === 0 ||
+                    (!dbReady && !browserReady) ||
+                    (payMethod === "cash" && payAmount < total)
+                  }
+                  aria-busy={processing}
+                  onClick={() => void handleCheckout()}
+                >
+                  <Icon name="check" size={18} />
+                  <span>{processing ? "Memproses…" : `Bayar ${formatRupiah(total)}`}</span>
+                </button>
+              </div>
               </aside>
 
               <button
@@ -2585,6 +2592,19 @@ export default function App() {
                       }
                     />
                     Tolak transaksi bila stok bahan tidak cukup
+                  </label>
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={settingsDraft.showCashNumpad}
+                      onChange={(e) =>
+                        setSettingsDraft({
+                          ...settingsDraft,
+                          showCashNumpad: e.target.checked,
+                        })
+                      }
+                    />
+                    Papan Angka Kasir (Touch Numpad)
                   </label>
                 </section>
 
