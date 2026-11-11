@@ -64,17 +64,29 @@ async function openConnection(): Promise<SQLiteDBConnection> {
  * PRAGMA bersifat per-koneksi, jadi harus dipasang setiap kali koneksi dibuka
  * (bukan hanya di migrasi). Kegagalan PRAGMA tidak boleh membuat aplikasi
  * gagal dibuka — platform web/jeep-sqlite tidak mendukung semuanya.
+ *
+ * Catatan Android SQLite:
+ * - `PRAGMA foreign_keys = ON;` dijalankan via execute tanpa transaksi (transaction: false).
+ * - `PRAGMA busy_timeout` dan `PRAGMA journal_mode` mengembalikan baris hasil sehingga
+ *   Android SQLite mewajibkan rawQuery/query, dan WAL mode harus di luar transaksi.
  */
 async function applyConnectionPragmas(db: SQLiteDBConnection): Promise<void> {
-  const pragmas = ["PRAGMA foreign_keys = ON;", "PRAGMA busy_timeout = 5000;"];
+  try {
+    await db.execute("PRAGMA foreign_keys = ON;", false);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[db] PRAGMA foreign_keys = ON; gagal: ${msg}`);
+  }
+
+  const queryPragmas = ["PRAGMA busy_timeout = 5000;"];
   // WAL tidak tersedia di web (jeep-sqlite/IndexedDB) dan hanya berguna di
   // penyimpanan native.
   if (isNativePlatform()) {
-    pragmas.push("PRAGMA journal_mode = WAL;");
+    queryPragmas.push("PRAGMA journal_mode = WAL;");
   }
-  for (const sql of pragmas) {
+  for (const sql of queryPragmas) {
     try {
-      await db.execute(sql);
+      await db.query(sql);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.warn(`[db] ${sql.trim()} gagal: ${msg}`);
