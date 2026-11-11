@@ -49,21 +49,16 @@ jobs:
       - name: Configure Android Signing Keystore
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || secrets.ANDROID_KEY_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS || 'coffeeshop' }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD || secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
             echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/release.jks
-            PASS="${ANDROID_KEYSTORE_PASSWORD}"
+            PASS="${ANDROID_KEYSTORE_PASSWORD:-$ANDROID_KEY_PASSWORD}"
             KEY_PASS="${ANDROID_KEY_PASSWORD:-$PASS}"
             ALIAS="${ANDROID_KEY_ALIAS:-coffeeshop}"
-            cat > android/keystore.properties <<EOF
-storeFile=release.jks
-storePassword=$PASS
-keyAlias=$ALIAS
-keyPassword=$KEY_PASS
-EOF
+            printf "storeFile=release.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n" "$PASS" "$ALIAS" "$KEY_PASS" > android/keystore.properties
             chmod 600 android/release.jks android/keystore.properties
             echo "Keystore produksi berhasil dikonfigurasi."
           else
