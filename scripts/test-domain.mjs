@@ -20,6 +20,7 @@ execFileSync(
     "src/domain/sales.ts",
     "src/domain/units.ts",
     "src/domain/recipe.ts",
+    "src/domain/semver.ts",
     "src/data/settings.ts",
     "src/data/receipt.ts",
     "--ignoreConfig",
@@ -44,6 +45,7 @@ const settings = require(path.join(OUT, "data/settings.js"));
 const sales = require(path.join(OUT, "domain/sales.js"));
 const units = require(path.join(OUT, "domain/units.js"));
 const recipeDomain = require(path.join(OUT, "domain/recipe.js"));
+const semver = require(path.join(OUT, "domain/semver.js"));
 const receipt = require(path.join(OUT, "data/receipt.js"));
 
 let pass = 0;
@@ -378,6 +380,17 @@ console.log("\n[11] refund");
   const truncatedLine = receipt.line(longLeft, "Rp100.000");
   check("line panjang dibatasi 32 karakter", truncatedLine.length, 32);
   check("left panjang dipotong dengan elipsis", truncatedLine.includes("…"), true);
+}
+
+{
+  console.log("\n[13] semver updater");
+  check("v1.1.0 > 1.0.0", semver.isNewerVersion("v1.1.0", "1.0.0"), true);
+  check("v1.0.1 > 1.0.0", semver.isNewerVersion("v1.0.1", "1.0.0"), true);
+  check("v2.0.0 > 1.9.9", semver.isNewerVersion("v2.0.0", "1.9.9"), true);
+  check("1.0.0 == 1.0.0", semver.isNewerVersion("1.0.0", "1.0.0"), false);
+  check("v0.9.9 < 1.0.0", semver.isNewerVersion("v0.9.9", "1.0.0"), false);
+  check("v1.0.0 < 1.0.1", semver.isNewerVersion("v1.0.0", "1.0.1"), false);
+  check("v1.2 > 1.1.9", semver.isNewerVersion("v1.2", "1.1.9"), true);
 }
 
 rmSync(OUT, { recursive: true, force: true });
