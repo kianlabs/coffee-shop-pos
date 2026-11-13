@@ -1,10 +1,11 @@
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
-const OUT_DIR = "/home/kian/.gemini/antigravity/brain/0e56c69c-844f-43dc-a905-95a6dac8d27f";
+const OUT_DIR = path.join(ROOT, "docs/screenshots");
+mkdirSync(OUT_DIR, { recursive: true });
 const PORT = 4199;
 const CDP_PORT = 9433;
 const URL = `http://localhost:${PORT}/`;
@@ -276,14 +277,14 @@ async function main() {
           serviceChargeRp: 0,
           roundingRp: 0,
           totalRp: 60000,
-          payMethod: "cash",
-          paidAmountRp: 100000,
+          idempotencyKey: "seed-prev-1",
+          payment: { method: "cash", amountRp: 100000, paidAt: new Date(now.getTime() - 45 * 60000).toISOString() },
           changeRp: 40000,
           status: "completed",
           notes: "",
           lines: [
-            { productId: "prod-v60", variantId: null, productName: "V60 Gayo Anaerob", variantName: null, unitPriceRp: 32000, qty: 1, lineTotalRp: 32000, hppUnitSnapshotRp: 11000 },
-            { productId: "prod-croissant", variantId: null, productName: "Almond Butter Croissant", variantName: null, unitPriceRp: 28000, qty: 1, lineTotalRp: 28000, hppUnitSnapshotRp: 14000 }
+            { productId: "prod-v60", variantId: null, productName: "V60 Gayo Anaerob", variantName: null, unitPriceRp: 32000, qty: 1, lineTotalRp: 32000, discountRp: 0, netTotalRp: 32000, hppTotal: 11000 },
+            { productId: "prod-croissant", variantId: null, productName: "Almond Butter Croissant", variantName: null, unitPriceRp: 28000, qty: 1, lineTotalRp: 28000, discountRp: 0, netTotalRp: 28000, hppTotal: 14000 }
           ]
         }
       ];
@@ -344,11 +345,27 @@ async function main() {
     await waitFor("document.body.innerText.includes('Laporan Penjualan')");
     await wait(800);
 
+    await evalJs(`document.querySelectorAll('.toast button').forEach((b) => b.click())`);
+    await wait(400);
     console.log("Mengambil screenshot 3: Dashboard Laporan...");
     const ss3 = await send("Page.captureScreenshot", { format: "png" }, sessionId);
     writeFileSync(path.join(OUT_DIR, "tablet-laporan.png"), Buffer.from(ss3.data, "base64"));
     console.log("Tersimpan: tablet-laporan.png");
 
+    // 4. Layar Pengaturan
+    console.log("Pindah ke Layar Pengaturan...");
+    await evalJs(`(() => {
+      const nav = [...document.querySelectorAll('.nav-item')].find(b => b.textContent.includes('Setelan'));
+      if (nav) nav.click();
+    })()`);
+    await waitFor("document.body.innerText.includes('Identitas yang tampil di struk')");
+    await wait(600);
+    await evalJs(`document.querySelectorAll('.toast button').forEach((b) => b.click())`);
+    await wait(400);
+    console.log("Mengambil screenshot 4: Pengaturan...");
+    const ss4 = await send("Page.captureScreenshot", { format: "png" }, sessionId);
+    writeFileSync(path.join(OUT_DIR, "tablet-pengaturan.png"), Buffer.from(ss4.data, "base64"));
+    console.log("Tersimpan: tablet-pengaturan.png");
     console.log("Semua screenshot berhasil diambil!");
   } finally {
     if (ws) ws.close();
