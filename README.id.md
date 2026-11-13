@@ -117,6 +117,7 @@ flowchart TD
 
 ## Dokumentasi
 
+- [Arsitektur dan cara memperluasnya](docs/architecture.md)
 - [Alur checkout](docs/checkout-flow.md)
 - [Kamus data](docs/data-dictionary.md) dan [ERD](docs/erd.md)
 - [Rumus HPP dan margin](docs/hpp.md)

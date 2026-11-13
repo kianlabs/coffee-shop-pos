@@ -117,6 +117,7 @@ flowchart TD
 
 ## Documentation
 
+- [Architecture and how to extend it](docs/architecture.md)
 - [Checkout flow](docs/checkout-flow.md)
 - [Data dictionary](docs/data-dictionary.md) and [ERD](docs/erd.md)
 - [HPP and margin formulas](docs/hpp.md)
