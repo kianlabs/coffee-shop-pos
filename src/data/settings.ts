@@ -30,7 +30,7 @@ export const DEFAULT_SETTINGS: PosSettings = {
   voidPinHash: "",
   voidPinSalt: "",
   cashierName: "",
-  storeName: "RAHARDJO COFFEE",
+  storeName: "Nama Toko",
   blockNegativeStock: false,
   autoPrint: true,
   printLogo: true,

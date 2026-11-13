@@ -174,9 +174,9 @@ async function main() {
 
     await evalJs(`(() => {
       localStorage.clear();
-      // Setup Settings Rahardjo Coffee
+      // Setup settings kedai contoh
       localStorage.setItem("pos.settings.v1", JSON.stringify({
-        storeName: "RAHARDJO COFFEE",
+        storeName: "KEDAI CONTOH",
         address: "Jl. Moh. Yamin 84A, Kawatan, Serengan, Surakarta",
         phone: "0812-2888-0820",
         footerMessage: "Matur nuwun sampun rawuh!",
@@ -224,7 +224,7 @@ async function main() {
           {
             id: "prod-kopsus",
             categoryId: "cat-sig",
-            name: "Es Kopi Rahardjo",
+            name: "Es Kopi Aren",
             basePriceRp: 24000,
             isActive: true,
             variants: []
@@ -240,10 +240,10 @@ async function main() {
     await reload();
     await waitFor("document.body.innerText.includes('08.20 Escobar')");
 
-    check("Nama toko 'RAHARDJO COFFEE' tampil di header", await evalJs("document.body.innerText.includes('RAHARDJO COFFEE')"));
+    check("Nama toko 'KEDAI CONTOH' tampil di header", await evalJs("document.body.innerText.includes('KEDAI CONTOH')"));
     check("Shift berjalan dengan kasir 'Barista Kian'", await evalJs("document.body.innerText.includes('Shift buka')"));
     check("Menu multi-varian '08.20 Escobar' menampilkan badge varian", await evalJs("document.body.innerText.toUpperCase().includes('2 VARIAN')"));
-    check("Menu tanpa varian menampilkan tombol Tambah", await waitFor("!!document.querySelector('[aria-label=\"Tambah Es Kopi Rahardjo\"]')"));
+    check("Menu tanpa varian menampilkan tombol Tambah", await waitFor("!!document.querySelector('[aria-label=\"Tambah Es Kopi Aren\"]')"));
 
     console.log("\n[TEST 2] Keranjang & Aritmetika Multi-Varian");
     // Tambah varian Large (38.000 + 4.000 = 42.000)
@@ -252,10 +252,10 @@ async function main() {
     check("Item varian Large masuk keranjang", await evalJs("document.querySelector('.cart-line')?.textContent.includes('Large')"));
     check("Harga varian Large Rp42.000", await evalJs("document.querySelector('.cart-line-total')?.textContent.includes('42.000')"));
 
-    // Tambah Es Kopi Rahardjo (24.000)
-    await evalJs(`document.querySelector('[aria-label="Tambah Es Kopi Rahardjo"]').click()`);
+    // Tambah Es Kopi Aren (24.000)
+    await evalJs(`document.querySelector('[aria-label="Tambah Es Kopi Aren"]').click()`);
     await wait(200);
-    // Tambah lagi qty Es Kopi Rahardjo jadi 2x (48.000)
+    // Tambah lagi qty Es Kopi Aren jadi 2x (48.000)
     await evalJs(`(() => {
       const btns = [...document.querySelectorAll('.qty-btn')];
       // Cari tombol tambah untuk item kedua
@@ -321,7 +321,7 @@ async function main() {
 
     check("Logo Toko tampil di pratinjau struk", await evalJs("!!document.querySelector('.modal details img[alt=\"Logo Toko\"]')"));
     const receiptText = await evalJs("document.querySelector('.receipt-preview')?.textContent || ''");
-    check("Teks struk memuat nama toko RAHARDJO COFFEE", receiptText.includes("RAHARDJO COFFEE"));
+    check("Teks struk memuat nama toko KEDAI CONTOH", receiptText.includes("KEDAI CONTOH"));
     check("Teks struk memuat item varian (08.20 Escobar - Regular/Large)", receiptText.includes("08.20 Escobar"));
     check("Teks struk memuat total Rp90.000", receiptText.includes("90.000"));
 

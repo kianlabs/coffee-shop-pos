@@ -122,7 +122,6 @@ coffee-shop-pos/
 │   ├── data/                       # Repositori SQLite, migrasi V7, printer, & settings
 │   ├── domain/                     # Logika bisnis inti murni (money, orders, catalog, hpp)
 │   └── styles/theme.css            # Design system CSS tablet-first
-├── Rahardjo-Coffee-POS-v1.0.apk    # File installer APK Android siap pakai (14 MB)
 ├── package.json
 └── vite.config.ts
 ```

@@ -151,10 +151,10 @@ async function main() {
     await waitFor("document.readyState === 'complete'");
     await wait(600);
 
-    // Seed Data Rahardjo Coffee Surakarta
+    // Seed data kedai contoh
     await evalJs(`(() => {
       const settings = {
-        storeName: "RAHARDJO COFFEE",
+        storeName: "KEDAI CONTOH",
         address: "Jl. Moh. Yamin No.84A, Kawatan, Serengan, Surakarta",
         phone: "0812-2888-0820",
         footerMessage: "Matur nuwun sampun rawuh!\\nNikmati slow-bar & kopi hangat di Kawatan Solo.",
@@ -228,7 +228,7 @@ async function main() {
         {
           id: "prod-kopsus",
           categoryId: "cat-esp",
-          name: "Es Kopi Rahardjo (Aren)",
+          name: "Es Kopi Aren",
           basePriceRp: 24000,
           isActive: true,
           variants: []
@@ -292,7 +292,7 @@ async function main() {
       // Keranjang aktif
       const cart = [
         { productId: "prod-escobar", variantId: "var-esc-reg", productName: "08.20 Escobar", variantName: "Regular", unitPriceRp: 38000, qty: 1 },
-        { productId: "prod-kopsus", variantId: null, productName: "Es Kopi Rahardjo (Aren)", variantName: null, unitPriceRp: 24000, qty: 2 }
+        { productId: "prod-kopsus", variantId: null, productName: "Es Kopi Aren", variantName: null, unitPriceRp: 24000, qty: 2 }
       ];
       localStorage.setItem("pos.cart.v1", JSON.stringify(cart));
       return true;
