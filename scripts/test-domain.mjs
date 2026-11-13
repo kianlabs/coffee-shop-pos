@@ -382,6 +382,53 @@ console.log("\n[11] refund");
   const truncatedLine = receipt.line(longLeft, "Rp100.000");
   check("line panjang dibatasi 32 karakter", truncatedLine.length, 32);
   check("left panjang dipotong dengan elipsis", truncatedLine.includes("…"), true);
+
+  check("wrapText kosong", receipt.wrapText(""), []);
+  check("wrapText per kata", receipt.wrapText("Jl. Mawar No. 1 Surakarta Jawa Tengah", 20), [
+    "Jl. Mawar No. 1",
+    "Surakarta Jawa",
+    "Tengah",
+  ]);
+  check("wrapText kata terlalu panjang dipatah", receipt.wrapText("abcdefghij", 4), ["abcd", "efgh", "ij"]);
+  const wrapAll = receipt.wrapText("kata ".repeat(60) + "x".repeat(70));
+  check("wrapText tidak melebihi 32 karakter", wrapAll.every((l) => l.length <= 32), true);
+
+  const sampleOrder = {
+    id: "ord-12345678",
+    receiptNumber: "R-001",
+    idempotencyKey: "k1",
+    status: "completed",
+    lines: [{ productName: "Es Kopi Aren", variantName: null, qty: 1, unitPriceRp: 24000, lineTotalRp: 24000 }],
+    subtotalRp: 24000,
+    discountRp: 0,
+    taxRp: 0,
+    serviceChargeRp: 0,
+    roundingRp: 0,
+    totalRp: 24000,
+    payment: { method: "cash", amountRp: 25000 },
+    changeRp: 1000,
+    notes: null,
+    createdAt: "2026-11-13T03:00:00.000Z",
+  };
+  const plain = receipt.renderReceiptText(sampleOrder, { storeName: "Kedai Contoh" }).split("\n");
+  check("struk tanpa profil: footer Terima kasih", plain.some((l) => l.trim() === "Terima kasih"), true);
+  check("struk tanpa alamat/NPWP", plain.some((l) => l.includes("NPWP")), false);
+  const rich = receipt
+    .renderReceiptText(sampleOrder, {
+      storeName: "Kedai Contoh",
+      storeAddress: "Jl. Mawar No. 1 Surakarta Jawa Tengah",
+      storeNpwp: "01.234.567.8-901.000",
+      receiptHeader: "Buka setiap hari",
+      receiptFooter: "Sampai jumpa lagi",
+    })
+    .split("\n");
+  check("struk memuat alamat", rich.some((l) => l.includes("Jl. Mawar No. 1")), true);
+  check("struk memuat NPWP", rich.some((l) => l.includes("NPWP: 01.234.567.8-901.000")), true);
+  check("struk memuat header", rich.some((l) => l.includes("Buka setiap hari")), true);
+  check("footer kustom menggantikan Terima kasih", rich.some((l) => l.includes("Terima kasih")), false);
+  check("footer kustom tercetak", rich.some((l) => l.includes("Sampai jumpa lagi")), true);
+  check("semua baris struk <= 32 karakter", rich.every((l) => l.length <= 32), true);
+  check("nama toko di baris pertama", rich[0].trim(), "Kedai Contoh");
 }
 
 {
@@ -400,7 +447,8 @@ console.log("\n[Store_Profile]");
   const sp = storeProfile;
   const png = "data:image/png;base64,iVBORw0KGgo=";
   check("nilai awal netral", sp.profileFromRows([]), sp.DEFAULT_STORE_PROFILE);
-  check("nama awal bukan identitas klien", /rahardjo/i.test(JSON.stringify(sp.DEFAULT_STORE_PROFILE)), false);
+  check("profil awal netral: hanya nama bawaan terisi", Object.entries(sp.DEFAULT_STORE_PROFILE).filter(([, v]) => v !== "").map(([k]) => k), ["name"]);
+  check("nama bawaan netral", sp.DEFAULT_STORE_PROFILE.name, "Nama Toko");
   const full = {
     name: "Kedai Contoh",
     address: "Jl. Mawar No. 1",

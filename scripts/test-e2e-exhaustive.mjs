@@ -390,6 +390,40 @@ async function main() {
     check("Layar Laporan memuat 5 kartu KPI", (await evalJs("document.querySelectorAll('.stat-card').length")) === 5);
     check("State tren kosong tampil benar setelah transaksi di-void (zero-sales state)", await evalJs("!!document.querySelector('.trend-empty')"));
 
+    console.log("\n[TEST 7] Profil Toko: simpan di Pengaturan, bertahan setelah reload");
+    const openSettings = `(() => {
+      const nav = [...document.querySelectorAll('.nav-item')].find(b => b.textContent.includes('Setelan'));
+      nav?.click();
+    })()`;
+    const fieldValue = (label) => `(() => {
+      const l = [...document.querySelectorAll('label')].find(x => x.textContent.trim() === ${JSON.stringify(label)});
+      return l?.querySelector('input')?.value ?? null;
+    })()`;
+    await evalJs(openSettings);
+    check("Layar Pengaturan terbuka dengan kolom profil toko", await waitFor(`${fieldValue("Alamat")} !== null`));
+    await evalJs(`(() => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      const fill = (label, value) => {
+        const l = [...document.querySelectorAll('label')].find(x => x.textContent.trim() === label);
+        const input = l.querySelector('input');
+        setter.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      };
+      fill('Nama toko', 'Kedai Uji Profil');
+      fill('Alamat', 'Jl. Melati No. 7');
+      fill('Teks bawah struk', 'Sampai jumpa');
+    })()`);
+    await evalJs(`[...document.querySelectorAll('button')].find(b => b.textContent.includes('Simpan pengaturan'))?.click()`);
+    check("Pengaturan disimpan tanpa error", await waitFor("document.body.innerText.includes('Pengaturan disimpan.')"));
+    check("Header memakai nama toko baru", await waitFor("document.querySelector('.topbar-sub')?.textContent.includes('Kedai Uji Profil')"));
+
+    await reload();
+    check("Nama toko baru bertahan setelah reload", await waitFor("document.querySelector('.topbar-sub')?.textContent.includes('Kedai Uji Profil')", 10000));
+    await evalJs(openSettings);
+    await waitFor(`${fieldValue("Alamat")} !== null`);
+    check("Alamat bertahan setelah reload", await waitFor(`${fieldValue("Alamat")} === 'Jl. Melati No. 7'`, 10000));
+    check("Teks bawah struk bertahan setelah reload", (await evalJs(fieldValue("Teks bawah struk"))) === "Sampai jumpa");
+
     const filteredErrors = consoleErrors.filter(
       (e) => !/favicon|net::ERR_|Failed to load resource/i.test(e),
     );
