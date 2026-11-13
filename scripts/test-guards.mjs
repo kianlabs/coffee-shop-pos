@@ -109,5 +109,31 @@ withRepo({ tracked: { "src/a.ts": "x\n" }, staged: { ".kiro/a.md": "x\n" } }, (d
 withRepo({ tracked: { "src/a.ts": "x\n" }, staged: { "src/b.ts": "y\n" } }, (d) =>
   check("--staged dengan file biasa lulus", run("check-no-ai-files.mjs", d, ["--staged"]), 0));
 
+console.log("\n[Guard] check-changelog");
+const GOOD_LOG = [
+  "# Changelog", "", "## [Unreleased]", "", "### Added", "- next thing", "",
+  "## [1.1.0] - 2026-02-01", "", "### Fixed", "- a bug", "",
+  "## [1.0.0] - 2026-01-01", "", "### Added", "- first release", "",
+].join("\n");
+withRepo({ tracked: { "CHANGELOG.md": GOOD_LOG } }, (d) => {
+  check("format valid lulus", run("check-changelog.mjs", d), 0);
+  check("tag dengan entri lulus", run("check-changelog.mjs", d, ["--tag=v1.1.0"]), 0);
+  check("tag tanpa entri gagal", run("check-changelog.mjs", d, ["--tag=v2.0.0"]), 1);
+  check("tag salah format gagal", run("check-changelog.mjs", d, ["--tag=1.1.0"]), 1);
+  check("tag berisi karakter shell gagal", run("check-changelog.mjs", d, ["--tag=v1.1.0$(id)"]), 1);
+});
+withRepo({ tracked: { "CHANGELOG.md": GOOD_LOG.replace("## [Unreleased]", "## [Next]") } }, (d) =>
+  check("tanpa [Unreleased] gagal", run("check-changelog.mjs", d), 1));
+withRepo({ tracked: { "CHANGELOG.md": GOOD_LOG.replace("### Fixed", "### Tested") } }, (d) =>
+  check("kategori tidak valid gagal", run("check-changelog.mjs", d), 1));
+withRepo({ tracked: { "CHANGELOG.md": GOOD_LOG.replace("2026-02-01", "2026-02-30") } }, (d) =>
+  check("tanggal mustahil gagal", run("check-changelog.mjs", d), 1));
+withRepo({ tracked: { "CHANGELOG.md": GOOD_LOG.replace("- a bug", "") } }, (d) =>
+  check("entri rilis kosong gagal untuk tag", run("check-changelog.mjs", d, ["--tag=v1.1.0"]), 1));
+withRepo({ tracked: { "CHANGELOG.md": GOOD_LOG.replace("## [1.1.0] - 2026-02-01", "## [0.9.0] - 2026-02-01") } }, (d) =>
+  check("urutan versi salah gagal", run("check-changelog.mjs", d), 1));
+withRepo({ tracked: { "src/a.ts": "x\n" } }, (d) =>
+  check("tanpa CHANGELOG gagal", run("check-changelog.mjs", d), 1));
+
 console.log(`\n=== GUARD ${fail === 0 ? `LULUS (${pass})` : `${fail} GAGAL dari ${pass + fail}`} ===`);
 process.exit(fail === 0 ? 0 : 1);

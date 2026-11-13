@@ -12,7 +12,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/test-domain.mjs && node scripts/test-guards.mjs",
-    "check": "node scripts/check-brand.mjs && node scripts/check-no-apk.mjs && node scripts/check-no-ai-files.mjs && node scripts/check-readme-links.mjs",
+    "check": "node scripts/check-brand.mjs && node scripts/check-no-apk.mjs && node scripts/check-no-ai-files.mjs && node scripts/check-readme-links.mjs && node scripts/check-changelog.mjs",
     "smoke:ui": "node scripts/smoke-ui.mjs",
     "test:e2e": "node scripts/test-e2e-exhaustive.mjs",
     "ota:pack": "node scripts/package-ota.mjs",

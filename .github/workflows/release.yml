@@ -17,6 +17,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Require a CHANGELOG entry for this tag
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: node scripts/check-changelog.mjs "--tag=${RELEASE_TAG}"
+
       - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
