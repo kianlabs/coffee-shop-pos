@@ -22,6 +22,7 @@ execFileSync(
     "src/domain/recipe.ts",
     "src/domain/semver.ts",
     "src/domain/storeProfile.ts",
+    "src/data/orderStore.ts",
     "src/data/settings.ts",
     "src/data/receipt.ts",
     "--ignoreConfig",
@@ -48,6 +49,7 @@ const units = require(path.join(OUT, "domain/units.js"));
 const recipeDomain = require(path.join(OUT, "domain/recipe.js"));
 const semver = require(path.join(OUT, "domain/semver.js"));
 const storeProfile = require(path.join(OUT, "domain/storeProfile.js"));
+const orderStore = require(path.join(OUT, "data/orderStore.js"));
 const receipt = require(path.join(OUT, "data/receipt.js"));
 
 let pass = 0;
@@ -440,6 +442,56 @@ console.log("\n[11] refund");
   check("v0.9.9 < 1.0.0", semver.isNewerVersion("v0.9.9", "1.0.0"), false);
   check("v1.0.0 < 1.0.1", semver.isNewerVersion("v1.0.0", "1.0.1"), false);
   check("v1.2 > 1.1.9", semver.isNewerVersion("v1.2", "1.1.9"), true);
+}
+
+console.log("\n[orderStore] order cacat tidak menjatuhkan aplikasi dan tidak hilang");
+{
+  const mem = new Map();
+  globalThis.localStorage = {
+    getItem: (k) => (mem.has(k) ? mem.get(k) : null),
+    setItem: (k, v) => void mem.set(k, String(v)),
+    removeItem: (k) => void mem.delete(k),
+  };
+  const good = (id) => ({
+    id,
+    receiptNumber: `R-${id}`,
+    idempotencyKey: `k-${id}`,
+    status: "completed",
+    lines: [{ productId: "p", variantId: null, productName: "Kopi", variantName: null, unitPriceRp: 10000, qty: 1, lineTotalRp: 10000, discountRp: 0, netTotalRp: 10000 }],
+    subtotalRp: 10000, discountRp: 0, taxRp: 0, serviceChargeRp: 0, roundingRp: 0, totalRp: 10000,
+    payment: { method: "cash", amountRp: 10000, paidAt: "2026-11-13T03:00:00.000Z" },
+    changeRp: 0, notes: null, createdAt: "2026-11-13T03:00:00.000Z",
+  });
+  const noPayment = { ...good("bad-1"), payment: undefined };
+  const badStatus = { ...good("bad-2"), status: "weird" };
+  const badMethod = { ...good("bad-3"), payment: { method: "crypto", amountRp: 1, paidAt: "x" } };
+  const noLines = { ...good("bad-4"), lines: [] };
+  const notObject = "garbage";
+  const stored = [good("ok-1"), noPayment, badStatus, good("ok-2"), badMethod, noLines, notObject, null];
+  const raw = JSON.stringify({ schemaVersion: 1, orders: stored });
+  mem.set("pos.orders.v1", raw);
+
+  const loaded = orderStore.loadOrders();
+  check("hanya order yang terbaca dikembalikan", loaded.map((o) => o.id), ["ok-1", "ok-2"]);
+  check("semua order terbaca punya payment.method", loaded.every((o) => typeof o.payment.method === "string"), true);
+  check("pembacaan tidak mengubah data utama", mem.get("pos.orders.v1"), raw);
+  const quarantine = () => JSON.parse(mem.get("pos.orders.quarantine.v1") ?? "[]");
+  check("6 order cacat masuk karantina", quarantine().length, 6);
+  orderStore.loadOrders();
+  check("baca ulang tidak menggandakan karantina", quarantine().length, 6);
+
+  orderStore.voidOrder("ok-1");
+  const afterWrite = JSON.parse(mem.get("pos.orders.v1")).orders;
+  check("setelah tulis ulang, daftar utama hanya berisi order valid", afterWrite.map((o) => o.id), ["ok-1", "ok-2"]);
+  check("order cacat tetap utuh di karantina setelah tulis ulang", quarantine().length, 6);
+  check("isi order cacat tidak berubah di karantina", quarantine().some((q) => q && q.id === "bad-2" && q.status === "weird"), true);
+
+  mem.set("pos.orders.v1", JSON.stringify({ schemaVersion: 1, orders: [good("only")] }));
+  mem.delete("pos.orders.quarantine.v1");
+  check("data bersih: tidak ada karantina baru", (orderStore.loadOrders(), mem.has("pos.orders.quarantine.v1")), false);
+  mem.set("pos.orders.v1", "{rusak");
+  check("JSON rusak mengembalikan daftar kosong", orderStore.loadOrders(), []);
+  delete globalThis.localStorage;
 }
 
 console.log("\n[Store_Profile]");

@@ -424,6 +424,26 @@ async function main() {
     check("Alamat bertahan setelah reload", await waitFor(`${fieldValue("Alamat")} === 'Jl. Melati No. 7'`, 10000));
     check("Teks bawah struk bertahan setelah reload", (await evalJs(fieldValue("Teks bawah struk"))) === "Sampai jumpa");
 
+    console.log("\n[TEST 8] Order cacat di localStorage tidak menjatuhkan aplikasi");
+    // Suntik dua order cacat (tanpa payment, status asing) bersama data yang ada.
+    await evalJs(`(() => {
+      const key = "pos.orders.v1";
+      const store = JSON.parse(localStorage.getItem(key) || '{"schemaVersion":1,"orders":[]}');
+      store.orders.push({ id: "bad-no-payment", receiptNumber: "R-X", status: "completed", lines: [], createdAt: new Date().toISOString() });
+      store.orders.push({ id: "bad-status", status: "weird" });
+      localStorage.setItem(key, JSON.stringify(store));
+    })()`);
+    await reload();
+    for (const view of ["Riwayat", "Laporan"]) {
+      await evalJs(`(() => {
+        const nav = [...document.querySelectorAll('.nav-item')].find(b => b.textContent.includes(${JSON.stringify(view)}));
+        nav?.click();
+      })()`);
+      await wait(700);
+      check(`Layar ${view} tetap tampil (tanpa layar error)`, await evalJs("!document.body.innerText.includes('Aplikasi berhenti karena error')"));
+    }
+    check("Order cacat dikarantina, bukan dibuang", await evalJs(`JSON.parse(localStorage.getItem("pos.orders.quarantine.v1") || "[]").length >= 2`));
+
     const filteredErrors = consoleErrors.filter(
       (e) => !/favicon|net::ERR_|Failed to load resource/i.test(e),
     );
