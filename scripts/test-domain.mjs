@@ -21,6 +21,7 @@ execFileSync(
     "src/domain/units.ts",
     "src/domain/recipe.ts",
     "src/domain/semver.ts",
+    "src/domain/storeProfile.ts",
     "src/data/settings.ts",
     "src/data/receipt.ts",
     "--ignoreConfig",
@@ -46,6 +47,7 @@ const sales = require(path.join(OUT, "domain/sales.js"));
 const units = require(path.join(OUT, "domain/units.js"));
 const recipeDomain = require(path.join(OUT, "domain/recipe.js"));
 const semver = require(path.join(OUT, "domain/semver.js"));
+const storeProfile = require(path.join(OUT, "domain/storeProfile.js"));
 const receipt = require(path.join(OUT, "data/receipt.js"));
 
 let pass = 0;
@@ -393,6 +395,33 @@ console.log("\n[11] refund");
   check("v1.2 > 1.1.9", semver.isNewerVersion("v1.2", "1.1.9"), true);
 }
 
+console.log("\n[Store_Profile]");
+{
+  const sp = storeProfile;
+  const png = "data:image/png;base64,iVBORw0KGgo=";
+  check("nilai awal netral", sp.profileFromRows([]), sp.DEFAULT_STORE_PROFILE);
+  check("nama awal bukan identitas klien", /rahardjo/i.test(JSON.stringify(sp.DEFAULT_STORE_PROFILE)), false);
+  const full = {
+    name: "Kedai Contoh",
+    address: "Jl. Mawar No. 1",
+    npwp: "01.234.567.8-901.000",
+    logoB64: png,
+    receiptHeader: "Selamat datang",
+    receiptFooter: "Terima kasih",
+  };
+  check("baca-tulis bolak-balik", sp.profileFromRows(sp.profileToRows(full)), full);
+  check("profileToRows memuat 6 kunci", sp.profileToRows(full).map((r) => r.key), [
+    "toko.nama", "toko.alamat", "toko.npwp", "toko.logo_b64", "struk.header", "struk.footer",
+  ]);
+  check("baris tak dikenal diabaikan", sp.profileFromRows([{ key: "lain.x", value: "z" }]), sp.DEFAULT_STORE_PROFILE);
+  check("nama kosong kembali ke default", sp.sanitizeStoreProfile({ name: "   " }).name, "Nama Toko");
+  check("karakter kontrol dibuang", sp.sanitizeStoreProfile({ name: "A\u001bB\nC\u007f" }).name, "ABC");
+  check("nama dibatasi 100 karakter", sp.sanitizeStoreProfile({ name: "x".repeat(150) }).name.length, 100);
+  check("logo bukan PNG dikosongkan", sp.sanitizeStoreProfile({ logoB64: "data:text/html;base64,AAAA" }).logoB64, "");
+  check("logo terlalu besar dikosongkan", sp.sanitizeStoreProfile({ logoB64: `data:image/png;base64,${"A".repeat(400_001)}` }).logoB64, "");
+  check("logo PNG valid dipertahankan", sp.sanitizeStoreProfile({ logoB64: png }).logoB64, png);
+  check("tipe bukan string ditolak", sp.sanitizeStoreProfile({ address: 123, npwp: null }).address, "");
+}
 rmSync(OUT, { recursive: true, force: true });
 console.log(`\n=== ${fail === 0 ? `SEMUA LULUS (${pass})` : `${fail} GAGAL dari ${pass + fail}`} ===`);
 process.exit(fail === 0 ? 0 : 1);
