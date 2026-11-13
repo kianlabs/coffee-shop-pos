@@ -39,5 +39,34 @@ android/build/
 .idea/
 .vscode/
 
+# AI assistant instructions, specs, and local state (never commit)
 .kilocode
 .kilo/
+.kiro/
+.claude/
+.cursor/
+.windsurf/
+.continue/
+.gemini/
+.codex/
+.roo/
+.agents/
+.agent/
+.junie/
+.trae/
+.amazonq/
+.copilot/
+.cline/
+.github/instructions/
+.github/prompts/
+.github/chatmodes/
+.github/copilot-instructions.md
+.cursorrules
+.windsurfrules
+.clinerules
+.roorules
+.aider*
+CLAUDE.md
+AGENTS.md
+GEMINI.md
+QWEN.md
