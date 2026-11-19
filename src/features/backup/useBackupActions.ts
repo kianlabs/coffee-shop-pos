@@ -11,7 +11,7 @@ import {
 import { errorMessage, notify } from "@/lib/notify";
 import { useAppStore } from "@/stores/appStore";
 
-export type BackupKind = "plain" | "encrypted";
+type BackupKind = "plain" | "encrypted";
 
 /** Order count from the exported JSON; falls back to the orders in memory. */
 function countOrders(json: string): number {

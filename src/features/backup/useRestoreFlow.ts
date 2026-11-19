@@ -4,7 +4,7 @@ import { repo } from "@/data/orderRepo";
 import { errorMessage, notify } from "@/lib/notify";
 import { useAppStore } from "@/stores/appStore";
 
-export type RestoreStep =
+type RestoreStep =
   | { kind: "idle" }
   | { kind: "passphrase"; fileName: string; text: string }
   | { kind: "confirm"; fileName: string; json: string; currentCount: number };

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { rangeFor, type Preset } from "@/domain/sales";
 
-export type QuickPreset = Exclude<Preset, "custom">;
+type QuickPreset = Exclude<Preset, "custom">;
 
 export const PRESETS: ReadonlyArray<{ value: QuickPreset; label: string }> = [
   { value: "today", label: "Hari ini" },

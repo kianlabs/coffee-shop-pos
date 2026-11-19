@@ -49,7 +49,7 @@ interface PurchaseInput {
   costRp: number;
 }
 
-export type PurchasePlan =
+type PurchasePlan =
   | { ok: true; convertedQty: number; costPerBaseUnit: number }
   | { ok: false; error: string };
 
@@ -106,7 +106,7 @@ interface AdjustInput {
   reason: string;
 }
 
-export type AdjustPlan = { ok: true; convertedDelta: number } | { ok: false; error: string };
+type AdjustPlan = { ok: true; convertedDelta: number } | { ok: false; error: string };
 
 export function planAdjust({ ingredientName, baseUnit, inputUnit, delta, reason }: AdjustInput): AdjustPlan {
   if (ingredientName === null) return { ok: false, error: "Pilih bahan yang mau dikoreksi." };

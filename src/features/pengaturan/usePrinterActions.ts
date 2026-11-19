@@ -10,7 +10,7 @@ import {
 import { errorMessage, notify } from "@/lib/notify";
 import { useAppStore } from "@/stores/appStore";
 
-export interface PrinterActions {
+interface PrinterActions {
   printer: PrinterStatus;
   devices: PrinterDevice[];
   /** True after the first scan, so an empty list can say "nothing paired". */

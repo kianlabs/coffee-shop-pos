@@ -17,7 +17,7 @@ export function modeLabel(mode: VariantHppMode): string {
 }
 
 /** HPP shown in the editor; mirrors `resolveHpp` (recipe falls back to manual). */
-export function draftHpp(mode: HppMode, manualRp: number, recipePerUnitRp: number | null): number {
+function draftHpp(mode: HppMode, manualRp: number, recipePerUnitRp: number | null): number {
   if (mode === "manual") return Math.max(0, Math.trunc(manualRp));
   if (mode === "recipe") {
     if (recipePerUnitRp !== null && recipePerUnitRp > 0) return recipePerUnitRp;
@@ -26,7 +26,7 @@ export function draftHpp(mode: HppMode, manualRp: number, recipePerUnitRp: numbe
   return 0;
 }
 
-export function hppNote(mode: HppMode, manualRp: number, recipePerUnitRp: number | null): string | null {
+function hppNote(mode: HppMode, manualRp: number, recipePerUnitRp: number | null): string | null {
   if (mode === "recipe" && recipePerUnitRp === null) {
     return "Resep belum ada — angka manual dipakai sebagai cadangan.";
   }

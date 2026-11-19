@@ -2,14 +2,14 @@ import { useState, type Dispatch, type SetStateAction } from "react";
 
 type Flat = object;
 
-export function shallowEqual<T extends Flat>(a: T, b: T): boolean {
+function shallowEqual<T extends Flat>(a: T, b: T): boolean {
   if (a === b) return true;
   const keys = Object.keys(a) as (keyof T)[];
   if (keys.length !== Object.keys(b).length) return false;
   return keys.every((key) => Object.is(a[key], b[key]));
 }
 
-export interface DraftState<T> {
+interface DraftState<T> {
   draft: T;
   setDraft: Dispatch<SetStateAction<T>>;
   dirty: boolean;

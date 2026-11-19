@@ -1,7 +1,7 @@
 import { STORE_PROFILE_LIMITS } from "@/domain/storeProfile";
 
 /** Thermal 58 mm printers print 384 dots per line. */
-export const LOGO_MAX_WIDTH = 384;
+const LOGO_MAX_WIDTH = 384;
 
 function readAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {

@@ -24,7 +24,7 @@ function writeJson(key: string, value: unknown): void {
   }
 }
 
-export function isCartLine(value: unknown): value is CartLine {
+function isCartLine(value: unknown): value is CartLine {
   if (!value || typeof value !== "object") return false;
   const o = value as Record<string, unknown>;
   return (

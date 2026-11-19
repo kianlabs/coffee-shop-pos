@@ -12,7 +12,7 @@ function isPaymentMethod(value: string): value is PaymentMethod {
   return value in METHOD_COLOR;
 }
 
-export interface PaymentShare extends PaymentBreakdownItem {
+interface PaymentShare extends PaymentBreakdownItem {
   label: string;
   colorClass: string;
   /** Percent of the period's completed total, 0–100. */
