@@ -7,6 +7,7 @@
 // Pakai: `npm run build && npm run smoke:ui`
 // Butuh Chromium/Chrome. Set CHROMIUM_BIN bila lokasinya tidak standar.
 import { spawn, spawnSync } from "node:child_process";
+import WebSocket from "ws";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -310,7 +311,7 @@ async function main() {
     }
     browser?.kill("SIGTERM");
     preview.kill("SIGTERM");
-    rmSync(profileDir, { recursive: true, force: true });
+    rmSync(profileDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   }
 }
 

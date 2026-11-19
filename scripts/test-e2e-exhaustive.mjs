@@ -9,6 +9,7 @@
 // Butuh Chromium/Chrome. Set CHROMIUM_BIN bila lokasinya tidak standar.
 // Keluar dengan kode 1 bila ada pengecekan gagal atau terjadi error fatal.
 import { spawn, spawnSync } from "node:child_process";
+import WebSocket from "ws";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -756,7 +757,7 @@ async function main() {
     browser?.kill("SIGKILL");
     preview.kill("SIGKILL");
     try {
-      rmSync(profileDir, { recursive: true, force: true });
+      rmSync(profileDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
     } catch {
       // abaikan
     }
