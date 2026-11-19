@@ -12,6 +12,7 @@ import {
 import type { Catalog, CatalogProduct, ProductVariant } from "@/domain/catalog";
 import type { Rupiah } from "@/domain/money";
 import { errorMessage, notify } from "@/lib/notify";
+import { t } from "@/services/i18n";
 import { useAppStore } from "@/stores/appStore";
 
 export interface ProductInput {
@@ -39,7 +40,6 @@ export interface CatalogActions {
 type LoadStatus = "loading" | "ready" | "error";
 
 const EMPTY_CATALOG: Catalog = { categories: [], products: [] };
-const LOAD_FALLBACK = "Gagal memuat menu.";
 
 export function useCatalogEditor() {
   const bumpCatalog = useAppStore((s) => s.bumpCatalog);
@@ -57,7 +57,7 @@ export function useCatalogEditor() {
       },
       (e: unknown) => {
         if (cancelled) return;
-        notify.error(errorMessage(e, LOAD_FALLBACK));
+        notify.error(errorMessage(e, t("menu.error.load")));
         setStatus("error");
       },
     );
@@ -72,7 +72,7 @@ export function useCatalogEditor() {
       setCatalog(await loadCatalog());
       return true;
     } catch (e) {
-      notify.error(errorMessage(e, LOAD_FALLBACK));
+      notify.error(errorMessage(e, t("menu.error.load")));
       return false;
     }
   }, []);
@@ -93,7 +93,7 @@ export function useCatalogEditor() {
         notify.success(success);
         return true;
       } catch (e) {
-        notify.error(errorMessage(e, "Gagal menyimpan."));
+        notify.error(errorMessage(e, t("menu.error.save")));
         return false;
       } finally {
         setPending((n) => n - 1);
@@ -104,16 +104,28 @@ export function useCatalogEditor() {
 
   const actions = useMemo<CatalogActions>(
     () => ({
-      addCategory: (name) => run(() => createCategory(name), "Kategori ditambahkan."),
+      addCategory: (name) => run(() => createCategory(name), t("menu.toast.categoryAdded")),
       addProduct: (input) =>
-        run(() => createProduct(input), `Menu "${input.name.trim()}" ditambahkan.`),
-      saveProduct: (id, input) => run(() => updateProduct(id, input), "Menu diperbarui."),
+        run(
+          () => createProduct(input),
+          t("menu.toast.productAdded", { nama: input.name.trim() }),
+        ),
+      saveProduct: (id, input) =>
+        run(() => updateProduct(id, input), t("menu.toast.productUpdated")),
       removeProduct: (product) =>
-        run(() => deactivateProduct(product.id), `Menu "${product.name}" dihapus.`),
+        run(
+          () => deactivateProduct(product.id),
+          t("menu.toast.productDeleted", { nama: product.name }),
+        ),
       addVariant: (productId, name, priceDeltaRp) =>
-        run(() => createVariant(productId, name, Math.trunc(priceDeltaRp)), "Varian ditambahkan."),
-      saveVariant: (id, patch) => run(() => updateVariant(id, patch), "Varian diperbarui."),
-      removeVariant: (variant) => run(() => deactivateVariant(variant.id), "Varian dihapus."),
+        run(
+          () => createVariant(productId, name, Math.trunc(priceDeltaRp)),
+          t("menu.toast.variantAdded"),
+        ),
+      saveVariant: (id, patch) =>
+        run(() => updateVariant(id, patch), t("menu.toast.variantUpdated")),
+      removeVariant: (variant) =>
+        run(() => deactivateVariant(variant.id), t("menu.toast.variantDeleted")),
     }),
     [run],
   );

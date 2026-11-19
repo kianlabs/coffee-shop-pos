@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { decryptJson, isEncryptedBackup } from "@/data/cryptoBackup";
 import { repo } from "@/data/orderRepo";
 import { errorMessage, notify } from "@/lib/notify";
+import { t } from "@/services/i18n";
 import { useAppStore } from "@/stores/appStore";
 
 type RestoreStep =
@@ -36,7 +37,7 @@ export function useRestoreFlow(onRestored: () => void) {
         }
         await askConfirm(file.name, text);
       } catch (e) {
-        notify.error(errorMessage(e, "Restore gagal."));
+        notify.error(errorMessage(e, t("backup.restore.failed")));
       }
     },
     [askConfirm],
@@ -46,7 +47,7 @@ export function useRestoreFlow(onRestored: () => void) {
     async (passphrase: string) => {
       if (step.kind !== "passphrase" || decrypting) return;
       if (!passphrase) {
-        notify.error("Restore dibatalkan: passphrase kosong.");
+        notify.error(t("backup.restore.passphraseEmpty"));
         return;
       }
       setDecrypting(true);
@@ -55,7 +56,7 @@ export function useRestoreFlow(onRestored: () => void) {
         await askConfirm(step.fileName.replace(/\.enc\.json$/, ".json"), plain);
       } catch (e) {
         // The dialog stays open so the passphrase can be corrected.
-        notify.error(errorMessage(e, "Gagal mendekripsi backup."));
+        notify.error(errorMessage(e, t("backup.restore.decryptFailed")));
       } finally {
         setDecrypting(false);
       }
@@ -66,7 +67,7 @@ export function useRestoreFlow(onRestored: () => void) {
   const cancelPassphrase = useCallback(() => {
     if (decrypting) return;
     setStep(IDLE);
-    notify.info("Restore dibatalkan.");
+    notify.info(t("backup.restore.cancelled"));
   }, [decrypting]);
 
   const cancelConfirm = useCallback(() => setStep(IDLE), []);
@@ -81,10 +82,10 @@ export function useRestoreFlow(onRestored: () => void) {
       const store = useAppStore.getState();
       store.bumpOrders();
       onRestored();
-      notify.success(`Restore berhasil — ${count} order dimuat.`);
+      notify.success(t("backup.restore.success", { jumlah: count }));
       store.setView("riwayat");
     } catch (e) {
-      notify.error(errorMessage(e, "Restore gagal."));
+      notify.error(errorMessage(e, t("backup.restore.failed")));
     } finally {
       setRestoring(false);
     }

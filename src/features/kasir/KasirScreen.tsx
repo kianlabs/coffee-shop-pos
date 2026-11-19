@@ -1,6 +1,7 @@
 import { ShoppingCart } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { formatRupiah } from "@/domain/money";
+import { t } from "@/services/i18n";
 import { useCartTotals } from "@/stores/useCartTotals";
 import { CartPanel } from "./CartPanel";
 import { CatalogPanel } from "./CatalogPanel";
@@ -25,7 +26,7 @@ export function KasirScreen() {
   return (
     <div className="flex h-full min-h-0">
       <CatalogPanel />
-      <aside aria-label="Keranjang pesanan" className="hidden w-[380px] shrink-0 border-l lg:block xl:w-[420px]">
+      <aside aria-label={t("kasir.cart.region")} className="hidden w-[380px] shrink-0 border-l lg:block xl:w-[420px]">
         <CartPanel totals={totals} onPay={openPayment} />
       </aside>
 
@@ -38,15 +39,15 @@ export function KasirScreen() {
         >
           <span className="flex items-center gap-2 font-medium">
             <ShoppingCart className="size-5" aria-hidden />
-            Lihat pesanan · {totals.itemCount} item
+            {t("kasir.cart.viewBar", { count: totals.itemCount })}
           </span>
           <span className="text-lg font-semibold tabular-nums">{formatRupiah(totals.total)}</span>
         </button>
       )}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-md lg:hidden">
-          <SheetTitle className="sr-only">Keranjang pesanan</SheetTitle>
-          <SheetDescription className="sr-only">Item pesanan, total, dan tombol bayar.</SheetDescription>
+          <SheetTitle className="sr-only">{t("kasir.cart.region")}</SheetTitle>
+          <SheetDescription className="sr-only">{t("kasir.cart.sheetDescription")}</SheetDescription>
           <CartPanel totals={totals} onPay={openPayment} />
         </SheetContent>
       </Sheet>

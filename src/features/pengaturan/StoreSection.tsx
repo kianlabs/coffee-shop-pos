@@ -2,6 +2,7 @@ import { Store } from "lucide-react";
 import { type Dispatch, type SetStateAction } from "react";
 import { Separator } from "@/components/ui/separator";
 import { type StoreProfile } from "@/domain/storeProfile";
+import { t } from "@/services/i18n";
 import { LogoField } from "./LogoField";
 import { SettingsSection } from "./SettingsSection";
 import { StoreProfileFields } from "./StoreProfileFields";
@@ -15,8 +16,8 @@ export function StoreSection({ profile, setProfile }: StoreSectionProps) {
   return (
     <SettingsSection
       icon={Store}
-      title="Toko"
-      description="Identitas toko yang tampil di struk."
+      title={t("pengaturan.store.title")}
+      description={t("pengaturan.store.description")}
       testId="settings-toko"
     >
       <StoreProfileFields draft={profile} onChange={setProfile} />

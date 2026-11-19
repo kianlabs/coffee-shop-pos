@@ -2,6 +2,7 @@ import { RefreshCw, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { t } from "@/services/i18n";
 import { HISTORY_FILTERS, type HistoryFilter } from "./historyUtils";
 
 interface HistoryToolbarProps {
@@ -24,7 +25,7 @@ export function HistoryToolbar({
   return (
     <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
       <div className="grid min-w-0 flex-1 gap-1.5">
-        <Label htmlFor="riwayat-search">Cari riwayat</Label>
+        <Label htmlFor="riwayat-search">{t("riwayat.toolbar.searchLabel")}</Label>
         <div className="relative">
           <Search
             className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
@@ -33,7 +34,7 @@ export function HistoryToolbar({
           <Input
             id="riwayat-search"
             type="search"
-            placeholder="Cari nomor struk atau menu…"
+            placeholder={t("riwayat.toolbar.searchPlaceholder")}
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
             className="pr-11 pl-9"
@@ -43,7 +44,7 @@ export function HistoryToolbar({
               type="button"
               variant="ghost"
               size="icon"
-              aria-label="Hapus pencarian"
+              aria-label={t("riwayat.toolbar.clearSearch")}
               className="absolute top-0 right-0"
               onClick={() => onQueryChange("")}
             >
@@ -53,8 +54,12 @@ export function HistoryToolbar({
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <div role="group" aria-label="Filter status" className="flex flex-wrap gap-2">
-          {HISTORY_FILTERS.map(([value, label]) => (
+        <div
+          role="group"
+          aria-label={t("riwayat.toolbar.filterGroup")}
+          className="flex flex-wrap gap-2"
+        >
+          {HISTORY_FILTERS.map(([value, key]) => (
             <Button
               key={value}
               type="button"
@@ -63,13 +68,13 @@ export function HistoryToolbar({
               aria-pressed={filter === value}
               onClick={() => onFilterChange(value)}
             >
-              {label}
+              {t(key)}
             </Button>
           ))}
         </div>
         <Button type="button" variant="outline" loading={reloading} onClick={onReload}>
           {!reloading && <RefreshCw aria-hidden />}
-          Muat ulang
+          {t("riwayat.toolbar.reload")}
         </Button>
       </div>
     </div>

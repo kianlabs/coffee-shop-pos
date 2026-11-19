@@ -11,6 +11,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { MoneyInput } from "@/components/MoneyInput";
 import { formatRupiah } from "@/domain/money";
+import { t } from "@/services/i18n";
 import { useCartStore } from "@/stores/cartStore";
 
 interface AdjustmentsDialogProps {
@@ -38,12 +39,14 @@ export function AdjustmentsDialog({ open, onOpenChange, subtotal }: AdjustmentsD
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>Diskon & pajak</DialogTitle>
-          <DialogDescription>Nominal dalam Rupiah untuk pesanan ini. Subtotal {formatRupiah(subtotal)}.</DialogDescription>
+          <DialogTitle>{t("kasir.adjust.title")}</DialogTitle>
+          <DialogDescription>
+            {t("kasir.adjust.description", { subtotal: formatRupiah(subtotal) })}
+          </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4">
           <div className="grid gap-2">
-            <Label htmlFor="cart-discount">Diskon (Rp)</Label>
+            <Label htmlFor="cart-discount">{t("kasir.adjust.discountLabel")}</Label>
             <MoneyInput
               id="cart-discount"
               value={draft.discount}
@@ -51,10 +54,14 @@ export function AdjustmentsDialog({ open, onOpenChange, subtotal }: AdjustmentsD
               aria-invalid={tooMuch || undefined}
               onChange={(v) => setDraft((d) => ({ ...d, discount: Math.max(0, v) }))}
             />
-            {tooMuch && <p className="text-sm text-destructive">Diskon melebihi subtotal {formatRupiah(subtotal)}.</p>}
+            {tooMuch && (
+              <p className="text-sm text-destructive">
+                {t("kasir.adjust.tooMuch", { subtotal: formatRupiah(subtotal) })}
+              </p>
+            )}
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="cart-tax">Pajak (Rp)</Label>
+            <Label htmlFor="cart-tax">{t("kasir.adjust.taxLabel")}</Label>
             <MoneyInput
               id="cart-tax"
               value={draft.tax}
@@ -64,7 +71,7 @@ export function AdjustmentsDialog({ open, onOpenChange, subtotal }: AdjustmentsD
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("kasir.common.cancel")}</Button>
           <Button
             disabled={tooMuch}
             onClick={() => {
@@ -73,7 +80,7 @@ export function AdjustmentsDialog({ open, onOpenChange, subtotal }: AdjustmentsD
               onOpenChange(false);
             }}
           >
-            Terapkan
+            {t("kasir.adjust.apply")}
           </Button>
         </DialogFooter>
       </DialogContent>

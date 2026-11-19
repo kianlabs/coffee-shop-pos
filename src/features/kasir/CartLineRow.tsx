@@ -2,6 +2,7 @@ import { memo } from "react";
 import { Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatRupiah } from "@/domain/money";
+import { t } from "@/services/i18n";
 import { type CartLine } from "@/stores/cartTypes";
 
 interface CartLineRowProps {
@@ -24,18 +25,18 @@ export const CartLineRow = memo(function CartLineRow({ line, onChangeQty }: Cart
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label={`Kurangi 1 ${label}`}
+          aria-label={t("kasir.line.decrease", { label })}
           onClick={() => onChangeQty(line.productId, line.variantId, -1)}
         >
           <Minus />
         </Button>
-        <span className="w-7 text-center text-sm font-semibold tabular-nums" aria-label={`Jumlah ${line.qty}`}>
+        <span className="w-7 text-center text-sm font-semibold tabular-nums" aria-label={t("kasir.line.qty", { qty: line.qty })}>
           {line.qty}
         </span>
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label={`Tambah 1 ${label}`}
+          aria-label={t("kasir.line.increase", { label })}
           onClick={() => onChangeQty(line.productId, line.variantId, 1)}
         >
           <Plus />

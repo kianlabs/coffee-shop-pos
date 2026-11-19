@@ -1,4 +1,5 @@
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { t } from "@/services/i18n";
 import { DateField } from "./DateField";
 import { isQuickPreset, PRESETS, type ReportRange } from "./useReportRange";
 
@@ -13,7 +14,7 @@ export function PeriodSelector({ range }: PeriodSelectorProps) {
       <ToggleGroup
         type="single"
         variant="outline"
-        aria-label="Periode laporan"
+        aria-label={t("laporan.period.label")}
         value={selected}
         onValueChange={(value) => {
           if (isQuickPreset(value)) range.setPreset(value);
@@ -26,20 +27,20 @@ export function PeriodSelector({ range }: PeriodSelectorProps) {
             value={p.value}
             className="h-11 w-full px-1 lg:w-auto text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground sm:px-4 sm:text-sm"
           >
-            {p.label}
+            {t(p.labelKey)}
           </ToggleGroupItem>
         ))}
       </ToggleGroup>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:w-auto">
         <DateField
           id="laporan-mulai"
-          label="Mulai"
+          label={t("laporan.period.start")}
           value={range.customStart}
           onChange={range.setCustomStart}
         />
         <DateField
           id="laporan-selesai"
-          label="Selesai"
+          label={t("laporan.period.end")}
           value={range.customEnd}
           onChange={range.setCustomEnd}
         />

@@ -3,6 +3,7 @@ import { useRef, useState, type ChangeEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { errorMessage, notify } from "@/lib/notify";
+import { t } from "@/services/i18n";
 import { LogoPreview } from "./LogoPreview";
 import { resizeLogoFile } from "./logoImage";
 
@@ -26,9 +27,9 @@ export function LogoField({ logoB64, onChange }: LogoFieldProps) {
       const b64 = await resizeLogoFile(file);
       setPreviewFailed(false);
       onChange(b64);
-      notify.success("Logo dipilih. Tekan \"Simpan pengaturan\" untuk menerapkan.");
+      notify.success(t("pengaturan.logo.selected"));
     } catch (err) {
-      notify.error(errorMessage(err, "Gagal memproses gambar logo."));
+      notify.error(errorMessage(err, t("pengaturan.logo.processFailed")));
     } finally {
       setBusy(false);
     }
@@ -37,20 +38,18 @@ export function LogoField({ logoB64, onChange }: LogoFieldProps) {
   function handleReset() {
     setPreviewFailed(false);
     onChange("");
-    notify.info("Logo dikembalikan ke bawaan.");
+    notify.info(t("pengaturan.logo.resetDone"));
   }
 
   return (
     <div className="flex flex-col gap-2" data-testid="settings-logo">
-      <Label htmlFor="store-logo">Logo struk</Label>
+      <Label htmlFor="store-logo">{t("pengaturan.logo.label")}</Label>
       <LogoPreview logoB64={logoB64} failed={previewFailed} onError={() => setPreviewFailed(true)} />
-      <p className="text-xs text-muted-foreground">
-        PNG atau JPEG. Gambar diperkecil otomatis ke lebar 384 piksel (printer 58 mm).
-      </p>
+      <p className="text-xs text-muted-foreground">{t("pengaturan.logo.hint")}</p>
       <input
         ref={inputRef}
         id="store-logo"
-        aria-label="Pilih file logo"
+        aria-label={t("pengaturan.logo.inputLabel")}
         type="file"
         accept="image/png, image/jpeg, image/webp"
         className="sr-only"
@@ -59,12 +58,12 @@ export function LogoField({ logoB64, onChange }: LogoFieldProps) {
       <div className="flex flex-wrap gap-2">
         <Button type="button" variant="outline" loading={busy} onClick={() => inputRef.current?.click()}>
           {!busy && <Upload aria-hidden />}
-          Pilih gambar logo
+          {t("pengaturan.logo.choose")}
         </Button>
         {logoB64 !== "" && (
           <Button type="button" variant="ghost" onClick={handleReset}>
             <RotateCcw aria-hidden />
-            Pakai logo bawaan
+            {t("pengaturan.logo.reset")}
           </Button>
         )}
       </div>

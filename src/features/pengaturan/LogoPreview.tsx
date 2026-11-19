@@ -1,4 +1,5 @@
 import { ImageIcon } from "lucide-react";
+import { t } from "@/services/i18n";
 
 interface LogoPreviewProps {
   logoB64: string;
@@ -16,13 +17,13 @@ export function LogoPreview({ logoB64, failed, onError }: LogoPreviewProps) {
       ) : (
         <img
           src={logoB64 || DEFAULT_LOGO}
-          alt="Pratinjau logo struk"
+          alt={t("pengaturan.logo.previewAlt")}
           className="max-h-[70px] max-w-[160px] object-contain"
           onError={onError}
         />
       )}
       <span className="text-xs text-muted-foreground">
-        {logoB64 ? "Memakai logo sendiri" : "Memakai logo bawaan"}
+        {logoB64 ? t("pengaturan.logo.usingCustom") : t("pengaturan.logo.usingDefault")}
       </span>
     </div>
   );

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { t } from "@/services/i18n";
 import { AboutSection } from "./AboutSection";
 import { KasirSection } from "./KasirSection";
 import { PrinterSection } from "./PrinterSection";
@@ -26,8 +27,8 @@ export function PengaturanScreen() {
   return (
     <div className="flex flex-col gap-4" data-testid="pengaturan-screen">
       <div>
-        <h1 className="text-xl font-semibold">Pengaturan</h1>
-        <p className="text-sm text-muted-foreground">Atur toko, kasir, shift, printer, dan keamanan.</p>
+        <h1 className="text-xl font-semibold">{t("pengaturan.screen.title")}</h1>
+        <p className="text-sm text-muted-foreground">{t("pengaturan.screen.description")}</p>
       </div>
       <Tabs
         value={tab}

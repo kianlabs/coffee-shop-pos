@@ -1,5 +1,6 @@
 import { Store } from "lucide-react";
 import { cn } from "cn";
+import { t } from "@/services/i18n";
 import { NAV_ITEMS, type View } from "./navigation";
 import { APP_NAME } from "./brand";
 import { useNavBadges } from "./useNavBadges";
@@ -15,7 +16,7 @@ export function Sidebar({ view, onNavigate }: SidebarProps) {
   const badges = useNavBadges();
   return (
     <nav
-      aria-label="Navigasi utama"
+      aria-label={t("app.nav.ariaLabel")}
       data-testid="nav"
       className="hidden w-22 shrink-0 flex-col border-r bg-card md:flex"
     >
@@ -48,7 +49,7 @@ export function Sidebar({ view, onNavigate }: SidebarProps) {
                 )}
               >
                 <Icon className="size-5" aria-hidden />
-                <span data-testid="nav-label">{item.label}</span>
+                <span data-testid="nav-label">{t(item.labelKey)}</span>
                 <NavBadge count={badges[item.view]} className="absolute top-1 right-2" />
               </button>
             </li>

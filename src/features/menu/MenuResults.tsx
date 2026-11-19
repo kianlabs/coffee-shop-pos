@@ -1,6 +1,7 @@
 import { Coffee, Plus, SearchX } from "lucide-react";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Button } from "@/components/ui/button";
+import { t } from "@/services/i18n";
 import type { ProductRowData } from "./catalogView";
 import { ProductList } from "./ProductList";
 
@@ -17,12 +18,12 @@ export function MenuResults({ totalProducts, rows, onOpen, onAddFirst, onClearFi
     return (
       <EmptyState
         icon={Coffee}
-        title="Belum ada menu"
-        description="Daftar menu masih kosong. Tambahkan menu pertama beserta harganya, layar kasir langsung menampilkannya."
+        title={t("menu.results.emptyTitle")}
+        description={t("menu.results.emptyDescription")}
         action={
           <Button data-testid="menu-add-first" onClick={onAddFirst}>
             <Plus aria-hidden />
-            Tambah menu pertama
+            {t("menu.results.addFirst")}
           </Button>
         }
       />
@@ -32,11 +33,11 @@ export function MenuResults({ totalProducts, rows, onOpen, onAddFirst, onClearFi
     return (
       <EmptyState
         icon={SearchX}
-        title="Menu tidak ditemukan"
-        description="Coba kata kunci atau kategori lain."
+        title={t("menu.results.notFoundTitle")}
+        description={t("menu.results.notFoundDescription")}
         action={
           <Button variant="outline" onClick={onClearFilters}>
-            Hapus pencarian
+            {t("menu.search.clear")}
           </Button>
         }
       />

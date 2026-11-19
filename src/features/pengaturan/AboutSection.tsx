@@ -2,6 +2,7 @@ import { Download, Info, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { checkForAppUpdate } from "@/services/appUpdater";
+import { t } from "@/services/i18n";
 import { errorMessage, notify } from "@/lib/notify";
 import { useAppStore } from "@/stores/appStore";
 import { APP_VERSION, GITHUB_REPO } from "@/version";
@@ -20,7 +21,7 @@ export function AboutSection() {
 
   async function handleCheck() {
     setChecking(true);
-    setMessage("Menghubungkan ke GitHub Releases…");
+    setMessage(t("pengaturan.about.checking"));
     try {
       const res = await checkForAppUpdate(GITHUB_REPO, APP_VERSION, true);
       if (res.hasUpdate && res.update) {
@@ -30,9 +31,9 @@ export function AboutSection() {
         return;
       }
       setAvailableUpdate(null);
-      setMessage(res.message || "Aplikasi sudah versi terbaru.");
+      setMessage(res.message || t("pengaturan.about.upToDate"));
     } catch (e) {
-      const msg = errorMessage(e, "Gagal memeriksa pembaruan.");
+      const msg = errorMessage(e, t("pengaturan.about.checkFailed"));
       setMessage(msg);
       notify.error(msg);
     } finally {
@@ -43,14 +44,14 @@ export function AboutSection() {
   return (
     <SettingsSection
       icon={Info}
-      title="Tentang aplikasi"
-      description="Versi aplikasi dan pembaruan tanpa memasang ulang APK."
+      title={t("pengaturan.about.title")}
+      description={t("pengaturan.about.description")}
       testId="settings-tentang"
     >
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-        <dt className="text-muted-foreground">Versi aplikasi</dt>
+        <dt className="text-muted-foreground">{t("pengaturan.about.version")}</dt>
         <dd className="text-right font-semibold" data-testid="app-version">v{APP_VERSION}</dd>
-        <dt className="text-muted-foreground">Sumber rilis</dt>
+        <dt className="text-muted-foreground">{t("pengaturan.about.source")}</dt>
         <dd className="text-right">GitHub Releases</dd>
       </dl>
       {message && (
@@ -61,18 +62,20 @@ export function AboutSection() {
       {availableUpdate && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
           <div>
-            <p className="font-semibold">Versi {availableUpdate.tagName} tersedia</p>
-            <p className="text-sm text-muted-foreground">Ukuran: {formatMb(availableUpdate.sizeBytes)}</p>
+            <p className="font-semibold">{t("pengaturan.about.updateAvailable", { tag: availableUpdate.tagName })}</p>
+            <p className="text-sm text-muted-foreground">
+              {t("pengaturan.about.size", { ukuran: formatMb(availableUpdate.sizeBytes) })}
+            </p>
           </div>
           <Button type="button" onClick={() => setUpdateDialogOpen(true)}>
             <Download aria-hidden />
-            Lihat detail
+            {t("pengaturan.about.viewDetails")}
           </Button>
         </div>
       )}
       <Button type="button" variant="outline" className="w-full sm:w-fit" loading={checking} onClick={() => void handleCheck()}>
         {!checking && <RefreshCw aria-hidden />}
-        Periksa pembaruan
+        {t("pengaturan.about.check")}
       </Button>
     </SettingsSection>
   );

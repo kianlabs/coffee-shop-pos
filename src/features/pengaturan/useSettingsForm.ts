@@ -3,6 +3,7 @@ import { hashVoidPin, saveSettings, verifyVoidPin, type PosSettings } from "@/da
 import { saveStoreProfile } from "@/data/storeProfile";
 import { type StoreProfile } from "@/domain/storeProfile";
 import { errorMessage, notify } from "@/lib/notify";
+import { t } from "@/services/i18n";
 import { useAppStore } from "@/stores/appStore";
 import { checkSecurityChange, PIN_MAX_LENGTH } from "./securityRules";
 import { useDraft } from "./useDraft";
@@ -82,9 +83,9 @@ export function useSettingsForm(): SettingsForm {
       setProfileDraft(storedProfile);
       setNewPinRaw("");
       setCurrentPinRaw("");
-      notify.success("Pengaturan disimpan.");
+      notify.success(t("pengaturan.save.success"));
     } catch (e) {
-      notify.error(errorMessage(e, "Gagal menyimpan pengaturan."));
+      notify.error(errorMessage(e, t("pengaturan.save.failed")));
     } finally {
       setSaving(false);
     }

@@ -1,5 +1,6 @@
 import { formatRupiah } from "@/domain/money";
 import { type TopProduct } from "@/domain/sales";
+import { t } from "@/services/i18n";
 import { cn } from "cn";
 import { ReportSection } from "./ReportSection";
 
@@ -11,8 +12,8 @@ export function TopProductsCard({ products }: TopProductsCardProps) {
   return (
     <ReportSection
       id="laporan-terlaris"
-      title="Produk terlaris"
-      description="10 menu dengan qty terbanyak di rentang ini."
+      title={t("laporan.top.title")}
+      description={t("laporan.top.description")}
     >
       <ol className="divide-y">
         {products.map((p, i) => (
@@ -29,7 +30,7 @@ export function TopProductsCard({ products }: TopProductsCardProps) {
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{p.productName}</p>
               <p className="text-xs text-muted-foreground">
-                {p.qty} terjual · laba {formatRupiah(p.profitRp)}
+                {t("laporan.top.sub", { qty: p.qty, profit: formatRupiah(p.profitRp) })}
               </p>
             </div>
             <span className="shrink-0 text-sm font-semibold">{formatRupiah(p.grossRp)}</span>

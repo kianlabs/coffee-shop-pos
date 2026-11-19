@@ -1,4 +1,5 @@
 import { type PosSettings } from "@/data/settings";
+import { t } from "@/services/i18n";
 
 const PIN_MIN_LENGTH = 4;
 export const PIN_MAX_LENGTH = 32;
@@ -29,11 +30,11 @@ export async function checkSecurityChange(
   const stored = hasStoredPin(saved);
   const isSecurityChange = (saved.requireVoidPin && !draft.requireVoidPin) || pin !== "";
   if (stored && isSecurityChange) {
-    if (current === "") return "Masukkan PIN saat ini untuk memverifikasi perubahan keamanan.";
+    if (current === "") return t("pengaturan.security.currentRequired");
     const ok = await verifyPin(current, saved);
-    if (!ok) return "PIN saat ini salah. Perubahan pengaturan keamanan ditolak.";
+    if (!ok) return t("pengaturan.security.currentWrong");
   }
-  if (pin !== "" && pin.length < PIN_MIN_LENGTH) return "PIN void minimal 4 karakter.";
-  if (draft.requireVoidPin && pin === "" && !stored) return "PIN void wajib diisi bila PIN void aktif.";
+  if (pin !== "" && pin.length < PIN_MIN_LENGTH) return t("pengaturan.security.tooShort");
+  if (draft.requireVoidPin && pin === "" && !stored) return t("pengaturan.security.required");
   return null;
 }

@@ -3,11 +3,12 @@ import { rangeFor, type Preset } from "@/domain/sales";
 
 type QuickPreset = Exclude<Preset, "custom">;
 
-export const PRESETS: ReadonlyArray<{ value: QuickPreset; label: string }> = [
-  { value: "today", label: "Hari ini" },
-  { value: "yesterday", label: "Kemarin" },
-  { value: "thisWeek", label: "Minggu ini" },
-  { value: "last7", label: "7 hari" },
+/** Labels are i18n keys, resolved with `t()` at render time. */
+export const PRESETS: ReadonlyArray<{ value: QuickPreset; labelKey: string }> = [
+  { value: "today", labelKey: "laporan.preset.today" },
+  { value: "yesterday", labelKey: "laporan.preset.yesterday" },
+  { value: "thisWeek", labelKey: "laporan.preset.thisWeek" },
+  { value: "last7", labelKey: "laporan.preset.last7" },
 ];
 
 export function isQuickPreset(value: string): value is QuickPreset {

@@ -9,6 +9,7 @@ import {
   type PosSettings,
 } from "@/data/settings";
 import { notify } from "@/lib/notify";
+import { t } from "@/services/i18n";
 import { type ActionRequest } from "./historyUtils";
 
 const PIN_MAX_LENGTH = 32;
@@ -55,13 +56,11 @@ export function useVoidPin(
   function open(req: ActionRequest) {
     const seconds = lockoutSecondsLeft();
     if (seconds !== null) {
-      notify.error(
-        `Akses PIN terkunci karena ${MAX_PIN_ATTEMPTS}x salah. Tunggu ${seconds} detik lagi.`,
-      );
+      notify.error(t("riwayat.pin.lockedWait", { max: MAX_PIN_ATTEMPTS, seconds }));
       return;
     }
     if (settings.voidPinHash === "" || settings.voidPinSalt === "") {
-      notify.error("PIN void aktif tapi belum diisi di Pengaturan.");
+      notify.error(t("riwayat.pin.notConfigured"));
       return;
     }
     setRawInput("");
@@ -88,20 +87,18 @@ export function useVoidPin(
       const minutes = Math.round(PIN_LOCKOUT_MS / 60_000);
       reset();
       notify.error(
-        `PIN salah ${MAX_PIN_ATTEMPTS}x — akses ${req.action} dikunci selama ${minutes} menit.`,
+        t("riwayat.pin.lockedNotice", { max: MAX_PIN_ATTEMPTS, action: req.action, minutes }),
       );
       return;
     }
-    setError(`PIN salah (percobaan ${updated.attempts} dari ${MAX_PIN_ATTEMPTS}).`);
+    setError(t("riwayat.pin.wrong", { attempts: updated.attempts, max: MAX_PIN_ATTEMPTS }));
   }
 
   async function submit() {
     if (!request || verifying) return;
     const seconds = lockoutSecondsLeft();
     if (seconds !== null) {
-      setError(
-        `Akses terkunci karena ${MAX_PIN_ATTEMPTS}x salah. Coba lagi dalam ${seconds} detik.`,
-      );
+      setError(t("riwayat.pin.lockedRetry", { max: MAX_PIN_ATTEMPTS, seconds }));
       return;
     }
     const req = request;
@@ -117,7 +114,7 @@ export function useVoidPin(
       reset();
       onVerified(req);
     } catch {
-      setError("PIN tidak bisa diverifikasi. Coba lagi.");
+      setError(t("riwayat.pin.verifyFail"));
     } finally {
       setVerifying(false);
     }

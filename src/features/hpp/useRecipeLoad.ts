@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { loadIngredientOptions, loadRecipeForProduct, type IngredientOption } from "@/data/recipeRepo";
 import { errorMessage, notify } from "@/lib/notify";
+import { t } from "@/services/i18n";
 
 export interface DraftLine {
   /** Local React key; not saved. */
@@ -42,7 +43,7 @@ export function useRecipeLoad(
         }
       })
       .catch((e: unknown) => {
-        if (!cancelled) notify.error(errorMessage(e, "Gagal memuat resep."));
+        if (!cancelled) notify.error(errorMessage(e, t("hpp.recipe.loadFailed")));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

@@ -1,6 +1,7 @@
 import { formatRupiah } from "@/domain/money";
 import { type SalesTrend } from "@/domain/sales";
-import { TREND_UNIT_LABEL } from "./trendFormat";
+import { t } from "@/services/i18n";
+import { TREND_UNIT_KEY } from "./trendFormat";
 
 interface TrendTableProps {
   trend: SalesTrend;
@@ -10,12 +11,12 @@ interface TrendTableProps {
 export function TrendTable({ trend }: TrendTableProps) {
   return (
     <table className="sr-only">
-      <caption>Data omzet {TREND_UNIT_LABEL[trend.unit]}</caption>
+      <caption>{t("laporan.trend.tableCaption", { unit: t(TREND_UNIT_KEY[trend.unit]) })}</caption>
       <thead>
         <tr>
-          <th scope="col">Waktu</th>
-          <th scope="col">Omzet</th>
-          <th scope="col">Transaksi</th>
+          <th scope="col">{t("laporan.trend.colTime")}</th>
+          <th scope="col">{t("laporan.trend.colRevenue")}</th>
+          <th scope="col">{t("laporan.trend.colOrders")}</th>
         </tr>
       </thead>
       <tbody>

@@ -3,6 +3,7 @@ import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { formatRupiah } from "@/domain/money";
 import { formatQtyWithUnit } from "@/domain/units";
+import { t } from "@/services/i18n";
 import { STOCK_GRID_COLS } from "./layout";
 import { StockStatus } from "./StockStatus";
 import { type StockItem } from "./useStockData";
@@ -31,13 +32,13 @@ export function IngredientRowItem({ item, onPurchase, onAdjust }: IngredientRowI
       </div>
       <dl className="grid grid-cols-2 gap-2 text-sm lg:contents">
         <div className="min-w-0">
-          <dt className="text-muted-foreground lg:sr-only">Stok</dt>
+          <dt className="text-muted-foreground lg:sr-only">{t("stok.stock.label")}</dt>
           <dd className={item.stockQty < 0 ? "font-medium text-destructive" : "font-medium"}>
             {formatQtyWithUnit(item.stockQty, item.baseUnit)}
           </dd>
         </div>
         <div className="min-w-0">
-          <dt className="text-muted-foreground lg:sr-only">Harga beli terakhir</dt>
+          <dt className="text-muted-foreground lg:sr-only">{t("stok.lastCost.label")}</dt>
           <dd>
             {formatRupiah(item.lastCostRp)}
             <span className="text-muted-foreground">/{item.baseUnit}</span>
@@ -47,11 +48,11 @@ export function IngredientRowItem({ item, onPurchase, onAdjust }: IngredientRowI
       <div className="flex flex-wrap gap-2 lg:justify-end">
         <Button variant="outline" size="sm" className="flex-1 lg:flex-none" onClick={() => onPurchase(item.id)}>
           <PackagePlus aria-hidden />
-          Catat pembelian
+          {t("stok.purchase.button")}
         </Button>
         <Button variant="outline" size="sm" className="flex-1 lg:flex-none" onClick={() => onAdjust(item.id)}>
           <ClipboardCheck aria-hidden />
-          Koreksi stok
+          {t("stok.adjust.button")}
         </Button>
       </div>
     </li>

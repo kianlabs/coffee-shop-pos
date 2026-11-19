@@ -2,6 +2,7 @@ import { Search, X } from "lucide-react";
 import { cn } from "cn";
 import { Input } from "@/components/ui/input";
 import { type Category } from "@/domain/catalog";
+import { t } from "@/services/i18n";
 
 interface CatalogToolbarProps {
   search: string;
@@ -27,8 +28,8 @@ export function CatalogToolbar({
         <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
         <Input
           type="search"
-          aria-label="Cari menu"
-          placeholder="Cari menu atau varian…"
+          aria-label={t("kasir.search.label")}
+          placeholder={t("kasir.search.placeholder")}
           value={search}
           onChange={(e) => onSearch(e.target.value)}
           className="bg-card pr-11 pl-9 [&::-webkit-search-cancel-button]:hidden"
@@ -36,7 +37,7 @@ export function CatalogToolbar({
         {search !== "" && (
           <button
             type="button"
-            aria-label="Hapus pencarian"
+            aria-label={t("kasir.search.clear")}
             onClick={() => onSearch("")}
             className="absolute top-1/2 right-1 flex size-9 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-accent"
           >
@@ -46,13 +47,13 @@ export function CatalogToolbar({
       </div>
       {searching ? (
         <p className="text-sm text-muted-foreground" aria-live="polite">
-          {resultCount} menu cocok dengan “{search.trim()}”
+          {t("kasir.search.resultCount", { count: resultCount, query: search.trim() })}
         </p>
       ) : (
         categories.length > 0 && (
           <div
             role="group"
-            aria-label="Kategori menu"
+            aria-label={t("kasir.catalog.categories")}
             className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:-mx-6 md:px-6"
           >
             {categories.map((category) => {

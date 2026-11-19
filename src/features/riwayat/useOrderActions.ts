@@ -4,6 +4,7 @@ import { type Order } from "@/domain/orders";
 import { printOrder } from "@/lib/printing";
 import { errorMessage, notify } from "@/lib/notify";
 import { useAppStore } from "@/stores/appStore";
+import { t } from "@/services/i18n";
 import { type ActionRequest, type OrderAction } from "./historyUtils";
 import { useVoidPin, type VoidPinState } from "./useVoidPin";
 
@@ -47,13 +48,15 @@ export function useOrderActions(): OrderActions {
     try {
       if (req.action === "refund") {
         setOrders(await repo.refund(req.orderId));
-        notify.success(`Order ${req.label} berhasil di-refund.`);
+        notify.success(t("riwayat.toast.refundOk", { label: req.label }));
       } else {
         setOrders(await repo.void(req.orderId));
-        notify.success(`Order ${req.label} dibatalkan (void).`);
+        notify.success(t("riwayat.toast.voidOk", { label: req.label }));
       }
     } catch (e) {
-      notify.error(errorMessage(e, req.action === "refund" ? "Refund gagal." : "Void gagal."));
+      const fallback =
+        req.action === "refund" ? t("riwayat.toast.refundFail") : t("riwayat.toast.voidFail");
+      notify.error(errorMessage(e, fallback));
     } finally {
       setBusyId(null);
     }
@@ -66,12 +69,10 @@ export function useOrderActions(): OrderActions {
     const label = order.receiptNumber;
     try {
       const printerName = await printOrder(order, storeProfile, posSettings);
-      notify.success(`Struk ${label} terkirim ke ${printerName}.`);
+      notify.success(t("riwayat.toast.printOk", { label, printer: printerName }));
     } catch (e) {
-      const msg = errorMessage(e, "Cetak gagal.");
-      notify.error(
-        `Cetak gagal: ${msg} Order ${label} tetap tersimpan — cetak ulang tidak membuat order baru.`,
-      );
+      const msg = errorMessage(e, t("riwayat.toast.printFallback"));
+      notify.error(t("riwayat.toast.printFail", { msg, label }));
     } finally {
       setBusyId(null);
     }
@@ -83,9 +84,9 @@ export function useOrderActions(): OrderActions {
     try {
       setOrders(await repo.load(200));
       setDbReady(true);
-      notify.success("Riwayat dimuat ulang.");
+      notify.success(t("riwayat.toast.reloaded"));
     } catch (e) {
-      notify.error(errorMessage(e, "Gagal memuat order."));
+      notify.error(errorMessage(e, t("riwayat.toast.reloadFail")));
     } finally {
       setReloading(false);
     }

@@ -1,4 +1,5 @@
 import { unitPriceFor, type Catalog } from "@/domain/catalog";
+import { t } from "@/services/i18n";
 import { type CartLine } from "@/stores/cartTypes";
 
 /**
@@ -9,16 +10,19 @@ export function staleCartLineMessage(lines: CartLine[], catalog: Catalog): strin
   for (const item of lines) {
     const product = catalog.products.find((p) => p.id === item.productId);
     if (!product || product.isActive === false) {
-      return `Menu "${item.productName}" sudah dinonaktifkan di katalog. Harap perbarui keranjang.`;
+      return t("kasir.stale.menuInactive", { name: item.productName });
     }
     const variant = item.variantId
       ? (product.variants ?? []).find((v) => v.id === item.variantId)
       : null;
     if (item.variantId && (!variant || variant.isActive === false)) {
-      return `Varian "${item.variantName || "pilihan"}" pada menu "${item.productName}" sudah dinonaktifkan. Harap perbarui keranjang.`;
+      return t("kasir.stale.variantInactive", {
+        variant: item.variantName || t("kasir.stale.variantFallback"),
+        name: item.productName,
+      });
     }
     if (item.unitPriceRp !== unitPriceFor(product, variant ?? null)) {
-      return `Harga menu "${item.productName}" berubah di katalog. Harap perbarui keranjang.`;
+      return t("kasir.stale.priceChanged", { name: item.productName });
     }
   }
   return null;

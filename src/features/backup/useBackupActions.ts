@@ -9,6 +9,7 @@ import {
   type BackupRecord,
 } from "@/data/orderRepo";
 import { errorMessage, notify } from "@/lib/notify";
+import { t } from "@/services/i18n";
 import { useAppStore } from "@/stores/appStore";
 
 type BackupKind = "plain" | "encrypted";
@@ -57,8 +58,8 @@ async function backupPlain(): Promise<string> {
   const savedPath = await writeBackupFile(record.name, json);
   rememberBackup(record);
   return savedPath
-    ? `Backup tersimpan di ${savedPath} (${orderCount} order).`
-    : `Backup ${record.name} diunduh (${orderCount} order).`;
+    ? t("backup.plain.savedPath", { lokasi: savedPath, jumlah: orderCount })
+    : t("backup.plain.downloaded", { nama: record.name, jumlah: orderCount });
 }
 
 async function backupEncrypted(passphrase: string): Promise<string> {
@@ -69,8 +70,8 @@ async function backupEncrypted(passphrase: string): Promise<string> {
   const savedPath = await writeBackupFile(record.name, enc);
   rememberBackup(record);
   return savedPath
-    ? `Backup terenkripsi tersimpan di ${savedPath}.`
-    : `Backup terenkripsi ${record.name} diunduh.`;
+    ? t("backup.encrypted.savedPath", { lokasi: savedPath })
+    : t("backup.encrypted.downloaded", { nama: record.name });
 }
 
 /** Recent backups from the shared index (localStorage, max 20). */
@@ -87,7 +88,7 @@ export function useBackupActions(onSaved: () => void) {
     async (kind: BackupKind, passphrase: string) => {
       if (busy) return;
       if (kind === "encrypted" && !passphrase) {
-        notify.error("Isi passphrase dulu untuk backup terenkripsi.");
+        notify.error(t("backup.encrypted.passphraseRequired"));
         return;
       }
       setBusy(kind);
@@ -96,7 +97,8 @@ export function useBackupActions(onSaved: () => void) {
         onSaved();
         notify.success(msg);
       } catch (e) {
-        const fallback = kind === "plain" ? "Backup gagal." : "Backup terenkripsi gagal.";
+        const fallback =
+          kind === "plain" ? t("backup.plain.failed") : t("backup.encrypted.failed");
         notify.error(errorMessage(e, fallback));
       } finally {
         setBusy(null);

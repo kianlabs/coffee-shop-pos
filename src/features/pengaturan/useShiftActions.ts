@@ -4,6 +4,7 @@ import { repo } from "@/data/orderRepo";
 import { formatRupiah } from "@/domain/money";
 import { closeShift, openShift, summarizeShift, type Shift, type ShiftSummary } from "@/domain/shifts";
 import { errorMessage, notify } from "@/lib/notify";
+import { t } from "@/services/i18n";
 import { useAppStore } from "@/stores/appStore";
 
 /** Keeps the last close-shift summary while the app runs, as the old App state did. */
@@ -44,7 +45,7 @@ export function useShiftActions(): ShiftActions {
     (cashierName: string, openCashRp: number) => {
       setLastSummary(null);
       setShift(openShift(cashierName, openCashRp));
-      notify.success("Shift dibuka.");
+      notify.success(t("pengaturan.shift.opened"));
     },
     [setShift, setLastSummary],
   );
@@ -58,13 +59,20 @@ export function useShiftActions(): ShiftActions {
       const all = await repo.loadAll();
       const { shift: closed, summary: final } = closeShift(shift, all);
       setShift(null);
-      const openCash = shift.openCashRp > 0 ? ` (modal awal ${formatRupiah(shift.openCashRp)})` : "";
+      const modal = shift.openCashRp > 0 ? t("pengaturan.shift.openCashNote", { jumlah: formatRupiah(shift.openCashRp) }) : "";
       setLastSummary(
-        `Shift ${closed.cashierName || "(tanpa nama)"} ditutup: ${final.orderCount} order, omzet ${formatRupiah(final.grandTotalRp)}${openCash}.`,
+        t("pengaturan.shift.closedSummary", {
+          nama: closed.cashierName || t("pengaturan.common.noName"),
+          jumlah: final.orderCount,
+          omzet: formatRupiah(final.grandTotalRp),
+          modal,
+        }),
       );
-      notify.success(`Shift ditutup: ${final.orderCount} order, total ${formatRupiah(final.grandTotalRp)}.`);
+      notify.success(
+        t("pengaturan.shift.closed", { jumlah: final.orderCount, total: formatRupiah(final.grandTotalRp) }),
+      );
     } catch (e) {
-      notify.error(errorMessage(e, "Gagal menutup shift."));
+      notify.error(errorMessage(e, t("pengaturan.shift.closeFailed")));
     } finally {
       setClosing(false);
     }

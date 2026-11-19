@@ -1,6 +1,7 @@
 import { formatPct } from "@/domain/hppResolve";
 import { formatRupiah } from "@/domain/money";
 import { type PaymentBreakdownItem } from "@/domain/sales";
+import { t } from "@/services/i18n";
 import { cn } from "cn";
 import { paymentShares } from "./paymentMix";
 import { ReportSection } from "./ReportSection";
@@ -14,8 +15,8 @@ export function PaymentMixCard({ items }: PaymentMixCardProps) {
   return (
     <ReportSection
       id="laporan-metode-bayar"
-      title="Metode bayar"
-      description="Nominal transaksi bersih, bukan uang diterima."
+      title={t("laporan.payment.title")}
+      description={t("laporan.payment.description")}
     >
       <div data-testid="payment-mix-bar" aria-hidden className="flex h-3 w-full overflow-hidden rounded-full bg-muted">
         {shares.map((p) => (
@@ -32,7 +33,7 @@ export function PaymentMixCard({ items }: PaymentMixCardProps) {
                 <span className="text-sm font-semibold">{formatRupiah(p.totalRp)}</span>
               </div>
               <p className="text-xs text-muted-foreground">
-                {p.orderCount} transaksi · {formatPct(p.sharePct)} dari omzet
+                {t("laporan.payment.orders", { count: p.orderCount, share: formatPct(p.sharePct) })}
               </p>
             </div>
           </li>

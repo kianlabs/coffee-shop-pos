@@ -6,6 +6,7 @@ import { loadStoreProfile } from "@/data/storeProfile";
 import { countPendingOutbox, loadSyncMeta, loadSyncSettings, syncNow } from "@/data/sync";
 import { checkForAppUpdate, initAppUpdater } from "@/services/appUpdater";
 import { errorMessage, notify } from "@/lib/notify";
+import { t } from "@/services/i18n";
 import { useAppStore } from "@/stores/appStore";
 
 const SYNC_INTERVAL_MS = 60_000;
@@ -23,7 +24,7 @@ function useOrdersLoader() {
         useAppStore.getState().setDbReady(true);
       })
       .catch((e: unknown) => {
-        if (!cancelled) notify.error(errorMessage(e, "Gagal memuat order."));
+        if (!cancelled) notify.error(errorMessage(e, t("app.error.loadOrders")));
       });
     return () => {
       cancelled = true;

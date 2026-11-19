@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DEFAULT_SYNC_ENDPOINT } from "@/data/sync";
+import { t } from "@/services/i18n";
 import { PasswordInput } from "./PasswordInput";
 import { SectionHeader } from "./SectionHeader";
 import { SyncStatus } from "./SyncStatus";
@@ -17,8 +18,8 @@ export function SyncCard() {
       <SectionHeader
         id="sync-title"
         icon={Cloud}
-        title="Sync ke server"
-        description="Opsional: kirim data penjualan ke server untuk rekap online atau banyak perangkat. Kasir tetap jalan tanpa internet."
+        title={t("backup.sync.title")}
+        description={t("backup.sync.description")}
       />
       <CardContent className="flex flex-col gap-4">
         <SyncStatus meta={meta} />
@@ -30,7 +31,7 @@ export function SyncCard() {
           }}
         >
           <div className="flex flex-col gap-2">
-            <Label htmlFor="sync-endpoint">Endpoint</Label>
+            <Label htmlFor="sync-endpoint">{t("backup.sync.endpoint")}</Label>
             <Input
               id="sync-endpoint"
               value={settings.endpoint}
@@ -44,7 +45,7 @@ export function SyncCard() {
             />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="sync-apikey">API key</Label>
+            <Label htmlFor="sync-apikey">{t("backup.sync.apiKey")}</Label>
             <PasswordInput
               id="sync-apikey"
               value={settings.apiKey}
@@ -53,13 +54,13 @@ export function SyncCard() {
               data-testid="sync-apikey-input"
             />
             <p id="sync-apikey-hint" className="text-sm text-muted-foreground">
-              API key hanya disimpan selama aplikasi terbuka dan hilang saat aplikasi ditutup.
+              {t("backup.sync.apiKeyHint")}
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row md:col-span-2">
             <Button type="submit" variant="outline" data-testid="sync-save-btn">
               <Check aria-hidden />
-              Simpan
+              {t("backup.sync.save")}
             </Button>
             <Button
               type="button"
@@ -68,7 +69,7 @@ export function SyncCard() {
               data-testid="sync-now-btn"
             >
               {!syncing && <RefreshCw aria-hidden />}
-              {syncing ? "Sync…" : "Sync sekarang"}
+              {syncing ? t("backup.sync.syncing") : t("backup.sync.now")}
             </Button>
           </div>
         </form>

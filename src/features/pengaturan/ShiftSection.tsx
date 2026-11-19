@@ -1,4 +1,5 @@
 import { Clock } from "lucide-react";
+import { t } from "@/services/i18n";
 import { OpenShiftForm } from "./OpenShiftForm";
 import { RunningShift } from "./RunningShift";
 import { SettingsSection } from "./SettingsSection";
@@ -15,8 +16,8 @@ export function ShiftSection({ cashierName, cashierNameUnsaved }: ShiftSectionPr
   return (
     <SettingsSection
       icon={Clock}
-      title="Shift"
-      description="Rekap uang laci per sesi kasir."
+      title={t("pengaturan.shift.title")}
+      description={t("pengaturan.shift.description")}
       testId="settings-shift"
     >
       {actions.shift ? (
@@ -36,7 +37,7 @@ export function ShiftSection({ cashierName, cashierNameUnsaved }: ShiftSectionPr
       )}
       {actions.lastSummary && (
         <p className="rounded-md bg-muted p-3 text-sm" data-testid="shift-last-summary">
-          <span className="font-medium">Ringkasan terakhir:</span> {actions.lastSummary}
+          <span className="font-medium">{t("pengaturan.shift.lastSummaryLabel")}</span> {actions.lastSummary}
         </p>
       )}
     </SettingsSection>

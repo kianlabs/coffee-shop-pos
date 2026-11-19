@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/select";
 import type { Category } from "@/domain/catalog";
 import { formatRupiah } from "@/domain/money";
+import { t } from "@/services/i18n";
 
 export interface ProductDraft {
   name: string;
@@ -28,22 +29,22 @@ export function ProductFields({ draft, onChange, categories }: ProductFieldsProp
   return (
     <div className="grid gap-4">
       <div className="grid gap-2">
-        <Label htmlFor="product-name">Nama menu</Label>
+        <Label htmlFor="product-name">{t("menu.product.nameLabel")}</Label>
         <Input
           id="product-name"
           data-testid="product-name"
-          placeholder="mis. Kopi Susu"
+          placeholder={t("menu.product.namePlaceholder")}
           value={draft.name}
           onChange={(e) => onChange({ ...draft, name: e.target.value.slice(0, 80) })}
         />
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="grid content-start gap-2">
-          <Label htmlFor="product-price">Harga jual (Rp)</Label>
+          <Label htmlFor="product-price">{t("menu.product.priceLabel")}</Label>
           <MoneyInput
             id="product-price"
             data-testid="product-price"
-            placeholder="mis. 18.000"
+            placeholder={t("menu.product.pricePlaceholder")}
             value={draft.price}
             allowEmpty
             aria-invalid={draft.price < 0 || undefined}
@@ -51,15 +52,17 @@ export function ProductFields({ draft, onChange, categories }: ProductFieldsProp
           />
           {draft.price < 0 && (
             <p className="text-sm text-destructive" role="alert">
-              Harga tidak boleh negatif
+              {t("menu.product.priceNegative")}
             </p>
           )}
           {draft.price > 0 && (
-            <p className="text-sm text-muted-foreground">Harga jual: {formatRupiah(draft.price)}</p>
+            <p className="text-sm text-muted-foreground">
+              {t("menu.product.priceHint", { harga: formatRupiah(draft.price) })}
+            </p>
           )}
         </div>
         <div className="grid content-start gap-2">
-          <Label htmlFor="product-category">Kategori</Label>
+          <Label htmlFor="product-category">{t("menu.common.category")}</Label>
           <Select
             value={draft.categoryId}
             onValueChange={(categoryId) => onChange({ ...draft, categoryId })}
@@ -70,7 +73,13 @@ export function ProductFields({ draft, onChange, categories }: ProductFieldsProp
               data-testid="product-category"
               className="w-full"
             >
-              <SelectValue placeholder={noCategories ? "Belum ada kategori" : "Pilih kategori"} />
+              <SelectValue
+                placeholder={
+                  noCategories
+                    ? t("menu.product.categoryPlaceholderEmpty")
+                    : t("menu.product.categoryPlaceholder")
+                }
+              />
             </SelectTrigger>
             <SelectContent>
               {categories.map((c) => (
@@ -81,7 +90,7 @@ export function ProductFields({ draft, onChange, categories }: ProductFieldsProp
             </SelectContent>
           </Select>
           {noCategories && (
-            <p className="text-sm text-warning">Tambah kategori dulu lewat tombol Kategori.</p>
+            <p className="text-sm text-warning">{t("menu.product.needCategory")}</p>
           )}
         </div>
       </div>

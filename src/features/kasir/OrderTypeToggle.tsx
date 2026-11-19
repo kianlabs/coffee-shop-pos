@@ -1,17 +1,18 @@
 import { cn } from "cn";
+import { t } from "@/services/i18n";
 import { useCartStore } from "@/stores/cartStore";
 import { type OrderType } from "@/stores/cartTypes";
 
-const OPTIONS: Array<{ value: OrderType; label: string }> = [
-  { value: "dine-in", label: "Makan di tempat" },
-  { value: "take-away", label: "Bawa pulang" },
+const OPTIONS: Array<{ value: OrderType; labelKey: string }> = [
+  { value: "dine-in", labelKey: "kasir.orderType.dineIn" },
+  { value: "take-away", labelKey: "kasir.orderType.takeAway" },
 ];
 
 export function OrderTypeToggle() {
   const orderType = useCartStore((s) => s.orderType);
   const setOrderType = useCartStore((s) => s.setOrderType);
   return (
-    <div role="group" aria-label="Tipe pesanan" className="grid grid-cols-2 gap-1 rounded-md bg-muted p-1">
+    <div role="group" aria-label={t("kasir.orderType.region")} className="grid grid-cols-2 gap-1 rounded-md bg-muted p-1">
       {OPTIONS.map((option) => {
         const active = option.value === orderType;
         return (
@@ -25,7 +26,7 @@ export function OrderTypeToggle() {
               active ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground",
             )}
           >
-            {option.label}
+            {t(option.labelKey)}
           </button>
         );
       })}

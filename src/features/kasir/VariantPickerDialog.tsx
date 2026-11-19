@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/dialog";
 import { unitPriceFor, variantsOf, type CatalogProduct, type ProductVariant } from "@/domain/catalog";
 import { formatRupiah } from "@/domain/money";
+import { t } from "@/services/i18n";
 
 interface VariantPickerDialogProps {
   product: CatalogProduct | null;
@@ -21,15 +22,15 @@ export function VariantPickerDialog({ product, onClose, onPick }: VariantPickerD
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{product?.name}</DialogTitle>
-          <DialogDescription>Pilih varian untuk ditambahkan ke pesanan.</DialogDescription>
+          <DialogDescription>{t("kasir.variant.description")}</DialogDescription>
         </DialogHeader>
-        <div className="grid gap-2" role="group" aria-label={`Varian ${product?.name ?? ""}`}>
+        <div className="grid gap-2" role="group" aria-label={t("kasir.variant.group", { name: product?.name ?? "" })}>
           {product &&
             variants.map((variant) => (
               <button
                 key={variant.id}
                 type="button"
-                aria-label={`Tambah ${product.name} ${variant.name}`}
+                aria-label={t("kasir.variant.add", { product: product.name, variant: variant.name })}
                 onClick={() => onPick(product, variant)}
                 className="flex min-h-14 items-center justify-between rounded-lg border px-4 text-left outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50"
               >

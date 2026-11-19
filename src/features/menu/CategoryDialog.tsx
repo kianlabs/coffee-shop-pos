@@ -11,6 +11,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { Category } from "@/domain/catalog";
+import { t } from "@/services/i18n";
 
 interface CategoryDialogProps {
   open: boolean;
@@ -43,33 +44,31 @@ export function CategoryDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto" data-testid="category-dialog">
         <DialogHeader>
-          <DialogTitle>Kategori menu</DialogTitle>
-          <DialogDescription>
-            Kategori mengelompokkan menu di layar kasir.
-          </DialogDescription>
+          <DialogTitle>{t("menu.category.dialogTitle")}</DialogTitle>
+          <DialogDescription>{t("menu.category.dialogDescription")}</DialogDescription>
         </DialogHeader>
         {categories.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Belum ada kategori.</p>
+          <p className="text-sm text-muted-foreground">{t("menu.category.empty")}</p>
         ) : (
-          <ul className="divide-y rounded-md border" aria-label="Daftar kategori">
+          <ul className="divide-y rounded-md border" aria-label={t("menu.category.listAria")}>
             {categories.map((c) => (
               <li key={c.id} className="flex items-center gap-2 px-3 py-2.5 text-sm">
                 <Tag className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                 <span className="min-w-0 flex-1 truncate">{c.name}</span>
                 <span className="shrink-0 text-muted-foreground tabular-nums">
-                  {productCounts.get(c.id) ?? 0} menu
+                  {t("menu.category.productCount", { jumlah: productCounts.get(c.id) ?? 0 })}
                 </span>
               </li>
             ))}
           </ul>
         )}
         <form className="grid gap-2" onSubmit={(e) => void handleSubmit(e)}>
-          <Label htmlFor="new-category-name">Nama kategori baru</Label>
+          <Label htmlFor="new-category-name">{t("menu.category.newNameLabel")}</Label>
           <div className="flex gap-2">
             <Input
               id="new-category-name"
               data-testid="new-category-name"
-              placeholder="mis. Teh"
+              placeholder={t("menu.category.namePlaceholder")}
               value={name}
               onChange={(e) => setName(e.target.value.slice(0, 60))}
             />
@@ -80,7 +79,7 @@ export function CategoryDialog({
               disabled={name.trim() === ""}
             >
               <Plus aria-hidden />
-              Simpan
+              {t("menu.common.save")}
             </Button>
           </div>
         </form>

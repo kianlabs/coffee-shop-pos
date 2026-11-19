@@ -2,6 +2,7 @@ import { useState } from "react";
 import { LayoutGrid } from "lucide-react";
 import { cn } from "cn";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { t } from "@/services/i18n";
 import { NAV_ITEMS, type NavItem, type View } from "./navigation";
 import { useNavBadges } from "./useNavBadges";
 import { NavBadge } from "./NavBadge";
@@ -30,7 +31,7 @@ export function MobileNav({ view, onNavigate }: MobileNavProps) {
 
   return (
     <nav
-      aria-label="Navigasi utama"
+      aria-label={t("app.nav.ariaLabel")}
       data-testid="mobile-nav"
       className="fixed inset-x-0 bottom-0 z-40 flex border-t bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
     >
@@ -46,13 +47,13 @@ export function MobileNav({ view, onNavigate }: MobileNavProps) {
         className={cn(itemClass, secondaryActive ? "text-foreground" : "text-muted-foreground")}
       >
         <LayoutGrid className="size-5" aria-hidden />
-        Lainnya
+        {t("app.nav.more")}
         <NavBadge count={badges.backup} className="absolute top-1 right-[calc(50%-1.25rem)]" />
       </button>
       <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
         <SheetContent side="bottom" className="rounded-t-xl pb-[env(safe-area-inset-bottom)]">
           <SheetHeader>
-            <SheetTitle>Menu lainnya</SheetTitle>
+            <SheetTitle>{t("app.nav.moreTitle")}</SheetTitle>
           </SheetHeader>
           <div className="grid grid-cols-3 gap-2 px-4 pb-4">
             {SECONDARY.map((item) => (
@@ -82,7 +83,7 @@ function MobileNavButton({ item, active, onClick }: ItemProps) {
       className={cn(itemClass, active ? "text-foreground" : "text-muted-foreground")}
     >
       <Icon className={cn("size-5", active && "stroke-[2.5]")} aria-hidden />
-      <span data-testid="nav-label">{item.label}</span>
+      <span data-testid="nav-label">{t(item.labelKey)}</span>
     </button>
   );
 }
@@ -101,7 +102,7 @@ function MoreItem({ item, active, onClick }: ItemProps) {
       )}
     >
       <Icon className="size-5" aria-hidden />
-      <span data-testid="nav-label">{item.label}</span>
+      <span data-testid="nav-label">{t(item.labelKey)}</span>
     </button>
   );
 }

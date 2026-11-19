@@ -3,6 +3,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { type PrinterDevice } from "@/data/printer";
+import { t } from "@/services/i18n";
 
 interface PrinterDeviceListProps {
   devices: PrinterDevice[];
@@ -16,26 +17,26 @@ export function PrinterDeviceList({ devices, connectedAddress, busy, onConnect }
     return (
       <EmptyState
         icon={Bluetooth}
-        title="Belum ada printer"
-        description="Pasangkan printer lewat Setelan Bluetooth Android, lalu tekan Cari printer lagi."
+        title={t("pengaturan.printer.emptyTitle")}
+        description={t("pengaturan.printer.emptyDescription")}
         className="py-8"
       />
     );
   }
   return (
-    <ul className="flex flex-col divide-y rounded-md border" aria-label="Printer Bluetooth yang dipasangkan">
+    <ul className="flex flex-col divide-y rounded-md border" aria-label={t("pengaturan.printer.listLabel")}>
       {devices.map((device) => {
         const connected = device.address === connectedAddress;
         return (
           <li key={device.address} className="flex flex-wrap items-center justify-between gap-2 p-3">
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{device.name || "(tanpa nama)"}</p>
+              <p className="truncate text-sm font-medium">{device.name || t("pengaturan.common.noName")}</p>
               <p className="truncate text-xs text-muted-foreground">{device.address}</p>
             </div>
             {connected ? (
               <Badge variant="outline" className="gap-1 text-success">
                 <CheckCircle2 aria-hidden />
-                Terhubung
+                {t("pengaturan.printer.connectedBadge")}
               </Badge>
             ) : (
               <Button
@@ -44,7 +45,7 @@ export function PrinterDeviceList({ devices, connectedAddress, busy, onConnect }
                 disabled={busy}
                 onClick={() => onConnect(device.address)}
               >
-                Hubungkan
+                {t("pengaturan.printer.connect")}
               </Button>
             )}
           </li>

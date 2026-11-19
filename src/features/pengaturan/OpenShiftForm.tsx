@@ -2,6 +2,7 @@ import { PlayCircle } from "lucide-react";
 import { useState } from "react";
 import { MoneyInput } from "@/components/MoneyInput";
 import { Button } from "@/components/ui/button";
+import { t } from "@/services/i18n";
 import { Field } from "./Field";
 
 interface OpenShiftFormProps {
@@ -16,16 +17,20 @@ export function OpenShiftForm({ cashierName, cashierNameUnsaved, onOpen }: OpenS
     <div className="flex flex-col gap-4" data-testid="shift-open-form">
       <div className="rounded-md bg-muted p-3 text-sm">
         <p>
-          Tidak ada shift berjalan. Kasir:{" "}
-          <span className="font-semibold">{cashierName || "(belum diisi)"}</span>
+          {t("pengaturan.shift.open.noRunning")}{" "}
+          <span className="font-semibold">{cashierName || t("pengaturan.shift.open.cashierEmpty")}</span>
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
           {cashierNameUnsaved
-            ? "Nama kasir baru belum disimpan. Simpan dulu bila shift harus memakai nama baru."
-            : "Nama kasir diubah di bagian Kasir."}
+            ? t("pengaturan.shift.open.unsavedName")
+            : t("pengaturan.shift.open.nameInCashier")}
         </p>
       </div>
-      <Field id="open-cash" label="Modal awal kas laci" hint="Uang tunai di laci saat shift dimulai.">
+      <Field
+        id="open-cash"
+        label={t("pengaturan.shift.open.openCash.label")}
+        hint={t("pengaturan.shift.open.openCash.hint")}
+      >
         <MoneyInput
           id="open-cash"
           value={openCash}
@@ -45,7 +50,7 @@ export function OpenShiftForm({ cashierName, cashierNameUnsaved, onOpen }: OpenS
         }}
       >
         <PlayCircle aria-hidden />
-        Buka shift
+        {t("pengaturan.shift.open.button")}
       </Button>
     </div>
   );

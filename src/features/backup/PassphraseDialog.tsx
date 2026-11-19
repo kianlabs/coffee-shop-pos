@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { t } from "@/services/i18n";
 import { PasswordInput } from "./PasswordInput";
 
 interface PassphraseDialogProps {
@@ -47,13 +48,13 @@ export function PassphraseDialog({ open, fileName, loading, onSubmit, onCancel }
           }}
         >
           <DialogHeader>
-            <DialogTitle>File backup terenkripsi</DialogTitle>
+            <DialogTitle>{t("backup.passphrase.dialogTitle")}</DialogTitle>
             <DialogDescription>
-              Masukkan passphrase yang dipakai saat membuat {fileName}.
+              {t("backup.passphrase.dialogDescription", { nama: fileName })}
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="restore-passphrase">Passphrase</Label>
+            <Label htmlFor="restore-passphrase">{t("backup.passphrase.label")}</Label>
             <PasswordInput
               id="restore-passphrase"
               value={passphrase}
@@ -69,10 +70,10 @@ export function PassphraseDialog({ open, fileName, loading, onSubmit, onCancel }
               disabled={loading}
               onClick={() => handleOpenChange(false)}
             >
-              Batal
+              {t("backup.common.cancel")}
             </Button>
             <Button type="submit" loading={loading} data-testid="restore-passphrase-submit">
-              Buka file
+              {t("backup.passphrase.open")}
             </Button>
           </DialogFooter>
         </form>

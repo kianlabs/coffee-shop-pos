@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { MoneyInput } from "@/components/MoneyInput";
 import { formatRupiah } from "@/domain/money";
+import { t } from "@/services/i18n";
 import { applyNumpadKey, quickCashOptions } from "./checkoutRules";
 
 interface CashTenderProps {
@@ -22,7 +23,7 @@ export function CashTender({ total, amount, onAmount, showNumpad }: CashTenderPr
   return (
     <div className="grid gap-3">
       <div className="grid gap-2">
-        <Label htmlFor="pay-amount">Uang diterima</Label>
+        <Label htmlFor="pay-amount">{t("kasir.tender.amountLabel")}</Label>
         <MoneyInput
           id="pay-amount"
           value={amount}
@@ -32,7 +33,7 @@ export function CashTender({ total, amount, onAmount, showNumpad }: CashTenderPr
           onChange={(v) => onAmount(Math.max(0, v))}
         />
       </div>
-      <div role="group" aria-label="Nominal cepat" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div role="group" aria-label={t("kasir.tender.quickGroup")} className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {quickCashOptions(total).map((value) => (
           <Button
             key={value}
@@ -40,18 +41,18 @@ export function CashTender({ total, amount, onAmount, showNumpad }: CashTenderPr
             onClick={() => onAmount(value)}
             className="tabular-nums"
           >
-            {value === total ? "Uang pas" : formatRupiah(value)}
+            {value === total ? t("kasir.tender.exact") : formatRupiah(value)}
           </Button>
         ))}
       </div>
       {showNumpad && (
-        <div role="group" aria-label="Numpad nominal" className="grid grid-cols-3 gap-2">
+        <div role="group" aria-label={t("kasir.tender.numpad")} className="grid grid-cols-3 gap-2">
           {KEYS.map((key) => (
             <Button
               key={key}
               variant="secondary"
               className="h-12 text-lg tabular-nums"
-              aria-label={key === "⌫" ? "Hapus satu angka" : undefined}
+              aria-label={key === "⌫" ? t("kasir.tender.backspace") : undefined}
               onClick={() => onAmount(applyNumpadKey(amount, key))}
             >
               {key === "⌫" ? <Delete /> : key}
@@ -67,7 +68,9 @@ export function CashTender({ total, amount, onAmount, showNumpad }: CashTenderPr
           short ? "bg-warning-soft text-warning" : "bg-success-soft text-success",
         )}
       >
-        <span className="text-sm font-medium">{short ? "Uang kurang" : "Kembalian"}</span>
+        <span className="text-sm font-medium">
+          {short ? t("kasir.tender.short") : t("kasir.tender.change")}
+        </span>
         <span className="text-xl font-bold tabular-nums">{formatRupiah(difference)}</span>
       </div>
     </div>

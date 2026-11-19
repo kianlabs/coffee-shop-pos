@@ -2,6 +2,7 @@ import { Ban, Calculator, ChartColumn, ReceiptText, Tag } from "lucide-react";
 import { formatPct } from "@/domain/hppResolve";
 import { formatRupiah } from "@/domain/money";
 import { type SalesSummary } from "@/domain/sales";
+import { t } from "@/services/i18n";
 import { StatCard } from "./StatCard";
 
 interface StatGridProps {
@@ -12,44 +13,52 @@ interface StatGridProps {
 export function StatGrid({ summary }: StatGridProps) {
   const loss = summary.grossProfitRp < 0;
   return (
-    <section aria-label="Ringkasan" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+    <section aria-label={t("laporan.stat.summaryLabel")} className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
       <StatCard
         highlight
-        label="Omzet"
+        label={t("laporan.stat.revenue")}
         icon={ReceiptText}
         value={formatRupiah(summary.grandTotalRp)}
-        sub={`rata-rata ${formatRupiah(summary.averageRp)} / transaksi`}
+        sub={t("laporan.stat.revenueSub", { average: formatRupiah(summary.averageRp) })}
       />
       <StatCard
-        label={loss ? "Laba kotor (rugi)" : "Laba kotor"}
+        label={t(loss ? "laporan.stat.grossLoss" : "laporan.stat.gross")}
         icon={ChartColumn}
         value={formatRupiah(summary.grossProfitRp)}
         valueClassName={loss ? "text-destructive" : undefined}
-        sub={`margin ${formatPct(summary.profitMarginPct)} dari omzet`}
+        sub={t("laporan.stat.marginSub", { margin: formatPct(summary.profitMarginPct) })}
       />
       <StatCard
-        label="HPP terjual"
+        label={t("laporan.stat.cogs")}
         icon={Calculator}
         value={formatRupiah(summary.totalHppRp)}
-        sub="dari snapshot saat transaksi"
+        sub={t("laporan.stat.cogsSub")}
       />
       <StatCard
-        label="Diskon & biaya"
+        label={t("laporan.stat.discountFees")}
         icon={Tag}
         value={formatRupiah(summary.totalDiscountRp)}
-        sub={`pajak ${formatRupiah(summary.totalTaxRp)} · layanan ${formatRupiah(summary.totalServiceRp)}`}
+        sub={t("laporan.stat.discountFeesSub", {
+          tax: formatRupiah(summary.totalTaxRp),
+          service: formatRupiah(summary.totalServiceRp),
+        })}
       />
       <StatCard
         className="col-span-2 sm:col-span-1"
-        label="Transaksi void"
+        label={t("laporan.stat.void")}
         icon={Ban}
         value={summary.voidedCount}
         sub={
           <>
-            <span className="block">{formatRupiah(summary.voidedTotalRp)} dibatalkan</span>
+            <span className="block">
+              {t("laporan.stat.voidSub", { amount: formatRupiah(summary.voidedTotalRp) })}
+            </span>
             {summary.refundedCount > 0 && (
               <span className="block">
-                {summary.refundedCount} refund · {formatRupiah(summary.refundedTotalRp)} dikembalikan
+                {t("laporan.stat.refundSub", {
+                  count: summary.refundedCount,
+                  amount: formatRupiah(summary.refundedTotalRp),
+                })}
               </span>
             )}
           </>

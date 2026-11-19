@@ -1,6 +1,7 @@
 import { CircleAlert, CircleCheck, Package, TrendingDown } from "lucide-react";
 import { type LucideIcon } from "lucide-react";
 import { cn } from "cn";
+import { t } from "@/services/i18n";
 
 interface HppStatsProps {
   total: number;
@@ -27,17 +28,17 @@ function Stat({ icon: Icon, label, value, tone }: StatProps) {
 
 export function HppStats({ total, kosong, rugi }: HppStatsProps) {
   return (
-    <ul className="grid gap-2 sm:grid-cols-3" aria-label="Ringkasan HPP" data-testid="hpp-stats">
-      <Stat icon={Package} label="Produk" value={total} tone="bg-card" />
+    <ul className="grid gap-2 sm:grid-cols-3" aria-label={t("hpp.stats.ariaLabel")} data-testid="hpp-stats">
+      <Stat icon={Package} label={t("hpp.stats.products")} value={total} tone="bg-card" />
       <Stat
         icon={kosong > 0 ? CircleAlert : CircleCheck}
-        label="Belum ada HPP"
+        label={t("hpp.stats.empty")}
         value={kosong}
         tone={kosong > 0 ? "bg-warning-soft text-warning" : "bg-card"}
       />
       <Stat
         icon={rugi > 0 ? TrendingDown : CircleCheck}
-        label="HPP > harga jual"
+        label={t("hpp.stats.loss")}
         value={rugi}
         tone={rugi > 0 ? "bg-destructive/10 text-destructive" : "bg-card"}
       />

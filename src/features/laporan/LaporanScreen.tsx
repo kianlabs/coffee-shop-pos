@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ScreenSkeleton } from "@/components/common/ScreenSkeleton";
 import { repo } from "@/data/orderRepo";
 import { type Order } from "@/domain/orders";
+import { t } from "@/services/i18n";
 import { errorMessage, notify } from "@/lib/notify";
 import { useAppStore } from "@/stores/appStore";
 import { SalesReport } from "./SalesReport";
@@ -24,13 +25,13 @@ export function LaporanScreen() {
       .catch((e: unknown) => {
         if (cancelled) return;
         setOrders([]);
-        notify.error(errorMessage(e, "Gagal memuat data laporan."));
+        notify.error(errorMessage(e, t("laporan.error.loadFailed")));
       });
     return () => {
       cancelled = true;
     };
   }, [recent]);
 
-  if (orders === null) return <ScreenSkeleton label="Memuat laporan…" rows={4} />;
+  if (orders === null) return <ScreenSkeleton label={t("laporan.loading")} rows={4} />;
   return <SalesReport orders={orders} />;
 }

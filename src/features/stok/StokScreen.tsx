@@ -3,6 +3,7 @@ import { useState } from "react";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ScreenSkeleton } from "@/components/common/ScreenSkeleton";
 import { Button } from "@/components/ui/button";
+import { t } from "@/services/i18n";
 import { AdjustDialog } from "./AdjustDialog";
 import { IngredientList } from "./IngredientList";
 import { PurchaseDialog } from "./PurchaseDialog";
@@ -33,12 +34,12 @@ export function StokScreen() {
     return (
       <EmptyState
         icon={Boxes}
-        title="Stok hanya tersedia di aplikasi Android"
-        description="Pembelian dan koreksi stok disimpan di database SQLite tablet. Di browser (mode pratinjau), layar ini tidak bisa dipakai. Buka aplikasi Android untuk mengelola bahan."
+        title={t("stok.native.title")}
+        description={t("stok.native.description")}
       />
     );
   }
-  if (loading) return <ScreenSkeleton label="Memuat bahan…" />;
+  if (loading) return <ScreenSkeleton label={t("stok.loading")} />;
 
   return (
     <div className="space-y-4" data-testid="stok-screen">
@@ -51,23 +52,23 @@ export function StokScreen() {
       {loadFailed && items.length === 0 ? (
         <EmptyState
           icon={Boxes}
-          title="Gagal memuat bahan"
+          title={t("stok.loadFailed.title")}
           action={
             <Button variant="outline" onClick={() => void reload()}>
               <RefreshCw aria-hidden />
-              Coba lagi
+              {t("common.retry")}
             </Button>
           }
         />
       ) : items.length === 0 ? (
         <EmptyState
           icon={Boxes}
-          title="Belum ada bahan"
-          description="Tambahkan bahan lewat pembelian pertama. Stok dan harga belinya langsung tercatat."
+          title={t("stok.empty.title")}
+          description={t("stok.empty.description")}
           action={
             <Button onClick={() => openDialog("purchase", "")} data-testid="stok-empty-add">
               <Plus aria-hidden />
-              Tambah bahan
+              {t("stok.addIngredient")}
             </Button>
           }
         />

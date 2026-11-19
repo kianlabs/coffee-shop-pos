@@ -3,6 +3,7 @@ import { deleteRecipe, saveRecipe, type IngredientOption } from "@/data/recipeRe
 import { marginFor } from "@/domain/hppResolve";
 import { validateRecipeLines } from "@/domain/recipe";
 import { errorMessage, notify } from "@/lib/notify";
+import { t } from "@/services/i18n";
 import { recipeLabel, type RecipeTarget } from "./recipeTarget";
 import { makeLine, useRecipeLoad, type DraftLine } from "./useRecipeLoad";
 
@@ -40,7 +41,7 @@ export function useRecipeEditor(target: RecipeTarget, onSaved: () => Promise<voi
     const used = new Set(lines.map((l) => l.ingredientId));
     const next = ingredients.find((i) => !used.has(i.id));
     if (!next) {
-      setError("Semua bahan sudah dipakai di resep ini.");
+      setError(t("hpp.recipe.allUsed"));
       return;
     }
     setLines((prev) => [...prev, makeLine(next.id, 1)]);
@@ -72,14 +73,14 @@ export function useRecipeEditor(target: RecipeTarget, onSaved: () => Promise<voi
     run(async () => {
       const lineDrafts = lines.map((l) => ({ ingredientId: l.ingredientId, qtyPerUnit: l.qtyPerUnit }));
       const res = await saveRecipe({ productId, variantId, lines: lineDrafts });
-      return `Resep ${recipeLabel(target)} disimpan (versi ${res.version}).`;
-    }, "Gagal menyimpan resep.");
+      return t("hpp.recipe.saved", { nama: recipeLabel(target), versi: res.version });
+    }, t("hpp.recipe.saveFailed"));
 
   const remove = () =>
     run(async () => {
       await deleteRecipe(productId, variantId);
-      return `Resep ${recipeLabel(target)} dihapus.`;
-    }, "Gagal menghapus resep.");
+      return t("hpp.recipe.deleted", { nama: recipeLabel(target) });
+    }, t("hpp.recipe.deleteFailed"));
 
   return {
     ingredients,

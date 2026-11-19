@@ -4,6 +4,7 @@ import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { t } from "@/services/i18n";
 import { PassphraseDialog } from "./PassphraseDialog";
 import { SectionHeader } from "./SectionHeader";
 import { useRestoreFlow } from "./useRestoreFlow";
@@ -19,7 +20,7 @@ export function RestoreCard({ onRestored }: RestoreCardProps) {
   const [lastConfirm, setLastConfirm] = useState("");
   const confirmText =
     step.kind === "confirm"
-      ? `Restore akan MENIMPA ${step.currentCount} order yang ada di tablet ini dengan isi file ${step.fileName}. Tindakan ini tidak bisa dibatalkan.`
+      ? t("backup.restore.confirmDescription", { jumlah: step.currentCount, nama: step.fileName })
       : lastConfirm;
   if (confirmText !== lastConfirm) setLastConfirm(confirmText);
 
@@ -28,19 +29,21 @@ export function RestoreCard({ onRestored }: RestoreCardProps) {
       <SectionHeader
         id="restore-title"
         icon={Upload}
-        title="Restore"
-        description="Kembalikan data dari file backup, misalnya setelah ganti tablet atau data hilang."
+        title={t("backup.restore.title")}
+        description={t("backup.restore.description")}
       />
       <CardContent className="flex flex-col gap-4">
         <div className="flex gap-2 rounded-md bg-warning-soft p-3 text-sm">
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
           <p>
-            <strong>Perhatian:</strong> restore akan <strong>menimpa</strong> semua order yang ada
-            di tablet ini. Pastikan file backup-nya benar.
+            <strong>{t("backup.restore.warningLead")}</strong>{" "}
+            {t("backup.restore.warningBefore")}{" "}
+            <strong>{t("backup.restore.warningEmphasis")}</strong>{" "}
+            {t("backup.restore.warningAfter")}
           </p>
         </div>
         <div className="flex flex-col gap-2">
-          <Label htmlFor="restore-file">Pilih file backup (.json / .enc.json)</Label>
+          <Label htmlFor="restore-file">{t("backup.restore.fileLabel")}</Label>
           <Input
             id="restore-file"
             type="file"
@@ -56,7 +59,7 @@ export function RestoreCard({ onRestored }: RestoreCardProps) {
           />
           {flow.restoring && (
             <p role="status" className="text-sm text-muted-foreground">
-              Memulihkan data…
+              {t("backup.restore.restoring")}
             </p>
           )}
         </div>
@@ -76,9 +79,9 @@ export function RestoreCard({ onRestored }: RestoreCardProps) {
         onOpenChange={(open) => {
           if (!open) flow.cancelConfirm();
         }}
-        title="Timpa data dengan backup?"
+        title={t("backup.restore.confirmTitle")}
         description={confirmText}
-        confirmLabel="Ya, restore"
+        confirmLabel={t("backup.restore.confirmLabel")}
         destructive
         onConfirm={() => void flow.confirmRestore()}
       />

@@ -1,5 +1,6 @@
 import { AlertTriangle } from "lucide-react";
 import { type SyncMeta } from "@/data/sync";
+import { t } from "@/services/i18n";
 import { useAppStore } from "@/stores/appStore";
 
 interface SyncStatusProps {
@@ -10,27 +11,29 @@ export function SyncStatus({ meta }: SyncStatusProps) {
   const pendingCount = useAppStore((s) => s.pendingCount);
   const lastSync = meta.lastSyncAt
     ? new Date(meta.lastSyncAt).toLocaleString("id-ID")
-    : "belum pernah";
+    : t("backup.status.never");
 
   return (
     <div className="flex flex-col gap-3">
       <dl className="grid grid-cols-1 gap-2 rounded-md bg-muted p-3 text-sm sm:grid-cols-3">
         <div>
-          <dt className="text-muted-foreground">Belum terkirim</dt>
+          <dt className="text-muted-foreground">{t("backup.status.pending")}</dt>
           <dd className="font-semibold" data-testid="sync-pending-count">
-            {pendingCount === null ? "…" : `${pendingCount} data`}
+            {pendingCount === null ? "…" : t("backup.status.pendingCount", { jumlah: pendingCount })}
           </dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Sync terakhir</dt>
+          <dt className="text-muted-foreground">{t("backup.status.lastSync")}</dt>
           <dd className="font-semibold" data-testid="sync-last-at">
             {lastSync}
           </dd>
         </div>
         {meta.lastPushed > 0 && (
           <div>
-            <dt className="text-muted-foreground">Terkirim terakhir</dt>
-            <dd className="font-semibold">{meta.lastPushed} ter-ack</dd>
+            <dt className="text-muted-foreground">{t("backup.status.lastPushed")}</dt>
+            <dd className="font-semibold">
+              {t("backup.status.acked", { jumlah: meta.lastPushed })}
+            </dd>
           </div>
         )}
       </dl>
@@ -41,7 +44,9 @@ export function SyncStatus({ meta }: SyncStatusProps) {
           data-testid="sync-last-error"
         >
           <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
-          <p className="min-w-0 break-words">Error terakhir: {meta.lastError}</p>
+          <p className="min-w-0 break-words">
+            {t("backup.status.lastError", { pesan: meta.lastError })}
+          </p>
         </div>
       )}
     </div>

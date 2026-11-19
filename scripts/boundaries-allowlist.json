@@ -100,10 +100,6 @@
     "rule": "ui-no-data"
   },
   {
-    "file": "src/features/laporan/paymentMix.ts",
-    "rule": "ui-no-data"
-  },
-  {
     "file": "src/features/menu/useCatalogEditor.ts",
     "rule": "ui-no-data"
   },

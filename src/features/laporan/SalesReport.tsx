@@ -4,6 +4,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { Button } from "@/components/ui/button";
 import { type Order } from "@/domain/orders";
 import { formatRangeLabel, paymentBreakdown, salesTrend, summarizeSales, topProducts } from "@/domain/sales";
+import { t } from "@/services/i18n";
 import { useAppStore } from "@/stores/appStore";
 import { PaymentMixCard } from "./PaymentMixCard";
 import { PeriodSelector } from "./PeriodSelector";
@@ -33,18 +34,20 @@ export function SalesReport({ orders }: SalesReportProps) {
         <CalendarDays className="size-4" aria-hidden />
         <span>{rangeLabel}</span>
         <span aria-hidden>·</span>
-        <strong className="font-semibold text-foreground">{summary.orderCount} transaksi</strong>
+        <strong className="font-semibold text-foreground">
+          {t("laporan.summary.orders", { count: summary.orderCount })}
+        </strong>
       </p>
       <StatGrid summary={summary} />
       <TrendCard trend={trend} />
       {summary.orderCount === 0 ? (
         <EmptyState
           icon={ReceiptText}
-          title="Belum ada penjualan di periode ini"
-          description={`Tidak ada transaksi selesai pada ${rangeLabel}. Pilih periode lain atau catat penjualan di Kasir.`}
+          title={t("laporan.empty.title")}
+          description={t("laporan.empty.description", { range: rangeLabel })}
           action={
             <Button variant="outline" onClick={() => setView("kasir")}>
-              Buka Kasir
+              {t("laporan.empty.openCashier")}
             </Button>
           }
         />
