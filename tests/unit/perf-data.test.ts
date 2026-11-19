@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { DEFAULT_PERF, createRng, generatePerfData, type PerfConfig } from "../support/perfData";
 import { insertPerfData } from "../support/perfDataInsert";
 import { openSqlJsDb } from "@/testing/sqlJsDb";
-import { migrate } from "./support/migrationHarness";
+import { LATEST_VERSION } from "@/data/migration/steps";
+import { migrate, userVersion } from "./support/migrationHarness";
 const SMALL: PerfConfig = { ...DEFAULT_PERF, orders: 120, products: 15, ingredients: 5 };
 let db: Awaited<ReturnType<typeof openSqlJsDb>> | undefined;
 afterEach(() => db?.close());
@@ -30,9 +31,11 @@ describe("pembangkit data kinerja", () => {
     expect(rows.items.length).toBeGreaterThanOrEqual(120);
     expect(() => generatePerfData({ ...SMALL, startIso: "bukan tanggal" })).toThrow();
   });
-  it("dimuat ke skema V14 tanpa pelanggaran kunci asing atau constraint", async () => {
+  it("dimuat ke skema V18 (semua migrasi) tanpa pelanggaran kunci asing atau constraint", async () => {
     db = await openSqlJsDb();
     await migrate(db);
+    expect(await userVersion(db)).toBe(LATEST_VERSION);
+    expect(LATEST_VERSION).toBeGreaterThanOrEqual(18);
     await db.exec("PRAGMA foreign_keys = ON");
     await insertPerfData(db, generatePerfData(SMALL));
     expect(await db.query("SELECT COUNT(*) AS n FROM orders")).toEqual([{ n: 120 }]);

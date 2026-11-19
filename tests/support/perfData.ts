@@ -1,4 +1,4 @@
-/** Deterministic generator for performance test data (task 26.1). Pure: time and seed are inputs. */
+/** Deterministic generator for performance test data (task 26.1, req 27.1: 100k orders, 1k products by default). Pure: time and seed are inputs. */
 export interface PerfConfig {
   seed: number;
   orders: number;
@@ -10,7 +10,7 @@ export interface PerfConfig {
 }
 export const DEFAULT_PERF: PerfConfig = {
   seed: 42,
-  orders: 50_000,
+  orders: 100_000,
   products: 1_000,
   ingredients: 60,
   startIso: "2024-01-01T08:00:00.000Z",
