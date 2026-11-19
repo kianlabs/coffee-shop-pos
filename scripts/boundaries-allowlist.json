@@ -1,0 +1,182 @@
+[
+  {
+    "file": "src/app/useAppBootstrap.ts",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/data/db.ts",
+    "rule": "write-path-outside-tx"
+  },
+  {
+    "file": "src/data/orderRepository.ts",
+    "rule": "write-path-outside-tx"
+  },
+  {
+    "file": "src/data/sync.ts",
+    "rule": "write-path-outside-tx"
+  },
+  {
+    "file": "src/domain/orders.ts",
+    "rule": "domain-impure-api"
+  },
+  {
+    "file": "src/domain/shifts.ts",
+    "rule": "domain-impure-api"
+  },
+  {
+    "file": "src/features/backup/BackupCard.tsx",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/backup/BackupList.tsx",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/backup/SyncCard.tsx",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/backup/SyncStatus.tsx",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/backup/useBackupActions.ts",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/backup/useRestoreFlow.ts",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/backup/useSyncActions.ts",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/hpp/HppDialogs.tsx",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/hpp/HppEditDialog.tsx",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/hpp/HppList.tsx",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/hpp/hppModel.ts",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/hpp/HppProductItem.tsx",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/hpp/RecipeLineRow.tsx",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/hpp/useHppData.ts",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/hpp/useRecipeEditor.ts",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/hpp/useRecipeLoad.ts",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/kasir/ReceiptDialog.tsx",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/kasir/useCheckout.ts",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/laporan/LaporanScreen.tsx",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/laporan/paymentMix.ts",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/menu/useCatalogEditor.ts",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/pengaturan/KasirSection.tsx",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/pengaturan/PrinterDeviceList.tsx",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/pengaturan/RoundingSelect.tsx",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/pengaturan/securityRules.ts",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/pengaturan/usePrinterActions.ts",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/pengaturan/useSettingsForm.ts",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/pengaturan/useShiftActions.ts",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/riwayat/OrderRow.tsx",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/riwayat/PinDialog.tsx",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/riwayat/useOrderActions.ts",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/riwayat/useVoidPin.ts",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/stok/useAdjustForm.ts",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/stok/usePurchaseForm.ts",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/features/stok/useStockData.ts",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/lib/printing.ts",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/services/appUpdater.ts",
+    "rule": "services-no-framework"
+  },
+  {
+    "file": "src/stores/appStore.ts",
+    "rule": "ui-no-data"
+  },
+  {
+    "file": "src/stores/useCartTotals.ts",
+    "rule": "ui-no-data"
+  }
+]
