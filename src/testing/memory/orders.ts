@@ -84,6 +84,13 @@ export function createMemoryOrderDb(): MemoryOrderDb {
     stock: {
       append: async (rows) => {
         guard("stock");
+        const keyOf = (m: StockMovementRecord): string => [m.referenceType, m.referenceId, m.type, m.ingredientId].join("|");
+        const seen = new Set(db.movements.map(keyOf));
+        for (const row of rows) {
+          // Same rule as the partial unique index uq_stock_movements_ref.
+          if (seen.has(keyOf(row))) throw new Error("memory: duplicate stock movement reference");
+          seen.add(keyOf(row));
+        }
         db.movements.push(...structuredClone(rows));
       },
     },
@@ -97,6 +104,7 @@ export function createMemoryOrderDb(): MemoryOrderDb {
       findByIdempotencyKey: async (key) => structuredClone(db.refunds.find((r) => r.idempotencyKey === key) ?? null),
       insert: async (refund) => {
         guard("refunds");
+        if (db.refunds.some((r) => r.idempotencyKey === refund.idempotencyKey)) throw new Error("memory: duplicate refund idempotency key");
         db.refunds.push(structuredClone(refund));
       },
       listByOrder: async (orderId) => structuredClone(db.refunds.filter((r) => r.orderId === orderId)),

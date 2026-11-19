@@ -75,6 +75,7 @@ export async function hashPin(pin: string, iterations: number = PIN_HASH_ITERATI
   if (!Number.isInteger(iterations) || iterations < 1 || iterations > MAX_ITERATIONS) {
     throw new RangeError("Jumlah iterasi hash PIN tidak valid.");
   }
+  if (!pin) throw new RangeError("PIN tidak boleh kosong.");
   const salt = globalThis.crypto.getRandomValues(new Uint8Array(SALT_BYTES));
   const hash = await derive(pin, salt, iterations);
   return `${PREFIX}${iterations}$${toB64(salt)}$${toB64(hash)}`;

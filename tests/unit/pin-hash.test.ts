@@ -13,6 +13,9 @@ describe("pinHash", () => {
     expect(atob(parts[4])).toHaveLength(32);
   });
 
+  it("refuses to hash an empty PIN", async () => {
+    await expect(hashPin("", FAST)).rejects.toThrow("PIN tidak boleh kosong.");
+  });
   it("creates a unique salt per hash", async () => {
     expect(await hashPin("1234", FAST)).not.toBe(await hashPin("1234", FAST));
   });
