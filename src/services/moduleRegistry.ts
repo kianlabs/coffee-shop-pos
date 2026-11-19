@@ -60,3 +60,5 @@ export class ModuleRegistry<S extends object = Record<string, unknown>> {
   /** Changes whenever the active set changes. */
   getSnapshot = (): number => this.version;
 }
+/** App-wide registry. Modules register into it from `src/modules` at boot; the UI reads it through `<Slot>`. */
+export const moduleRegistry = new ModuleRegistry();
