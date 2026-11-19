@@ -19,6 +19,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
@@ -29,6 +31,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Dependency audit (production, high severity)
+        run: npm audit --audit-level=high --omit=dev
+      - name: Secret scan (gitleaks, pinned and checksum-verified)
+        if: matrix.node-version == '22.x'
+        env:
+          GITLEAKS_VERSION: 8.24.3
+          GITLEAKS_SHA256: 9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c
+        run: |
+          curl -sSfL -o gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum --check --strict
+          mkdir "${RUNNER_TEMP}/gitleaks"
+          tar -xzf gitleaks.tar.gz -C "${RUNNER_TEMP}/gitleaks" gitleaks
+          rm gitleaks.tar.gz
+          "${RUNNER_TEMP}/gitleaks/gitleaks" detect --source . --config .gitleaks.toml --redact --no-banner --exit-code 1
       - name: Typecheck (TypeScript strict)
         run: npm run typecheck
       - name: Lint (ESLint, typescript-eslint, jsx-a11y)
@@ -41,5 +57,7 @@ jobs:
         run: npm run check
       - name: Build web production assets
         run: npm run build
+      - name: Initial bundle size budget (gzip)
+        run: npm run check:bundle
       - name: Headless UI smoke test
         run: npm run smoke:ui

@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node scripts/test-domain.mjs && node scripts/test-guards.mjs && vitest run --coverage",
     "check": "node scripts/run-checks.mjs",
+    "check:bundle": "node scripts/check-bundle-size.mjs --require-dist",
     "smoke:ui": "node scripts/smoke-ui.mjs",
     "test:e2e": "node scripts/test-e2e-exhaustive.mjs",
     "ota:pack": "node scripts/package-ota.mjs",
