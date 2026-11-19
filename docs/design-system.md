@@ -30,7 +30,7 @@ rgb, or hsl values.
   only for status badges.
 - Shadows: none on cards; a border separates surfaces. Popovers and dialogs use
   the shadcn defaults.
-- Numbers use tabular figures (`tnum`, enabled on `body`) so prices line up.
+- Prices and quantities use `tabular-nums` so digits line up.
 - High contrast: `data-contrast="high"` on `<html>` swaps the foreground, muted,
   border, and ring tokens.
 
