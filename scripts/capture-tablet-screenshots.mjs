@@ -92,7 +92,7 @@ function seedScript(logoBase64) {
     }));
     localStorage.setItem("pos.store-profile.v1", JSON.stringify({
       name: "KEDAI CONTOH",
-      address: "Jl. Moh. Yamin No.84A, Kawatan, Serengan, Surakarta",
+      address: "Jl. Melati No. 10, Kota Contoh",
       npwp: "",
       receiptHeader: "",
       receiptFooter: "Matur nuwun sampun rawuh!",

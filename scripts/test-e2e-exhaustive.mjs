@@ -297,7 +297,7 @@ async function main() {
       localStorage.clear();
       localStorage.setItem("pos.settings.v1", JSON.stringify({
         storeName: "KEDAI CONTOH",
-        address: "Jl. Moh. Yamin 84A, Kawatan, Serengan, Surakarta",
+        address: "Jl. Melati No. 10, Kota Contoh",
         phone: "0812-2888-0820",
         footerMessage: "Matur nuwun sampun rawuh!",
         paperWidth: 58,
