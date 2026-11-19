@@ -70,3 +70,6 @@ CLAUDE.md
 AGENTS.md
 GEMINI.md
 QWEN.md
+
+# Test coverage output
+coverage/
