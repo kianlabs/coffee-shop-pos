@@ -1,8 +1,8 @@
+import { PAYMENT_METHODS } from "../paymentMethods";
 import { defineSetting } from "../registry";
 
 const base = { group: "pembayaran", auditable: true, requiresRestart: false } as const;
 
-export const PAYMENT_METHODS = ["tunai", "qris", "kartu", "transfer", "lainnya"] as const;
 
 export const PAYMENT_SETTINGS = [
   defineSetting({ ...base, key: "pembayaran.metode_aktif", type: "multi", default: PAYMENT_METHODS, options: PAYMENT_METHODS, minSelected: 1,

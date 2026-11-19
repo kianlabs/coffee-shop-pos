@@ -1,7 +1,7 @@
 // Payment validation and quick cash amounts. Rules: docs/tax-engine.md.
 import { formatRupiah, type Rupiah } from "./money";
-export const PAYMENT_METHODS = ["cash", "qris_manual", "card_edc", "bank_transfer", "other"] as const;
-export type PaymentMethodId = (typeof PAYMENT_METHODS)[number];
+import { PAYMENT_METHODS, type PaymentMethodId } from "./settings/paymentMethods";
+export { PAYMENT_METHODS, type PaymentMethodId };
 export const PAYMENT_MIN_RP = 1;
 export const PAYMENT_MAX_RP = 999_999_999;
 export const MAX_PER_ORDER_RANGE = { min: 1, max: 20 } as const;

@@ -99,10 +99,23 @@ export function sanitizeStoreProfile(
   };
 }
 
+/**
+ * Reads a stored value: a JSON string (written by the settings registry) or
+ * legacy plain text. Anything that does not parse to a string stays as is.
+ */
+export function decodeStoredText(raw: string): string {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return typeof parsed === "string" ? parsed : raw;
+  } catch {
+    return raw;
+  }
+}
+/** Rows hold JSON-encoded strings, the same encoding `SettingsRepo` uses. */
 export function profileToRows(profile: StoreProfile): SettingRow[] {
   const clean = sanitizeStoreProfile(profile);
   const fields = Object.keys(STORE_PROFILE_KEYS) as StoreProfileField[];
-  return fields.map((field) => ({ key: STORE_PROFILE_KEYS[field], value: clean[field] }));
+  return fields.map((field) => ({ key: STORE_PROFILE_KEYS[field], value: JSON.stringify(clean[field]) }));
 }
 
 /** Baris tidak dikenal diabaikan; field yang tidak ada memakai nilai awal. */
@@ -112,7 +125,7 @@ export function profileFromRows(rows: readonly SettingRow[]): StoreProfile {
   for (const field of fields) {
     const row = rows.find((r) => r.key === STORE_PROFILE_KEYS[field]);
     if (row) {
-      raw[field] = row.value;
+      raw[field] = decodeStoredText(row.value);
     }
   }
   return sanitizeStoreProfile(raw);

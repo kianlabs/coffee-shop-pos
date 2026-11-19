@@ -33,7 +33,7 @@ describe("grup pengaturan (7.2)", () => {
     expect(d["kasir.alasan_maks_karakter"]).toBe(200);
     expect(d["katalog.harga_maks_rupiah"]).toBe(99_999_999);
     expect(d["fnb.nomor_antrean_jam_reset"]).toBe("00:00");
-    expect(d["pembayaran.metode_aktif"]).toEqual(["tunai", "qris", "kartu", "transfer", "lainnya"]);
+    expect(d["pembayaran.metode_aktif"]).toEqual(["cash", "qris_manual", "card_edc", "bank_transfer", "other"]);
     expect(d["pelanggan.telepon_digit_min"]).toBe(8);
     expect(d["sinkronisasi.jeda_maks_detik"]).toBe(3600);
     expect(d["pembaruan.otomatis"]).toBe(true);
