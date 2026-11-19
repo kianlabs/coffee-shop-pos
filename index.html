@@ -2,12 +2,14 @@
 <html lang="id">
   <head>
     <meta charset="UTF-8" />
-    <!-- Content Security Policy produksi. Tiap direktif dijelaskan di
-         docs/security-csp.md. frame-ancestors TIDAK dicantumkan: browser
-         mengabaikannya di <meta> dan mencatat error console. -->
+    <!-- CSP untuk bundle Vite/Capacitor; tiap direktif dijelaskan di
+         docs/security-csp.md. style-src butuh 'unsafe-inline' karena React
+         memakai style attribute; script tetap hanya 'self'.
+         frame-ancestors TIDAK dicantumkan: direktif itu diabaikan browser bila
+         dikirim lewat <meta> dan memicu error console. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https: http://localhost:* http://127.0.0.1:* http://10.0.2.2:*; worker-src 'self'; manifest-src 'self'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'self'"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https: http:; frame-src 'none'; object-src 'none'; form-action 'self'; base-uri 'self'"
     />
     <meta
       name="viewport"
