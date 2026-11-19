@@ -1,5 +1,5 @@
--- Coffee Shop POS — Production SQLite Schema (V9)
--- Hasil menjalankan `src/data/migrations.ts` V1 sampai V9 pada database kosong.
+-- Coffee Shop POS — Production SQLite Schema (V10)
+-- Hasil menjalankan `src/data/migrations.ts` V1 sampai V10 pada database kosong.
 -- Diperiksa oleh `node scripts/check-schema.mjs`: kolom yang ditambah lewat
 -- ALTER TABLE ada di akhir tabel, sesuai urutan migrasinya.
 PRAGMA foreign_keys = ON;
@@ -223,3 +223,41 @@ CREATE TABLE users (
     updated_at TEXT NOT NULL
 );
 CREATE UNIQUE INDEX uq_users_name_active ON users(display_name_ci) WHERE is_active = 1;
+-- V10: shift, kas, keranjang, pesanan ditahan
+CREATE TABLE shifts (
+    id TEXT PRIMARY KEY,
+    opened_by TEXT NOT NULL REFERENCES users(id),
+    opened_at TEXT NOT NULL,
+    opening_cash_rp INTEGER NOT NULL CHECK (opening_cash_rp >= 0),
+    status TEXT NOT NULL CHECK (status IN ('terbuka','ditutup')),
+    closed_by TEXT REFERENCES users(id),
+    closed_at TEXT,
+    counted_cash_rp INTEGER,
+    expected_cash_rp INTEGER,
+    variance_rp INTEGER,
+    variance_reason TEXT
+);
+CREATE UNIQUE INDEX uq_one_open_shift ON shifts(status) WHERE status = 'terbuka';
+CREATE TABLE cash_entries (
+    id TEXT PRIMARY KEY,
+    shift_id TEXT NOT NULL REFERENCES shifts(id),
+    kind TEXT NOT NULL CHECK (kind IN ('in','out','expense')),
+    amount_rp INTEGER NOT NULL CHECK (amount_rp > 0),
+    reason TEXT NOT NULL,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    created_at TEXT NOT NULL
+);
+CREATE INDEX idx_cash_entries_shift ON cash_entries(shift_id);
+CREATE TABLE carts (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    payload_json TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE TABLE held_orders (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    label TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    held_at TEXT NOT NULL
+);

@@ -1,5 +1,5 @@
 import { runMigrations, type Transaction } from "@/data/migration/runner";
-import { createMigrationHooks, type LegacyInputs } from "@/data/migration/hooks";
+import { createMigrationHooks, type LegacyInputs, type LegacyKey } from "@/data/migration/hooks";
 import { LATEST_VERSION, MIGRATION_STEPS } from "@/data/migration/steps";
 import { openSqlJsDb } from "@/testing/sqlJsDb";
 export type Db = Awaited<ReturnType<typeof openSqlJsDb>>;
@@ -17,8 +17,13 @@ export const txFor = (db: Db): Transaction => async (fn) => {
   }
 };
 /** Runs the real step list up to `latest` (default: all) with the given legacy inputs. */
-export async function migrate(db: Db, legacy: LegacyInputs = NO_LEGACY, latest = LATEST_VERSION): Promise<number[]> {
-  const { hooks, afterCommit } = createMigrationHooks({ legacy, now: () => NOW });
+export async function migrate(
+  db: Db,
+  legacy: LegacyInputs = NO_LEGACY,
+  latest = LATEST_VERSION,
+  clear?: (key: LegacyKey) => void,
+): Promise<number[]> {
+  const { hooks, afterCommit } = createMigrationHooks({ legacy, now: () => NOW, clear });
   const result = await runMigrations({
     db, transaction: txFor(db), steps: MIGRATION_STEPS, latest, hooks, afterCommit, now: () => NOW,
   });

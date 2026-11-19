@@ -328,3 +328,43 @@ export const UPGRADE_V9: string[] = [
   );`,
   `CREATE UNIQUE INDEX uq_users_name_active ON users(display_name_ci) WHERE is_active = 1;`,
 ];
+/** UPGRADE_V10 — shifts, cash entries, carts, held orders. Hook `legacy_cart_shift_held` imports localStorage data. */
+export const UPGRADE_V10: string[] = [
+  `CREATE TABLE shifts (
+    id TEXT PRIMARY KEY,
+    opened_by TEXT NOT NULL REFERENCES users(id),
+    opened_at TEXT NOT NULL,
+    opening_cash_rp INTEGER NOT NULL CHECK (opening_cash_rp >= 0),
+    status TEXT NOT NULL CHECK (status IN ('terbuka','ditutup')),
+    closed_by TEXT REFERENCES users(id),
+    closed_at TEXT,
+    counted_cash_rp INTEGER,
+    expected_cash_rp INTEGER,
+    variance_rp INTEGER,
+    variance_reason TEXT
+  );`,
+  `CREATE UNIQUE INDEX uq_one_open_shift ON shifts(status) WHERE status = 'terbuka';`,
+  `CREATE TABLE cash_entries (
+    id TEXT PRIMARY KEY,
+    shift_id TEXT NOT NULL REFERENCES shifts(id),
+    kind TEXT NOT NULL CHECK (kind IN ('in','out','expense')),
+    amount_rp INTEGER NOT NULL CHECK (amount_rp > 0),
+    reason TEXT NOT NULL,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    created_at TEXT NOT NULL
+  );`,
+  `CREATE INDEX idx_cash_entries_shift ON cash_entries(shift_id);`,
+  `CREATE TABLE carts (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    payload_json TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );`,
+  `CREATE TABLE held_orders (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    label TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    held_at TEXT NOT NULL
+  );`,
+];
