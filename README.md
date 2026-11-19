@@ -1,4 +1,4 @@
-# ☕ Kopi POS
+# ☕ Sura POS
 
 **English** · [Bahasa Indonesia](README.id.md)
 
@@ -17,7 +17,7 @@
 
 ## Description
 
-Kopi POS runs on an Android tablet and keeps every sale on the device in a local SQLite database, so the counter keeps working when the internet does not. A sale is saved before anything is printed, prices are whole Rupiah (no floating-point money), and the cost of goods (HPP) is captured at the moment of sale so historical profit never changes when ingredient prices do.
+Sura POS runs on an Android tablet and keeps every sale on the device in a local SQLite database, so the counter keeps working when the internet does not. A sale is saved before anything is printed, prices are whole Rupiah (no floating-point money), and the cost of goods (HPP) is captured at the moment of sale so historical profit never changes when ingredient prices do.
 
 It is built to be understood quickly: a plain React + TypeScript web app wrapped with Capacitor, with all business rules kept as pure functions that are unit tested.
 

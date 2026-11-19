@@ -1,7 +1,7 @@
 {
-  "name": "coffee-shop-pos",
+  "name": "sura-pos",
   "version": "1.0.1",
-  "description": "Production-ready, offline-first Tablet POS for specialty coffee shops and slow bars. Features native SQLite V7, ESC/POS Bluetooth 58mm thermal printing with raster logo, recipe-based HPP costing, and zero cloud subscription cost.",
+  "description": "Production-ready, offline-first Tablet POS for cafés and small food and beverage shops. Features native SQLite V7, ESC/POS Bluetooth 58mm thermal printing with raster logo, recipe-based HPP costing, and zero cloud subscription cost.",
   "main": "index.js",
   "directories": {
     "doc": "docs"
