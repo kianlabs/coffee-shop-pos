@@ -16,8 +16,8 @@ describe("database V7 berisi data menuju V14", () => {
     await db.exec("PRAGMA foreign_keys = ON");
     await db.run("INSERT INTO app_settings (key, value, updated_at) VALUES ('printer.alamat', '\"AA:BB\"', 't')");
     const before = { orders: await count("orders"), items: await count("order_items"), payments: await count("payments"), movements: await count("stock_movements"), ingredients: await count("ingredients") };
-    expect(await migrate(db, LEGACY)).toEqual([8, 9, 10, 11, 12, 13, 14]);
-    expect(await userVersion(db)).toBe(14);
+    expect(await migrate(db, LEGACY)).toEqual([8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]);
+    expect(await userVersion(db)).toBe(18);
     expect({ orders: await count("orders"), items: await count("order_items"), payments: await count("payments"), movements: await count("stock_movements"), ingredients: await count("ingredients") }).toEqual(before);
     const stock = await db.query<{ id: string; stock_milli: number }>("SELECT id, stock_milli FROM ingredients");
     expect(Object.fromEntries(stock.map((r) => [r.id, r.stock_milli]))).toEqual(V7_EXPECTED.stockMilli);
@@ -44,7 +44,7 @@ describe("database V7 berisi data menuju V14", () => {
   it("tanpa data lama pun semua versi selesai", async () => {
     db = await openV7WithData();
     await migrate(db, NO_LEGACY);
-    expect(await userVersion(db)).toBe(14);
+    expect(await userVersion(db)).toBe(18);
     expect(await count("users")).toBe(1); // placeholder owner for the synthetic refund
   });
 });

@@ -2,6 +2,7 @@ import { createElement, type ComponentType } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it } from "vitest";
 import { Slot } from "@/components/Slot";
+import { CORE_MIGRATION_VERSIONS } from "@/data/migration/steps";
 import { moduleRegistry } from "@/services/moduleRegistry";
 import { registerModules } from "@/modules";
 const Extra: ComponentType<{ label: string }> = ({ label }) => createElement("b", null, label);
@@ -18,8 +19,10 @@ describe("Slot", () => {
   });
 });
 describe("registerModules", () => {
-  it("tanpa berkas module.ts tidak mendaftarkan apa pun", () => {
-    const loaded = registerModules(moduleRegistry, [1, 2, 3, 4, 5, 6, 7, 8]);
-    expect(loaded).toEqual({ declarations: [], migrations: [] });
+  it("mendaftarkan modul fnb dan pelanggan, keduanya belum aktif", () => {
+    const loaded = registerModules(moduleRegistry, CORE_MIGRATION_VERSIONS);
+    expect(loaded.declarations.map((d) => d.id).sort()).toEqual(["fnb", "pelanggan"]);
+    expect(loaded.migrations.map((m) => m.version).sort((a, b) => a - b)).toEqual([15, 16, 17]);
+    expect(moduleRegistry.activeIds()).toEqual([]);
   });
 });

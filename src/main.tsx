@@ -5,10 +5,9 @@ import "./theme-init";
 import "./styles/globals.css";
 import App from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { CORE_MIGRATION_VERSIONS } from "./data/migration/steps";
 import { registerModules } from "./modules";
 import { moduleRegistry } from "./services/moduleRegistry";
-// Versions 1..8 belong to the core chain; module migrations must not reuse them.
-const CORE_MIGRATION_VERSIONS = [1, 2, 3, 4, 5, 6, 7, 8];
 // No module is active until ModuleService.load() runs, so the UI renders as before.
 registerModules(moduleRegistry, CORE_MIGRATION_VERSIONS);
 
