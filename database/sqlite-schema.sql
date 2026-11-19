@@ -1,5 +1,5 @@
--- Coffee Shop POS — Production SQLite Schema (V8)
--- Hasil menjalankan `src/data/migrations.ts` V1 sampai V8 pada database kosong.
+-- Coffee Shop POS — Production SQLite Schema (V9)
+-- Hasil menjalankan `src/data/migrations.ts` V1 sampai V9 pada database kosong.
 -- Diperiksa oleh `node scripts/check-schema.mjs`: kolom yang ditambah lewat
 -- ALTER TABLE ada di akhir tabel, sesuai urutan migrasinya.
 PRAGMA foreign_keys = ON;
@@ -208,3 +208,18 @@ CREATE TABLE IF NOT EXISTS modules (
     enabled_at TEXT,
     updated_by TEXT
 );
+-- V9: pengguna
+CREATE TABLE users (
+    id TEXT PRIMARY KEY,
+    display_name TEXT NOT NULL,
+    display_name_ci TEXT NOT NULL,
+    role TEXT NOT NULL CHECK (role IN ('owner','supervisor','kasir')),
+    pin_hash TEXT NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
+    failed_attempts INTEGER NOT NULL DEFAULT 0,
+    locked_until INTEGER,
+    locked_at INTEGER,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX uq_users_name_active ON users(display_name_ci) WHERE is_active = 1;

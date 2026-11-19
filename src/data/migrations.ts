@@ -306,3 +306,25 @@ export const UPGRADE_V8: string[] = [
     updated_by TEXT
   );`,
 ];
+/**
+ * UPGRADE_V9..V14 are applied by the Migration_Runner only (the plugin stays at
+ * version 7). They live here because scripts/check-schema.mjs reads UPGRADE_Vn
+ * from this file. Steps with a data hook are listed in src/data/migration/steps.ts.
+ */
+/** UPGRADE_V9 — users. Hook `legacy_owner` carries the old supervisor PIN over as the owner. */
+export const UPGRADE_V9: string[] = [
+  `CREATE TABLE users (
+    id TEXT PRIMARY KEY,
+    display_name TEXT NOT NULL,
+    display_name_ci TEXT NOT NULL,
+    role TEXT NOT NULL CHECK (role IN ('owner','supervisor','kasir')),
+    pin_hash TEXT NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
+    failed_attempts INTEGER NOT NULL DEFAULT 0,
+    locked_until INTEGER,
+    locked_at INTEGER,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );`,
+  `CREATE UNIQUE INDEX uq_users_name_active ON users(display_name_ci) WHERE is_active = 1;`,
+];
