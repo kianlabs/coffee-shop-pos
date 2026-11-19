@@ -1,0 +1,47 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`formatKitchenTicket > lists items, modifiers and notes 1`] = `
+[
+  "             DAPUR",
+  "            SALINAN",
+  "No: R-001",
+  "Tgl: 05/01/2024 09:07",
+  "Kasir: Ani",
+  "Tipe: Makan di tempat",
+  "--------------------------------",
+  "2x Kopi",
+  "  + Extra shot",
+  "  ! cepat",
+  "1x Teh",
+  "--------------------------------",
+]
+`;
+
+exports[`formatReceipt > renders a full 32 column receipt 1`] = `
+[
+  "           Kopi Suro",
+  "          Jl. Mawar 1",
+  "          NPWP: 01.234",
+  "No: R-001",
+  "Tgl: 05/01/2024 09:07",
+  "Kasir: Ani",
+  "Tipe: Makan di tempat",
+  "Ket: tanpa gula",
+  "--------------------------------",
+  "Kopi Susu (Large)",
+  "  2 x Rp18.000          Rp36.000",
+  "  + Extra shot          +Rp3.000",
+  "  + Less ice",
+  "--------------------------------",
+  "Subtotal                Rp36.000",
+  "Diskon                  -Rp1.000",
+  "Layanan                    Rp500",
+  "Pajak                    Rp3.850",
+  "Pembulatan                 -Rp50",
+  "TOTAL                   Rp39.300",
+  "Tunai                   Rp40.000",
+  "Kembalian                  Rp700",
+  "--------------------------------",
+  "          Terima kasih",
+]
+`;
