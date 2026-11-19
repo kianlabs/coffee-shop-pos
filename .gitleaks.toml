@@ -1,0 +1,8 @@
+# Extends the default gitleaks rules. Only reviewed false positives are allowed here.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Reviewed false positives"
+# Matched against the secret: the localStorage key name in src/data/orderStore.ts.
+regexes = ['''^pos\.orders\.quarantine\.v1$''']
