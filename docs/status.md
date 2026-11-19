@@ -3,7 +3,7 @@
 Dokumen ini menggantikan klaim di blueprint awal. Yang tertulis di sini sudah
 diverifikasi dengan build/test, bukan rencana.
 
-Terakhir diperbarui: 19 November 2026.
+Terakhir diperbarui: 20 November 2026.
 
 ## Sudah jalan
 
@@ -48,6 +48,20 @@ Terakhir diperbarui: 19 November 2026.
 | Smoke test UI headless: alur kasir → bayar → struk → riwayat → laporan/grafik, layout tablet & ponsel | `npm run smoke:ui` (35 cek) + `npm run test:e2e` (87 cek), Chromium/CDP |
 | APK memuat bundle terbaru | `npm run android:assets` (diverifikasi lewat isi APK) |
 
+## Fondasi yang sudah ada tapi belum terhubung ke layar
+Bagian ini sudah ada di kode dan diuji, tetapi **belum dipakai aplikasi yang
+berjalan**. Aplikasi masih memakai jalur lama (`src/data/orderRepository.ts`,
+`src/data/stock.ts`). Jangan mengira fitur ini aktif di tablet.
+| Bagian | Lokasi | Kondisi |
+|--------|--------|---------|
+| Runner migrasi V1–V14 dengan checksum | `src/data/migration/` | Diuji di sql.js. Belum dipasang ke startup (`src/data/db.ts`) dan belum diuji di plugin SQLite tablet |
+| Service checkout, refund, shift, keranjang, inventori | `src/services/` | Memakai store in-memory di tes. Adaptor SQL checkout/refund belum di-merge |
+| Login, PIN, peran, aksi sensitif | `src/domain/`, `src/data/pinHash.ts` | Fungsi murni dan hash PIN ada. Service dan layar login belum |
+| Mesin pajak, diskon, pembayaran terbagi, refund parsial | `src/domain/taxEngine.ts`, `payments.ts`, `refund.ts` | Fungsi murni. Layar kasir masih memakai perhitungan lama |
+| Registry pengaturan, modul, preset usaha | `src/domain/settings/`, `src/services/moduleRegistry.ts` | Belum ada layar Pengaturan yang memakainya |
+Penghalang sebelum runner migrasi dipasang: kode lama masih membaca kolom V7
+yang dihapus V11 (`stock_qty`, `qty`), dan perlu uji di tablet (kecepatan V11,
+perilaku plugin SQLite).
 ## Belum selesai / perlu hardware
 
 | Hal | Kondisi |
