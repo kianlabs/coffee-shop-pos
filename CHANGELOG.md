@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-19
+
 ### Added
 - **Store profile**: store name, address, tax ID (NPWP), logo, and receipt header/footer are now editable in Settings and stored per device. Receipts print the address, tax ID, header, and a custom footer when set.
 - **Repository guards** (`npm run check`, also run in CI): fail on client branding, tracked `.apk` files, AI assistant instruction files, and broken README links.
