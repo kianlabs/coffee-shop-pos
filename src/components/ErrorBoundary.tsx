@@ -24,25 +24,19 @@ export class ErrorBoundary extends Component<Props, State> {
       return this.props.children;
     }
     return (
-      <div style={{ maxWidth: 560, margin: "48px auto", padding: 24, fontFamily: "sans-serif" }}>
-        <h1 style={{ fontSize: 20 }}>Aplikasi berhenti karena error</h1>
-        <p style={{ fontSize: 14 }}>
+      <div role="alert" className="mx-auto my-12 max-w-xl space-y-4 p-6">
+        <h1 className="text-xl font-semibold">Aplikasi berhenti karena error</h1>
+        <p className="text-sm text-muted-foreground">
           Transaksi yang sudah tersimpan tetap aman di database. Muat ulang untuk melanjutkan.
         </p>
-        <pre
-          style={{
-            background: "#f5f5f5",
-            padding: 12,
-            borderRadius: 8,
-            fontSize: 12,
-            whiteSpace: "pre-wrap",
-            maxHeight: 200,
-            overflow: "auto",
-          }}
-        >
+        <pre className="max-h-52 overflow-auto rounded-lg bg-muted p-3 text-xs whitespace-pre-wrap">
           {this.state.error.message}
         </pre>
-        <button style={{ minHeight: 48, minWidth: 160 }} onClick={() => window.location.reload()}>
+        <button
+          type="button"
+          className="h-12 min-w-40 rounded-md bg-primary px-6 font-medium text-primary-foreground"
+          onClick={() => window.location.reload()}
+        >
           Muat ulang
         </button>
       </div>

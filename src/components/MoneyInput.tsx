@@ -1,5 +1,6 @@
 import { type ChangeEvent, type InputHTMLAttributes } from "react";
-import { formatThousands, parseThousands } from "../domain/money";
+import { cn } from "cn";
+import { formatThousands } from "../domain/money";
 
 export type MoneyInputProps = Omit<
   InputHTMLAttributes<HTMLInputElement>,
@@ -83,7 +84,10 @@ export function MoneyInput({
       autoComplete="off"
       autoCorrect="off"
       spellCheck={false}
-      className={className}
+      className={cn(
+        "h-11 w-full min-w-0 rounded-md border border-input bg-card px-3 text-right text-base tabular-nums shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50",
+        className,
+      )}
       value={displayValue}
       onChange={handleChange}
     />
