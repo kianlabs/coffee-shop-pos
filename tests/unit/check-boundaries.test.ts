@@ -100,3 +100,28 @@ describe("check-boundaries: batas baris .tsx", () => {
     expect(rulesOf({ "src/features/a/A.tsx": short })).toEqual([]);
   });
 });
+
+describe("check-boundaries: batas modul", () => {
+  it("berkas di luar src/modules/ tidak boleh mengimpor src/modules/<id>/", () => {
+    expect(rulesOf({ "src/features/kasir/K.tsx": 'import { x } from "@/modules/fnb/module";' })).toContain("module-internal-import");
+    expect(rulesOf({ "src/services/s.ts": 'import { x } from "../modules/fnb";' })).toContain("module-internal-import");
+    expect(rulesOf({ "src/app/a.ts": 'export const l = () => import("@/modules/pelanggan/screens/A");' })).toContain("module-internal-import");
+    expect(rulesOf({ "src/domain/a.ts": 'export { x } from "@/modules/fnb/x";' })).toContain("module-internal-import");
+  });
+  it("pelanggaran menyebut berkas dan spesifier", () => {
+    const [v] = rulesFor({ "src/features/a/A.tsx": 'import { x } from "@/modules/fnb/module";' }).filter((x) => x.rule === "module-internal-import");
+    expect(v).toMatchObject({ file: "src/features/a/A.tsx", detail: "@/modules/fnb/module" });
+  });
+  it("src/main.tsx boleh mengimpor src/modules (index)", () => {
+    expect(rulesOf({ "src/main.tsx": 'import { registerModules } from "@/modules";' })).toEqual([]);
+    expect(rulesOf({ "src/main.tsx": 'import { registerModules } from "@/modules/index";' })).toEqual([]);
+  });
+  it("modul boleh mengimpor dirinya sendiri dan lapisan dalam", () => {
+    expect(
+      rulesOf({
+        "src/modules/fnb/module.ts": 'import { a } from "./screens/A";\nimport { m } from "@/domain/money";\nimport { r } from "@/services/moduleRegistry";',
+        "src/modules/index.ts": 'import m from "./fnb/module";',
+      }),
+    ).toEqual([]);
+  });
+});
