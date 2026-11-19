@@ -55,11 +55,53 @@ export function paymentLabel(method: PaymentMethod): string {
   return "Lainnya";
 }
 
+/** Pecah teks per kata ke baris selebar `width`; kata yang terlalu panjang dipatah paksa. */
+export function wrapText(text: string, width: number = WIDTH): string[] {
+  const words = text.split(/\s+/).filter((w) => w !== "");
+  const lines: string[] = [];
+  let current = "";
+  for (const word of words) {
+    let rest = word;
+    while (rest.length > width) {
+      if (current !== "") {
+        lines.push(current);
+        current = "";
+      }
+      lines.push(rest.slice(0, width));
+      rest = rest.slice(width);
+    }
+    if (current === "") {
+      current = rest;
+    } else if (current.length + 1 + rest.length <= width) {
+      current = `${current} ${rest}`;
+    } else {
+      lines.push(current);
+      current = rest;
+    }
+  }
+  if (current !== "") {
+    lines.push(current);
+  }
+  return lines;
+}
+
+function centerWrapped(text: string | undefined): string[] {
+  return text ? wrapText(text).map(center) : [];
+}
+
 export type ReceiptOptions = {
   cashierName?: string;
   shiftName?: string;
   /** DEFAULT: override nama toko header (fallback SHOP_NAME bila kosong). */
   storeName?: string;
+  /** Alamat toko di bawah nama; kosong = tidak dicetak. */
+  storeAddress?: string;
+  /** NPWP toko; kosong = tidak dicetak. */
+  storeNpwp?: string;
+  /** Teks tambahan di bawah identitas toko. */
+  receiptHeader?: string;
+  /** Pengganti "Terima kasih" di kaki struk; kosong = "Terima kasih". */
+  receiptFooter?: string;
   /** Slot logo teks (mis. "[LOGO]"). Kosong = tanpa logo, tetap aman. */
   logoText?: string;
 };
@@ -76,6 +118,11 @@ export function renderReceiptText(order: Order, opts?: ReceiptOptions): string {
   }
   const shopName = opts?.storeName?.trim() ? opts.storeName.trim().slice(0, WIDTH) : SHOP_NAME;
   rows.push(center(shopName));
+  rows.push(...centerWrapped(opts?.storeAddress));
+  if (opts?.storeNpwp) {
+    rows.push(center(fitWidth(`NPWP: ${opts.storeNpwp}`)));
+  }
+  rows.push(...centerWrapped(opts?.receiptHeader));
   if (order.status === "voided") {
     rows.push(center("*** VOID ***"));
   }
@@ -126,7 +173,11 @@ export function renderReceiptText(order: Order, opts?: ReceiptOptions): string {
   if (order.status === "refunded") {
     rows.push(center("*** REFUND ***"));
   }
-  rows.push("Terima kasih".padStart(22));
+  if (opts?.receiptFooter) {
+    rows.push(...centerWrapped(opts.receiptFooter));
+  } else {
+    rows.push("Terima kasih".padStart(22));
+  }
   rows.push(`ID: ${order.id.slice(0, 8)}`);
   return rows.join("\n");
 }

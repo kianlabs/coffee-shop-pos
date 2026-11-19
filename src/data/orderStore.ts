@@ -59,6 +59,66 @@ function writeRaw(key: string, value: string): void {
   }
 }
 
+const QUARANTINE_KEY = "pos.orders.quarantine.v1";
+const MAX_QUARANTINED = 200;
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function isFiniteNumber(v: unknown): v is number {
+  return typeof v === "number" && Number.isFinite(v);
+}
+
+function isReadableLine(line: unknown): boolean {
+  return (
+    isRecord(line) &&
+    typeof line.productName === "string" &&
+    isFiniteNumber(line.qty) &&
+    isFiniteNumber(line.unitPriceRp) &&
+    isFiniteNumber(line.lineTotalRp)
+  );
+}
+
+/**
+ * Bentuk minimal yang dibutuhkan layar Riwayat dan Laporan. Sengaja lebih
+ * longgar dari validasi backup: tujuannya mencegah crash saat render, bukan
+ * menolak order lama yang masih bisa dibaca.
+ */
+function isReadableOrder(o: unknown): o is Order {
+  if (!isRecord(o)) return false;
+  if (typeof o.id !== "string" || o.id === "") return false;
+  if (typeof o.receiptNumber !== "string") return false;
+  if (typeof o.status !== "string" || !ORDER_STATUSES.includes(o.status)) return false;
+  if (typeof o.createdAt !== "string" || Number.isNaN(Date.parse(o.createdAt))) return false;
+  if (!Array.isArray(o.lines) || o.lines.length === 0 || !o.lines.every(isReadableLine)) return false;
+  for (const key of ["subtotalRp", "discountRp", "taxRp", "totalRp", "changeRp"]) {
+    if (!isFiniteNumber(o[key])) return false;
+  }
+  const p = o.payment;
+  return (
+    isRecord(p) &&
+    typeof p.method === "string" &&
+    PAYMENT_METHODS.includes(p.method) &&
+    isFiniteNumber(p.amountRp)
+  );
+}
+
+/** Simpan order yang tidak terbaca ke karantina agar tidak hilang saat daftar order ditulis ulang. */
+function quarantineOrders(bad: unknown[]): void {
+  try {
+    const raw = readRaw(QUARANTINE_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    const kept: unknown[] = Array.isArray(parsed) ? parsed : [];
+    const seen = new Set(kept.map((item) => JSON.stringify(item)));
+    const added = bad.filter((item) => !seen.has(JSON.stringify(item)));
+    if (added.length === 0) return;
+    writeRaw(QUARANTINE_KEY, JSON.stringify([...kept, ...added].slice(-MAX_QUARANTINED)));
+  } catch {
+    // Best-effort: gagal menulis karantina tidak boleh menghalangi pembacaan order.
+  }
+}
+
 export function loadOrders(): Order[] {
   const raw = readRaw(ORDERS_KEY);
   if (!raw) {
@@ -75,8 +135,19 @@ export function loadOrders(): Order[] {
     if (parsed.schemaVersion !== 1 || !Array.isArray(parsed.orders)) {
       return [];
     }
-    // Shape dasar terverifikasi (versi + array); item divalidasi saat dipakai.
-    return parsed.orders as Order[];
+    const readable: Order[] = [];
+    const unreadable: unknown[] = [];
+    for (const item of parsed.orders as unknown[]) {
+      if (isReadableOrder(item)) {
+        readable.push(item);
+      } else {
+        unreadable.push(item);
+      }
+    }
+    if (unreadable.length > 0) {
+      quarantineOrders(unreadable);
+    }
+    return readable;
   } catch {
     return [];
   }

@@ -21,6 +21,8 @@ execFileSync(
     "src/domain/units.ts",
     "src/domain/recipe.ts",
     "src/domain/semver.ts",
+    "src/domain/storeProfile.ts",
+    "src/data/orderStore.ts",
     "src/data/settings.ts",
     "src/data/receipt.ts",
     "--ignoreConfig",
@@ -46,6 +48,8 @@ const sales = require(path.join(OUT, "domain/sales.js"));
 const units = require(path.join(OUT, "domain/units.js"));
 const recipeDomain = require(path.join(OUT, "domain/recipe.js"));
 const semver = require(path.join(OUT, "domain/semver.js"));
+const storeProfile = require(path.join(OUT, "domain/storeProfile.js"));
+const orderStore = require(path.join(OUT, "data/orderStore.js"));
 const receipt = require(path.join(OUT, "data/receipt.js"));
 
 let pass = 0;
@@ -380,6 +384,53 @@ console.log("\n[11] refund");
   const truncatedLine = receipt.line(longLeft, "Rp100.000");
   check("line panjang dibatasi 32 karakter", truncatedLine.length, 32);
   check("left panjang dipotong dengan elipsis", truncatedLine.includes("…"), true);
+
+  check("wrapText kosong", receipt.wrapText(""), []);
+  check("wrapText per kata", receipt.wrapText("Jl. Mawar No. 1 Surakarta Jawa Tengah", 20), [
+    "Jl. Mawar No. 1",
+    "Surakarta Jawa",
+    "Tengah",
+  ]);
+  check("wrapText kata terlalu panjang dipatah", receipt.wrapText("abcdefghij", 4), ["abcd", "efgh", "ij"]);
+  const wrapAll = receipt.wrapText("kata ".repeat(60) + "x".repeat(70));
+  check("wrapText tidak melebihi 32 karakter", wrapAll.every((l) => l.length <= 32), true);
+
+  const sampleOrder = {
+    id: "ord-12345678",
+    receiptNumber: "R-001",
+    idempotencyKey: "k1",
+    status: "completed",
+    lines: [{ productName: "Es Kopi Aren", variantName: null, qty: 1, unitPriceRp: 24000, lineTotalRp: 24000 }],
+    subtotalRp: 24000,
+    discountRp: 0,
+    taxRp: 0,
+    serviceChargeRp: 0,
+    roundingRp: 0,
+    totalRp: 24000,
+    payment: { method: "cash", amountRp: 25000 },
+    changeRp: 1000,
+    notes: null,
+    createdAt: "2026-11-13T03:00:00.000Z",
+  };
+  const plain = receipt.renderReceiptText(sampleOrder, { storeName: "Kedai Contoh" }).split("\n");
+  check("struk tanpa profil: footer Terima kasih", plain.some((l) => l.trim() === "Terima kasih"), true);
+  check("struk tanpa alamat/NPWP", plain.some((l) => l.includes("NPWP")), false);
+  const rich = receipt
+    .renderReceiptText(sampleOrder, {
+      storeName: "Kedai Contoh",
+      storeAddress: "Jl. Mawar No. 1 Surakarta Jawa Tengah",
+      storeNpwp: "01.234.567.8-901.000",
+      receiptHeader: "Buka setiap hari",
+      receiptFooter: "Sampai jumpa lagi",
+    })
+    .split("\n");
+  check("struk memuat alamat", rich.some((l) => l.includes("Jl. Mawar No. 1")), true);
+  check("struk memuat NPWP", rich.some((l) => l.includes("NPWP: 01.234.567.8-901.000")), true);
+  check("struk memuat header", rich.some((l) => l.includes("Buka setiap hari")), true);
+  check("footer kustom menggantikan Terima kasih", rich.some((l) => l.includes("Terima kasih")), false);
+  check("footer kustom tercetak", rich.some((l) => l.includes("Sampai jumpa lagi")), true);
+  check("semua baris struk <= 32 karakter", rich.every((l) => l.length <= 32), true);
+  check("nama toko di baris pertama", rich[0].trim(), "Kedai Contoh");
 }
 
 {
@@ -393,6 +444,84 @@ console.log("\n[11] refund");
   check("v1.2 > 1.1.9", semver.isNewerVersion("v1.2", "1.1.9"), true);
 }
 
+console.log("\n[orderStore] order cacat tidak menjatuhkan aplikasi dan tidak hilang");
+{
+  const mem = new Map();
+  globalThis.localStorage = {
+    getItem: (k) => (mem.has(k) ? mem.get(k) : null),
+    setItem: (k, v) => void mem.set(k, String(v)),
+    removeItem: (k) => void mem.delete(k),
+  };
+  const good = (id) => ({
+    id,
+    receiptNumber: `R-${id}`,
+    idempotencyKey: `k-${id}`,
+    status: "completed",
+    lines: [{ productId: "p", variantId: null, productName: "Kopi", variantName: null, unitPriceRp: 10000, qty: 1, lineTotalRp: 10000, discountRp: 0, netTotalRp: 10000 }],
+    subtotalRp: 10000, discountRp: 0, taxRp: 0, serviceChargeRp: 0, roundingRp: 0, totalRp: 10000,
+    payment: { method: "cash", amountRp: 10000, paidAt: "2026-11-13T03:00:00.000Z" },
+    changeRp: 0, notes: null, createdAt: "2026-11-13T03:00:00.000Z",
+  });
+  const noPayment = { ...good("bad-1"), payment: undefined };
+  const badStatus = { ...good("bad-2"), status: "weird" };
+  const badMethod = { ...good("bad-3"), payment: { method: "crypto", amountRp: 1, paidAt: "x" } };
+  const noLines = { ...good("bad-4"), lines: [] };
+  const notObject = "garbage";
+  const stored = [good("ok-1"), noPayment, badStatus, good("ok-2"), badMethod, noLines, notObject, null];
+  const raw = JSON.stringify({ schemaVersion: 1, orders: stored });
+  mem.set("pos.orders.v1", raw);
+
+  const loaded = orderStore.loadOrders();
+  check("hanya order yang terbaca dikembalikan", loaded.map((o) => o.id), ["ok-1", "ok-2"]);
+  check("semua order terbaca punya payment.method", loaded.every((o) => typeof o.payment.method === "string"), true);
+  check("pembacaan tidak mengubah data utama", mem.get("pos.orders.v1"), raw);
+  const quarantine = () => JSON.parse(mem.get("pos.orders.quarantine.v1") ?? "[]");
+  check("6 order cacat masuk karantina", quarantine().length, 6);
+  orderStore.loadOrders();
+  check("baca ulang tidak menggandakan karantina", quarantine().length, 6);
+
+  orderStore.voidOrder("ok-1");
+  const afterWrite = JSON.parse(mem.get("pos.orders.v1")).orders;
+  check("setelah tulis ulang, daftar utama hanya berisi order valid", afterWrite.map((o) => o.id), ["ok-1", "ok-2"]);
+  check("order cacat tetap utuh di karantina setelah tulis ulang", quarantine().length, 6);
+  check("isi order cacat tidak berubah di karantina", quarantine().some((q) => q && q.id === "bad-2" && q.status === "weird"), true);
+
+  mem.set("pos.orders.v1", JSON.stringify({ schemaVersion: 1, orders: [good("only")] }));
+  mem.delete("pos.orders.quarantine.v1");
+  check("data bersih: tidak ada karantina baru", (orderStore.loadOrders(), mem.has("pos.orders.quarantine.v1")), false);
+  mem.set("pos.orders.v1", "{rusak");
+  check("JSON rusak mengembalikan daftar kosong", orderStore.loadOrders(), []);
+  delete globalThis.localStorage;
+}
+
+console.log("\n[Store_Profile]");
+{
+  const sp = storeProfile;
+  const png = "data:image/png;base64,iVBORw0KGgo=";
+  check("nilai awal netral", sp.profileFromRows([]), sp.DEFAULT_STORE_PROFILE);
+  check("profil awal netral: hanya nama bawaan terisi", Object.entries(sp.DEFAULT_STORE_PROFILE).filter(([, v]) => v !== "").map(([k]) => k), ["name"]);
+  check("nama bawaan netral", sp.DEFAULT_STORE_PROFILE.name, "Nama Toko");
+  const full = {
+    name: "Kedai Contoh",
+    address: "Jl. Mawar No. 1",
+    npwp: "01.234.567.8-901.000",
+    logoB64: png,
+    receiptHeader: "Selamat datang",
+    receiptFooter: "Terima kasih",
+  };
+  check("baca-tulis bolak-balik", sp.profileFromRows(sp.profileToRows(full)), full);
+  check("profileToRows memuat 6 kunci", sp.profileToRows(full).map((r) => r.key), [
+    "toko.nama", "toko.alamat", "toko.npwp", "toko.logo_b64", "struk.header", "struk.footer",
+  ]);
+  check("baris tak dikenal diabaikan", sp.profileFromRows([{ key: "lain.x", value: "z" }]), sp.DEFAULT_STORE_PROFILE);
+  check("nama kosong kembali ke default", sp.sanitizeStoreProfile({ name: "   " }).name, "Nama Toko");
+  check("karakter kontrol dibuang", sp.sanitizeStoreProfile({ name: "A\u001bB\nC\u007f" }).name, "ABC");
+  check("nama dibatasi 100 karakter", sp.sanitizeStoreProfile({ name: "x".repeat(150) }).name.length, 100);
+  check("logo bukan PNG dikosongkan", sp.sanitizeStoreProfile({ logoB64: "data:text/html;base64,AAAA" }).logoB64, "");
+  check("logo terlalu besar dikosongkan", sp.sanitizeStoreProfile({ logoB64: `data:image/png;base64,${"A".repeat(400_001)}` }).logoB64, "");
+  check("logo PNG valid dipertahankan", sp.sanitizeStoreProfile({ logoB64: png }).logoB64, png);
+  check("tipe bukan string ditolak", sp.sanitizeStoreProfile({ address: 123, npwp: null }).address, "");
+}
 rmSync(OUT, { recursive: true, force: true });
 console.log(`\n=== ${fail === 0 ? `SEMUA LULUS (${pass})` : `${fail} GAGAL dari ${pass + fail}`} ===`);
 process.exit(fail === 0 ? 0 : 1);

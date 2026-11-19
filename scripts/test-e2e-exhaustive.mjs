@@ -174,9 +174,9 @@ async function main() {
 
     await evalJs(`(() => {
       localStorage.clear();
-      // Setup Settings Rahardjo Coffee
+      // Setup settings kedai contoh
       localStorage.setItem("pos.settings.v1", JSON.stringify({
-        storeName: "RAHARDJO COFFEE",
+        storeName: "KEDAI CONTOH",
         address: "Jl. Moh. Yamin 84A, Kawatan, Serengan, Surakarta",
         phone: "0812-2888-0820",
         footerMessage: "Matur nuwun sampun rawuh!",
@@ -224,7 +224,7 @@ async function main() {
           {
             id: "prod-kopsus",
             categoryId: "cat-sig",
-            name: "Es Kopi Rahardjo",
+            name: "Es Kopi Aren",
             basePriceRp: 24000,
             isActive: true,
             variants: []
@@ -240,10 +240,10 @@ async function main() {
     await reload();
     await waitFor("document.body.innerText.includes('08.20 Escobar')");
 
-    check("Nama toko 'RAHARDJO COFFEE' tampil di header", await evalJs("document.body.innerText.includes('RAHARDJO COFFEE')"));
+    check("Nama toko 'KEDAI CONTOH' tampil di header", await evalJs("document.body.innerText.includes('KEDAI CONTOH')"));
     check("Shift berjalan dengan kasir 'Barista Kian'", await evalJs("document.body.innerText.includes('Shift buka')"));
     check("Menu multi-varian '08.20 Escobar' menampilkan badge varian", await evalJs("document.body.innerText.toUpperCase().includes('2 VARIAN')"));
-    check("Menu tanpa varian menampilkan tombol Tambah", await waitFor("!!document.querySelector('[aria-label=\"Tambah Es Kopi Rahardjo\"]')"));
+    check("Menu tanpa varian menampilkan tombol Tambah", await waitFor("!!document.querySelector('[aria-label=\"Tambah Es Kopi Aren\"]')"));
 
     console.log("\n[TEST 2] Keranjang & Aritmetika Multi-Varian");
     // Tambah varian Large (38.000 + 4.000 = 42.000)
@@ -252,10 +252,10 @@ async function main() {
     check("Item varian Large masuk keranjang", await evalJs("document.querySelector('.cart-line')?.textContent.includes('Large')"));
     check("Harga varian Large Rp42.000", await evalJs("document.querySelector('.cart-line-total')?.textContent.includes('42.000')"));
 
-    // Tambah Es Kopi Rahardjo (24.000)
-    await evalJs(`document.querySelector('[aria-label="Tambah Es Kopi Rahardjo"]').click()`);
+    // Tambah Es Kopi Aren (24.000)
+    await evalJs(`document.querySelector('[aria-label="Tambah Es Kopi Aren"]').click()`);
     await wait(200);
-    // Tambah lagi qty Es Kopi Rahardjo jadi 2x (48.000)
+    // Tambah lagi qty Es Kopi Aren jadi 2x (48.000)
     await evalJs(`(() => {
       const btns = [...document.querySelectorAll('.qty-btn')];
       // Cari tombol tambah untuk item kedua
@@ -321,7 +321,7 @@ async function main() {
 
     check("Logo Toko tampil di pratinjau struk", await evalJs("!!document.querySelector('.modal details img[alt=\"Logo Toko\"]')"));
     const receiptText = await evalJs("document.querySelector('.receipt-preview')?.textContent || ''");
-    check("Teks struk memuat nama toko RAHARDJO COFFEE", receiptText.includes("RAHARDJO COFFEE"));
+    check("Teks struk memuat nama toko KEDAI CONTOH", receiptText.includes("KEDAI CONTOH"));
     check("Teks struk memuat item varian (08.20 Escobar - Regular/Large)", receiptText.includes("08.20 Escobar"));
     check("Teks struk memuat total Rp90.000", receiptText.includes("90.000"));
 
@@ -389,6 +389,60 @@ async function main() {
     check("Layar Laporan selesai dimuat (Lazy-loaded)", await waitFor("!!document.querySelector('.report-layout, .report-chart-card')"));
     check("Layar Laporan memuat 5 kartu KPI", (await evalJs("document.querySelectorAll('.stat-card').length")) === 5);
     check("State tren kosong tampil benar setelah transaksi di-void (zero-sales state)", await evalJs("!!document.querySelector('.trend-empty')"));
+
+    console.log("\n[TEST 7] Profil Toko: simpan di Pengaturan, bertahan setelah reload");
+    const openSettings = `(() => {
+      const nav = [...document.querySelectorAll('.nav-item')].find(b => b.textContent.includes('Setelan'));
+      nav?.click();
+    })()`;
+    const fieldValue = (label) => `(() => {
+      const l = [...document.querySelectorAll('label')].find(x => x.textContent.trim() === ${JSON.stringify(label)});
+      return l?.querySelector('input')?.value ?? null;
+    })()`;
+    await evalJs(openSettings);
+    check("Layar Pengaturan terbuka dengan kolom profil toko", await waitFor(`${fieldValue("Alamat")} !== null`));
+    await evalJs(`(() => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+      const fill = (label, value) => {
+        const l = [...document.querySelectorAll('label')].find(x => x.textContent.trim() === label);
+        const input = l.querySelector('input');
+        setter.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      };
+      fill('Nama toko', 'Kedai Uji Profil');
+      fill('Alamat', 'Jl. Melati No. 7');
+      fill('Teks bawah struk', 'Sampai jumpa');
+    })()`);
+    await evalJs(`[...document.querySelectorAll('button')].find(b => b.textContent.includes('Simpan pengaturan'))?.click()`);
+    check("Pengaturan disimpan tanpa error", await waitFor("document.body.innerText.includes('Pengaturan disimpan.')"));
+    check("Header memakai nama toko baru", await waitFor("document.querySelector('.topbar-sub')?.textContent.includes('Kedai Uji Profil')"));
+
+    await reload();
+    check("Nama toko baru bertahan setelah reload", await waitFor("document.querySelector('.topbar-sub')?.textContent.includes('Kedai Uji Profil')", 10000));
+    await evalJs(openSettings);
+    await waitFor(`${fieldValue("Alamat")} !== null`);
+    check("Alamat bertahan setelah reload", await waitFor(`${fieldValue("Alamat")} === 'Jl. Melati No. 7'`, 10000));
+    check("Teks bawah struk bertahan setelah reload", (await evalJs(fieldValue("Teks bawah struk"))) === "Sampai jumpa");
+
+    console.log("\n[TEST 8] Order cacat di localStorage tidak menjatuhkan aplikasi");
+    // Suntik dua order cacat (tanpa payment, status asing) bersama data yang ada.
+    await evalJs(`(() => {
+      const key = "pos.orders.v1";
+      const store = JSON.parse(localStorage.getItem(key) || '{"schemaVersion":1,"orders":[]}');
+      store.orders.push({ id: "bad-no-payment", receiptNumber: "R-X", status: "completed", lines: [], createdAt: new Date().toISOString() });
+      store.orders.push({ id: "bad-status", status: "weird" });
+      localStorage.setItem(key, JSON.stringify(store));
+    })()`);
+    await reload();
+    for (const view of ["Riwayat", "Laporan"]) {
+      await evalJs(`(() => {
+        const nav = [...document.querySelectorAll('.nav-item')].find(b => b.textContent.includes(${JSON.stringify(view)}));
+        nav?.click();
+      })()`);
+      await wait(700);
+      check(`Layar ${view} tetap tampil (tanpa layar error)`, await evalJs("!document.body.innerText.includes('Aplikasi berhenti karena error')"));
+    }
+    check("Order cacat dikarantina, bukan dibuang", await evalJs(`JSON.parse(localStorage.getItem("pos.orders.quarantine.v1") || "[]").length >= 2`));
 
     const filteredErrors = consoleErrors.filter(
       (e) => !/favicon|net::ERR_|Failed to load resource/i.test(e),

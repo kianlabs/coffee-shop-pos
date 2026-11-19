@@ -60,6 +60,8 @@ import {
 import { closeShift, openShift, summarizeShift, type Shift } from "./domain/shifts";
 import { ProductItem } from "./components/ProductItem";
 import { MoneyInput } from "./components/MoneyInput";
+import { StoreProfileFields } from "./components/StoreProfileFields";
+import { useStoreProfile } from "./hooks/useStoreProfile";
 import { Icon, type IconName } from "./components/Icon";
 import {
   checkForAppUpdate,
@@ -338,6 +340,7 @@ export default function App() {
   const [currentPinDraft, setCurrentPinDraft] = useState("");
   const [openCashDraft, setOpenCashDraft] = useState<number>(0);
   const [settingsSaving, setSettingsSaving] = useState(false);
+  const storeProfile = useStoreProfile(dbReady);
   const [printerDevices, setPrinterDevices] = useState<PrinterDevice[]>([]);
   const [printerState, setPrinterState] = useState<PrinterStatus>({
     connected: false,
@@ -834,7 +837,11 @@ export default function App() {
       // Prepend optimistik — tanpa bump ordersVersion agar tak double full-scan.
       setOrders((prev) => [order, ...prev.filter((o) => o.id !== order.id)]);
       const receiptText = renderReceiptText(order, {
-        storeName: posSettings.storeName,
+        storeName: storeProfile.profile.name,
+        storeAddress: storeProfile.profile.address,
+        storeNpwp: storeProfile.profile.npwp,
+        receiptHeader: storeProfile.profile.receiptHeader,
+        receiptFooter: storeProfile.profile.receiptFooter,
         cashierName: posSettings.cashierName,
       });
       setLastReceipt({ order, text: receiptText });
@@ -849,7 +856,7 @@ export default function App() {
       if (posSettings.autoPrint) {
         const port = activePrinter();
         const printOpts = {
-          logoBase64: posSettings.printLogo ? (posSettings.logoBase64 || "assets/logo.png") : undefined,
+          logoBase64: posSettings.printLogo ? (storeProfile.profile.logoB64 || "assets/logo.png") : undefined,
         };
         port.print(receiptText, printOpts).catch((err: unknown) => {
           setStatus({
@@ -1040,7 +1047,7 @@ export default function App() {
         if (!ctx) return;
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         const b64 = canvas.toDataURL("image/png");
-        setSettingsDraft((prev) => ({ ...prev, logoBase64: b64 }));
+        storeProfile.setDraft((prev) => ({ ...prev, logoB64: b64 }));
         setStatus({ kind: "ok", msg: "Logo berhasil dipilih. Klik 'Simpan Pengaturan' untuk menerapkan.", scope: "pengaturan" });
       };
       img.src = String(reader.result);
@@ -1099,6 +1106,7 @@ export default function App() {
         next = { ...settingsDraft, voidPinHash: hash, voidPinSalt: salt };
       }
       const saved = saveSettings(next);
+      await storeProfile.save();
       setPosSettings(saved);
       setSettingsDraft(saved);
       setVoidPinDraft("");
@@ -1249,12 +1257,16 @@ export default function App() {
     setActionBusyId(order.id);
     const label = order.receiptNumber;
     const receiptOpts = {
-      storeName: posSettings.storeName,
+      storeName: storeProfile.profile.name,
+      storeAddress: storeProfile.profile.address,
+      storeNpwp: storeProfile.profile.npwp,
+      receiptHeader: storeProfile.profile.receiptHeader,
+      receiptFooter: storeProfile.profile.receiptFooter,
       cashierName: posSettings.cashierName,
     };
     const port = activePrinter();
     const printOpts = {
-      logoBase64: posSettings.printLogo ? (posSettings.logoBase64 || "assets/logo.png") : undefined,
+      logoBase64: posSettings.printLogo ? (storeProfile.profile.logoB64 || "assets/logo.png") : undefined,
     };
     try {
       await port.print(renderReceiptText(order, receiptOpts), printOpts);
@@ -1623,7 +1635,7 @@ export default function App() {
           <div className="topbar-left">
             <h1 className="topbar-title">{VIEW_TITLES[view]}</h1>
             <p className="topbar-sub">
-              {posSettings.storeName || "Kopi POS"} · {todayLabel}
+              {storeProfile.profile.name} · {todayLabel}
             </p>
           </div>
           <div className="topbar-right">
@@ -2507,17 +2519,10 @@ export default function App() {
                       <p>Identitas yang tampil di struk.</p>
                     </div>
                   </div>
-                  <label>
-                    Nama toko
-                    <input
-                      value={settingsDraft.storeName}
-                      onChange={(e) =>
-                        setSettingsDraft({ ...settingsDraft, storeName: e.target.value })
-                      }
-                      placeholder="KOPI POS"
-                      maxLength={100}
-                    />
-                  </label>
+                  <StoreProfileFields
+                    draft={storeProfile.draft}
+                    onChange={storeProfile.setDraft}
+                  />
                   <label>
                     Nama kasir
                     <input
@@ -2738,7 +2743,7 @@ export default function App() {
                         }}
                       >
                         <img
-                          src={settingsDraft.logoBase64 || "assets/logo.png"}
+                          src={storeProfile.draft.logoB64 || "assets/logo.png"}
                           alt="Pratinjau Logo"
                           style={{
                             maxWidth: 160,
@@ -2752,7 +2757,7 @@ export default function App() {
                           }}
                         />
                         <span className="muted" style={{ fontSize: "0.75rem", display: "block", marginTop: 6 }}>
-                          {settingsDraft.logoBase64 ? "Menggunakan logo kustom" : "Menggunakan logo bawaan (assets/logo.png)"}
+                          {storeProfile.draft.logoB64 ? "Menggunakan logo kustom" : "Menggunakan logo bawaan (assets/logo.png)"}
                         </span>
                       </div>
                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -2775,12 +2780,12 @@ export default function App() {
                             onChange={handleLogoFileChange}
                           />
                         </label>
-                        {settingsDraft.logoBase64 !== "" && (
+                        {storeProfile.draft.logoB64 !== "" && (
                           <button
                             type="button"
                             className="ghost small"
                             onClick={() => {
-                              setSettingsDraft((prev) => ({ ...prev, logoBase64: "" }));
+                              storeProfile.setDraft((prev) => ({ ...prev, logoB64: "" }));
                               setStatus({ kind: "info", msg: "Logo dikembalikan ke bawaan.", scope: "pengaturan" });
                             }}
                           >
@@ -2995,7 +3000,7 @@ export default function App() {
                 {posSettings.printLogo && (
                   <div style={{ textAlign: "center", marginBottom: 8 }}>
                     <img
-                      src={posSettings.logoBase64 || "assets/logo.png"}
+                      src={storeProfile.profile.logoB64 || "assets/logo.png"}
                       alt="Logo Toko"
                       style={{ maxWidth: 140, maxHeight: 70, objectFit: "contain", display: "inline-block" }}
                       onError={(e) => {

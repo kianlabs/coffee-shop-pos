@@ -5,6 +5,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [Unreleased]
+
+### Added
+- **Store profile**: store name, address, tax ID (NPWP), logo, and receipt header/footer are now editable in Settings and stored per device. Receipts print the address, tax ID, header, and a custom footer when set.
+- **Repository guards** (`npm run check`, also run in CI): fail on client branding, tracked `.apk` files, AI assistant instruction files, and broken README links.
+- Bilingual README (`README.md`, `README.id.md`) with screenshots, `CODE_OF_CONDUCT.md`, issue and pull request templates, and label definitions.
+- `scripts/check-changelog.mjs` to validate this file and to require an entry for each release tag.
+
+### Changed
+- The default store name is now neutral ("Nama Toko") instead of a specific shop's name.
+- `scripts/capture-tablet-screenshots.mjs` writes to `docs/screenshots/` instead of a machine-specific path.
+- Release artifacts are named `Kopi-POS-<tag>.apk`.
+
+### Removed
+- The client-specific APK from the repository tree. APK files are published only on GitHub Releases.
+
+---
+
 ## [1.0.1] - 2026-11-11
 
 ### Fixed
@@ -46,7 +64,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Refactored `orderRepository.ts` to enforce explicit atomic manual transactions (`db.run(..., false)`).
 - Upgraded `hpp.ts` to allow precise decimal unit costs without premature integer truncation.
 - Memoized product variant lookups to prevent full catalog re-renders upon cart mutation.
-
-### Tested
-- 110 domain unit tests passing (`scripts/test-domain.mjs`).
-- 31 Playwright UI smoke tests passing across tablet (1280×800) and mobile (390×844) viewports.
+- Test coverage at this release: 110 domain unit tests (`scripts/test-domain.mjs`) and 31 UI smoke tests across tablet (1280×800) and mobile (390×844) viewports.

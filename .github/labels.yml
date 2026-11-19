@@ -1,0 +1,29 @@
+# Label definitions. Apply with a label-sync tool such as
+# https://github.com/EndBug/label-sync or create them by hand in the repository settings.
+- name: bug
+  color: d73a4a
+  description: Something is not working
+- name: enhancement
+  color: a2eeef
+  description: New feature or request
+- name: good first issue
+  color: 7057ff
+  description: Small, well-scoped task that is a good way to start contributing
+- name: help wanted
+  color: 008672
+  description: Maintainers would welcome a contribution on this
+- name: documentation
+  color: 0075ca
+  description: Improvements or additions to documentation
+- name: printer
+  color: fbca04
+  description: Bluetooth or ESC/POS printing
+- name: android
+  color: 3ddc84
+  description: Android native or Capacitor related
+- name: needs-info
+  color: d876e3
+  description: Waiting for more details from the reporter
+- name: wontfix
+  color: ffffff
+  description: This will not be worked on

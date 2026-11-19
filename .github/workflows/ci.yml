@@ -28,6 +28,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Repository guards (no client brand, no APK, no AI instruction files)
+        run: npm run check
+
       - name: Typecheck (TypeScript Strict)
         run: npm run typecheck
 

@@ -1,0 +1,43 @@
+name: Feature request
+description: Suggest an improvement or a new capability
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem do you want to solve?
+      description: Describe the situation at the counter or in the back office, not the solution.
+      placeholder: "When two customers pay together, the cashier has to ..."
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How could the app help? Rough ideas and sketches are fine.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+    validations:
+      required: false
+  - type: dropdown
+    id: business
+    attributes:
+      label: What kind of business is this for?
+      options:
+        - Café or coffee shop
+        - Restaurant or food stall
+        - Retail shop
+        - Service business
+        - Other
+    validations:
+      required: false
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to help build this

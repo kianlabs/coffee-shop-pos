@@ -1,232 +1,135 @@
 # ☕ Kopi POS
 
+**English** · [Bahasa Indonesia](README.id.md)
+
 <p align="center">
-  <strong>Production-ready, offline-first Tablet Point of Sale (POS) and inventory costing engine tailored for specialty coffee shops, slow bars, and micro-roasteries.</strong>
+  <strong>Open-source, offline-first tablet Point of Sale for cafés and small food &amp; beverage shops, with recipe-based cost tracking and 58mm Bluetooth receipt printing.</strong>
 </p>
 
 <p align="center">
-  <a href="https://github.com/kianlabs/coffee-shop-pos/actions/workflows/ci.yml"><img src="https://img.shields.io/badge/CI-Passing-17694a?style=flat-square&logo=githubactions&logoColor=white" alt="CI Status"></a>
-  <a href="#-testing--quality-assurance"><img src="https://img.shields.io/badge/Domain%20Tests-110%2F110%20Passing-17694a?style=flat-square" alt="Domain Tests"></a>
-  <a href="#-testing--quality-assurance"><img src="https://img.shields.io/badge/UI%20Smoke-31%2F31%20Passing-17694a?style=flat-square" alt="UI Smoke"></a>
-  <img src="https://img.shields.io/badge/Database-SQLite%20V7%20Native-8a582b?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite V7">
-  <img src="https://img.shields.io/badge/Printing-ESC%2FPOS%2058mm%20Bluetooth-191614?style=flat-square" alt="ESC/POS 58mm">
-  <img src="https://img.shields.io/badge/Cloud%20SaaS%20Cost-Rp0%20(Offline%20First)-17694a?style=flat-square" alt="Zero Cloud Cost">
+  <a href="https://github.com/kianlabs/coffee-shop-pos/actions/workflows/ci.yml"><img src="https://github.com/kianlabs/coffee-shop-pos/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="MIT License"></a>
+  <img src="https://img.shields.io/badge/Works%20offline-SQLite-8a582b?style=flat-square" alt="Works offline">
+  <img src="https://img.shields.io/badge/Cloud%20fees-none-17694a?style=flat-square" alt="No cloud fees">
 </p>
 
 ---
 
-## 🌟 Highlights & Value Propositions
+## Description
 
-- 📟 **Tablet-First Landscape Ergonomics (1280×800)**: Designed specifically for 10"–11" counter tablets. Generous 44px+ touch targets, instant search, responsive category chips, tactile quantity steppers, and a sticky 380px order cart.
-- ⚡ **100% Offline-First Architecture**: Powered by a robust local **SQLite V7** database engine. Operates seamlessly without internet connection; sales transactions and inventory updates are always committed instantly.
-- 🖨️ **Hardware Native 58mm Thermal Printing**: Full Bluetooth ESC/POS hardware integration supporting monochrome raster logo printing (`GS v 0`), customizable store headers/footers, and clean automatic tear-line feeds.
-- 🧮 **Automated HPP (COGS) & Recipe Costing**: Track gross margins down to the exact gram of espresso beans, milliliters of milk, and cup units. Live warnings for negative margins or loss-making items.
-- 💰 **Strict Integer Rupiah Arithmetic**: Zero floating-point rounding errors. All prices, line items, and change calculations use integer Rupiah arithmetic with automated cashier rounding.
-- 🔒 **Enterprise-Grade Security**: Supervisor/Owner PIN protection hashed via **PBKDF2** (100,000 iterations + salt), automated 5-minute lockout on brute-force attempts, and **AES-GCM (256-bit)** encrypted database exports.
-- 💵 **Zero Monthly SaaS Subscription (Rp0)**: No recurring monthly vendor fees. The software, data, and hardware remain 100% owned by the merchant.
+Kopi POS runs on an Android tablet and keeps every sale on the device in a local SQLite database, so the counter keeps working when the internet does not. A sale is saved before anything is printed, prices are whole Rupiah (no floating-point money), and the cost of goods (HPP) is captured at the moment of sale so historical profit never changes when ingredient prices do.
 
----
+It is built to be understood quickly: a plain React + TypeScript web app wrapped with Capacitor, with all business rules kept as pure functions that are unit tested.
 
-## 📸 Interface Showcase
+## Screenshots
 
-| 🛒 Layar Kasir Tablet (1280×800) | 🧾 Struk Thermal 58mm dengan Logo |
+| Cashier | Receipt |
 | :---: | :---: |
-| Antarmuka meja bar dengan multi-varian & keranjang | Hasil cetak struk thermal dengan logo toko custom |
+| ![Cashier screen with cart](docs/screenshots/tablet-kasir.png) | ![Receipt preview after payment](docs/screenshots/tablet-struk.png) |
 
-| 📊 Laporan Penjualan & Tren 24 Jam | 📱 Responsif Smartphone Kasir |
+| Sales report | Settings |
 | :---: | :---: |
-| 5 Kartu KPI utama & grafik transaksi per jam | Bottom drawer fleksibel saat dibuka di ponsel kasir |
+| ![Sales report with hourly trend](docs/screenshots/tablet-laporan.png) | ![Settings with store profile](docs/screenshots/tablet-pengaturan.png) |
 
----
+The screenshots use sample data. Regenerate them with `node scripts/capture-tablet-screenshots.mjs` after `npm run build`.
 
-## 🏗️ System Architecture
+## Features
+
+- **Tablet-first cashier**: large touch targets, product search, category chips, variants, on-screen numpad, hold orders, dine-in and take-away.
+- **Offline first**: all sales, stock movements, and shifts are committed to local SQLite. Optional sync is a background outbox and never blocks checkout.
+- **Receipt printing**: ESC/POS over Bluetooth for 58mm thermal printers, including a raster store logo. A printer failure never cancels a saved sale.
+- **Store profile**: store name, address, tax ID, logo, and receipt header/footer are all editable in Settings. Nothing is hard-coded to one shop.
+- **Cost of goods (HPP)**: manual or recipe-based costing, per-ingredient stock ledger, and live margin warnings.
+- **Void and refund**: protected by a supervisor PIN, with a persistent lockout after repeated wrong attempts. Stock is restored through ledger entries.
+- **Shifts and reports**: opening cash, shift summary, daily and hourly sales, top products, payment-method split, gross profit.
+- **Encrypted backup**: AES-GCM encrypted JSON export and restore.
+- **Live updates**: over-the-air web bundle updates from GitHub Releases with rollback if the new bundle fails to start.
+
+## Install the Android app
+
+1. Open the [latest release](https://github.com/kianlabs/coffee-shop-pos/releases/latest) and download the `.apk` file.
+2. On the tablet, allow installing apps from your browser or file manager when Android asks.
+3. Open the downloaded file and install it.
+4. Pair your Bluetooth printer in Android settings first, then connect it from **Setelan** (Settings) in the app.
+
+APK files are published only on GitHub Releases and are not stored in the repository.
+
+## Development
+
+You only need Node.js 20 or 22. No Android SDK is required to run the app in a browser.
+
+```bash
+git clone https://github.com/kianlabs/coffee-shop-pos.git
+cd coffee-shop-pos
+npm install
+npm run dev        # http://localhost:5173
+```
+
+Useful commands:
+
+```bash
+npm run typecheck  # TypeScript strict mode
+npm test           # domain unit tests + repository guard tests
+npm run build      # production web bundle
+npm run smoke:ui   # headless Chromium UI smoke test (build first)
+npm run test:e2e   # end-to-end flow test (build first)
+npm run check      # repository guards (no client brand, no APK, no AI files)
+```
+
+Building the Android app additionally needs JDK 21 and the Android SDK:
+
+```bash
+npm run android:assets   # build web and sync into the Android project
+npm run apk              # build a debug APK
+```
+
+The debug APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`. In the browser, data is kept in `localStorage`; on Android it is kept in SQLite.
+
+## Architecture
 
 ```mermaid
 flowchart TD
-    subgraph UI ["Presentation Layer (Tablet 1280x800)"]
-        Kasir["Layar Kasir (Catalog + Cart)"]
-        Riwayat["Riwayat & Void/Refund"]
-        Laporan["Laporan Penjualan & Tren"]
-        Admin["HPP & Stok Editor"]
-        Settings["Pengaturan & Logo Upload"]
-    end
-
-    subgraph Domain ["Domain Core (Pure TypeScript)"]
-        Money["Aritmetika Uang (Integer Rupiah)"]
-        Orders["Kalkulasi Order & Pembulatan"]
-        HPP["Engine HPP & Resep Bahan"]
-        Shifts["Shift & Laci Kasir"]
-    end
-
-    subgraph NativeBridge ["Capacitor Android Native Bridge"]
-        SQLitePlugin["@capacitor-community/sqlite"]
-        PrinterPlugin["PrinterPlugin.java (Bluetooth ESC/POS)"]
-        RasterEngine["EscPosRaster.java (GS v 0 Bitmap)"]
-    end
-
-    subgraph Storage ["Hardware & Persistent Storage"]
-        SQLiteDB[("SQLite V7 (Private Storage)")]
-        ThermalPrinter["🖨️ Thermal Printer 58mm"]
-    end
-
-    UI --> Domain
-    Domain --> SQLitePlugin
-    SQLitePlugin --> SQLiteDB
-    Settings --> PrinterPlugin
-    Kasir --> PrinterPlugin
-    PrinterPlugin --> RasterEngine
-    RasterEngine --> ThermalPrinter
+    UI["UI (React): cashier, history, reports, stock, settings"] --> Domain
+    Domain["Domain (pure TypeScript): money, orders, HPP, shifts, store profile"] --> Data
+    Data["Data layer: repositories and migrations"] --> SQLite[("SQLite (Android) / localStorage (browser)")]
+    UI --> Printer["Printer service"]
+    Printer --> Native["Capacitor Android plugin: Bluetooth ESC/POS"]
+    Native --> Thermal["58mm thermal printer"]
 ```
 
----
+| Folder | Purpose |
+| :--- | :--- |
+| `src/domain/` | Business rules as pure functions, no React or database access |
+| `src/data/` | Repositories, SQLite migrations, receipt formatting, printer, backup |
+| `src/components/`, `src/hooks/` | React UI |
+| `android/` | Capacitor Android project and the native printer plugin |
+| `database/` | Reference SQLite schema |
+| `scripts/` | Tests, release packaging, repository guards |
+| `docs/` | Technical documentation |
 
-## 🛠️ Tech Stack
+## Design rules
 
-| Layer | Technology | Description |
-| :--- | :--- | :--- |
-| **Frontend UI** | **React 19.3 + TypeScript** | Strict typing, zero-runtime overhead, memoized components |
-| **Styling** | **Custom Vanilla CSS Design System** | Pure CSS (`theme.css`, 43 KB), warm coffee aesthetic, zero CSS framework bulk |
-| **Bundler** | **Vite 8.3** | Sub-second HMR and optimized production code splitting |
-| **Mobile Runtime** | **Capacitor 8.6** | Modern hybrid Android bridge container |
-| **Database** | **SQLite V7** | Native Android SQLite with schema migrations, indexes, and atomic transactions |
-| **Hardware Bridge** | **Java (Android SDK 34 / JDK 21)** | Custom Bluetooth RFCOMM ESC/POS printer adapter with raster logo converter |
-| **Security** | **Web Crypto API (PBKDF2 & AES-GCM)** | Industry-standard cryptographic key derivation and data encryption |
-| **Testing** | **Node.js Test Runner + Playwright CDP** | 110 domain unit tests + 31 automated headless UI smoke tests |
+1. **SQLite on the device is the source of truth.** A sale never fails because the network is down.
+2. **Save first, print second.** Printing problems cannot roll back or duplicate a committed sale.
+3. **Integer Rupiah only.** No floating-point money.
+4. **HPP is a snapshot.** Each order line keeps the unit cost at the time of sale.
+5. **Every stock change is a ledger row**, tied to an idempotency key.
 
----
+## Documentation
 
-## 📁 Repository Structure
+- [Architecture and how to extend it](docs/architecture.md)
+- [Checkout flow](docs/checkout-flow.md)
+- [Data dictionary](docs/data-dictionary.md) and [ERD](docs/erd.md)
+- [HPP and margin formulas](docs/hpp.md)
+- [Printer flow](docs/printer-flow.md)
+- [Offline sync flow](docs/offline-sync-flow.md)
+- [Backup and recovery](docs/backup-recovery.md)
+- [Project status](docs/status.md) and [open decisions](docs/open-decisions.md)
 
-```text
-coffee-shop-pos/
-├── android/                        # Proyek native Android (Capacitor + Java plugins)
-│   ├── app/src/main/java/.../      # PrinterPlugin.java & EscPosRaster.java
-│   └── app/proguard-rules.pro      # Aturan ProGuard untuk rilis produksi
-├── database/
-│   └── sqlite-schema.sql           # Schema DDL SQLite V7 referensi
-├── docs/                           # Dokumentasi teknis & arsitektur mendalam
-│   ├── checkout-flow.md            # Diagram alur transaksi checkout
-│   ├── data-dictionary.md          # Kamus data tabel & relasi
-│   ├── erd.md                      # Entity Relationship Diagram (Mermaid)
-│   ├── hpp.md                      # Dokumentasi formula perhitungan HPP & margin
-│   ├── printer-flow.md             # Protokol Bluetooth ESC/POS & bitmap logo
-│   └── status.md                   # Catatan verifikasi & status rilis
-├── scripts/                        # Skrip build, test, dan utilitas
-│   ├── build-apk.sh                # Skrip kompilasi otomatis APK Android
-│   ├── capture-tablet-screenshots.mjs # Pengambil tangkapan layar otomatis headless
-│   ├── smoke-ui.mjs                # 31 pengujian UI end-to-end via Chromium CDP
-│   └── test-domain.mjs             # 110 pengujian logika domain & aritmetika Rupiah
-├── src/                            # Kode sumber aplikasi Web/React
-│   ├── components/                 # Komponen antarmuka (Kasir, HPP, Stok, Laporan)
-│   ├── data/                       # Repositori SQLite, migrasi V7, printer, & settings
-│   ├── domain/                     # Logika bisnis inti murni (money, orders, catalog, hpp)
-│   └── styles/theme.css            # Design system CSS tablet-first
-├── Rahardjo-Coffee-POS-v1.0.apk    # File installer APK Android siap pakai (14 MB)
-├── package.json
-└── vite.config.ts
-```
+## Contributing
 
----
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first, and report security problems privately as described in [SECURITY.md](SECURITY.md). Release notes are in [CHANGELOG.md](CHANGELOG.md).
 
-## 🚀 Quick Start Guide
+## License
 
-### Prasyarat
-- **Node.js**: v20.x atau v22.x
-- **NPM**: v10+
-- **JDK 21** (opsional, hanya diperlukan jika ingin meng-compile file APK Android)
-
-### 1. Instalasi & Menjalankan Mode Development
-```bash
-# Clone repository
-git clone https://github.com/kianlabs/coffee-shop-pos.git
-cd coffee-shop-pos
-
-# Install dependensi
-npm install
-
-# Jalankan dev server lokal
-npm run dev
-```
-Buka peramban di `http://localhost:5173`.
-
-### 2. Menjalankan Pengujian (Quality Assurance)
-```bash
-# Typecheck TypeScript (Strict mode)
-npm run typecheck
-
-# 110 Unit Tests (Aritmetika Uang, Validasi Checkout, HPP, Refund, PIN)
-npm test
-
-# 31 UI Smoke Tests (Chromium Headless CDP)
-npm run smoke:ui
-```
-
-### 3. Build Web Production & Android Assets
-```bash
-# Compile bundle web produksi
-npm run build
-
-# Sinkronkan aset web ke folder assets Android
-npm run android:assets
-```
-
-### 4. Kompilasi APK Android
-```bash
-# Otomatis compile file APK Android (memerlukan JDK 21)
-npm run apk
-```
-File APK siap instalasi akan dihasilkan di `android/app/build/outputs/apk/debug/app-debug.apk`.
-
----
-
-## 🔄 Pembaruan Aplikasi Live OTA (Over-The-Air via GitHub Releases)
-
-Aplikasi ini dilengkapi sistem **Live Update OTA otomatis** berbasis `@capgo/capacitor-updater`. Anda tidak perlu mengirim file APK baru ke klien setiap kali ada pembaruan tampilan atau fitur kasir!
-
-### Cara Merilis Versi Baru (Developer):
-Cukup buat git tag baru dan push ke GitHub:
-```bash
-# 1. Buat tag versi baru dan push ke GitHub
-git tag v1.0.1
-git push origin v1.0.1
-```
-**GitHub Actions** (`.github/workflows/release.yml`) akan otomatis:
-1. Menjalankan seluruh suite pengujian (`typecheck`, `npm test`, `test:e2e`).
-2. Mengompresi web bundle menjadi paket OTA `dist.zip` (~150 KB).
-3. Meng-compile file APK Android terbaru.
-4. Menerbitkan rilis resmi di GitHub Releases secara otomatis.
-
-### Pengalaman di Sisi Klien (Kasir / Owner):
-- Tablet kasir mengecek rilis terbaru secara otomatis di latar belakang saat terhubung Wi-Fi toko.
-- Begitu versi baru terdeteksi, muncul banner/pill **"Update v1.0.1"** di bagian atas kasir dan kartu **Sistem & Pembaruan** di menu Pengaturan.
-- Kasir cukup menekan **"Perbarui & Terapkan"**: paket 150 KB diunduh dalam hitungan detik, aplikasi me-reload, dan fitur baru langsung aktif seketika tanpa menghapus data SQLite maupun riwayat penjualan.
-- **Auto-Rollback Protection**: Jika versi baru mengalami crash saat startup, sistem secara otomatis me-rollback kembali ke versi stabil sebelumnya.
-
----
-
-## 🖨️ Panduan Hardware Thermal Printer 58mm
-
-Aplikasi ini kompatibel dengan hampir seluruh printer thermal Bluetooth 58mm standar di pasaran (Panda, VSC, Eppos, Iware, RPP02N, Zjiang, MTP-2, GOOJPRT):
-
-1. **Sandingkan Bluetooth**: Di tablet Android, buka *Settings -> Bluetooth*, cari perangkat printer kasir dan masukkan PIN pairing default (`0000` atau `1234`).
-2. **Koneksi di Aplikasi**: Buka menu **Setelan** di POS -> Pada kartu printer, klik **Scan Bluetooth** -> Pilih perangkat printer -> Klik **Hubungkan**.
-3. **Cetak Logo Toko**:
-   - Format file logo yang didukung: PNG, JPEG, atau WebP (disarankan kontras tinggi / monokrom).
-   - Dimensi optimal: Lebar 384 piksel (sesuai spesifikasi thermal head 58mm).
-   - Gambar otomatis dikonversi oleh native raster engine ke format ESC/POS bit image `GS v 0` tanpa memakan RAM tablet.
-
----
-
-## 📜 Invarian & Prinsip Desain Kritis
-
-1. **Local-First Single Source of Truth**: SQLite pada tablet adalah kebenaran operasional mutlak. Tidak boleh ada transaksi yang gagal hanya karena koneksi internet terputus.
-2. **Atomic Commits Before Printing**: Transaksi penjualan wajib tersimpan aman di SQLite terlebih dahulu sebelum perintah cetak dikirim ke printer thermal. Kegagalan printer atau kehabisan kertas tidak boleh membatalkan (*rollback*) penjualan yang sudah sah.
-3. **Integer Money Only**: Seluruh nominal Rupiah disimpan dalam bentuk bilangan bulat integer murni untuk mengeliminasi *floating-point money drift*.
-4. **HPP Immutability**: Nilai HPP per cup dicatat sebagai snapshot permanen pada setiap baris order saat checkout terjadi, memastikan laporan laba historis tidak berubah ketika harga bahan baku naik di masa depan.
-
----
-
-## 📄 Lisensi
-
-Proyek ini dilisensikan di bawah lisensi **[MIT License](LICENSE)** — Hak Cipta (c) 2026 **Kian Labs**. Bebas digunakan, dimodifikasi, dan didistribusikan untuk keperluan komersial maupun pribadi.
+[MIT](LICENSE) © 2026 Kian Labs.
