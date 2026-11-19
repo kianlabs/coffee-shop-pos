@@ -3,6 +3,7 @@ import type { DataHook } from "@/data/migration/runner";
 import type { HookInputs, LegacyKey } from "./inputs";
 import { createLegacyCartShiftHook } from "./legacyCartShift";
 import { createLegacyOwnerHook } from "./legacyOwner";
+import { legacyPrinterHook } from "./legacyPrinter";
 import { milliStockHook } from "./milliStock";
 import { createOrdersRefundsHook } from "./ordersRefunds";
 export type { HookInputs, LegacyInputs, LegacyKey } from "./inputs";
@@ -23,6 +24,7 @@ export function createMigrationHooks(inputs: HookInputs): MigrationHooks {
     legacy_settings: settings.hook,
     legacy_owner: createLegacyOwnerHook(inputs),
     milli_stock: milliStockHook,
+    legacy_printer: legacyPrinterHook,
     orders_refunds: createOrdersRefundsHook(inputs.now),
     legacy_cart_shift_held: createLegacyCartShiftHook(inputs, (key) => imported.add(key)),
   };

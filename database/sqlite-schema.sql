@@ -1,5 +1,5 @@
--- Coffee Shop POS — Production SQLite Schema (V13)
--- Hasil menjalankan `src/data/migrations.ts` V1 sampai V13 pada database kosong.
+-- Coffee Shop POS — Production SQLite Schema (V14)
+-- Hasil menjalankan `src/data/migrations.ts` V1 sampai V14 pada database kosong.
 -- Diperiksa oleh `node scripts/check-schema.mjs`: kolom yang ditambah lewat
 -- ALTER TABLE ada di akhir tabel, sesuai urutan migrasinya.
 PRAGMA foreign_keys = ON;
@@ -346,3 +346,26 @@ CREATE TABLE stocktake_items (
     physical_milli INTEGER NOT NULL CHECK (physical_milli >= 0),
     PRIMARY KEY (stocktake_id, ingredient_id)
 );
+-- V14: printing
+CREATE TABLE printers (
+    id TEXT PRIMARY KEY,
+    alias TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    address TEXT NOT NULL,
+    role TEXT NOT NULL CHECK (role IN ('receipt','kitchen')),
+    paper TEXT NOT NULL CHECK (paper IN ('58mm','80mm'))
+);
+CREATE TABLE print_routes (
+    category_id TEXT PRIMARY KEY REFERENCES categories(id),
+    printer_id TEXT NOT NULL REFERENCES printers(id)
+);
+CREATE TABLE unprinted_receipts (
+    id TEXT PRIMARY KEY,
+    order_id TEXT NOT NULL REFERENCES orders(id),
+    kind TEXT NOT NULL CHECK (kind IN ('receipt','kitchen','bar','refund','z_report')),
+    printer_id TEXT,
+    refund_id TEXT,
+    created_at TEXT NOT NULL,
+    last_error TEXT
+);
+CREATE INDEX idx_unprinted_receipts_order ON unprinted_receipts(order_id);
