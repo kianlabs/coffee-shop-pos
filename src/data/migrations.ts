@@ -368,3 +368,55 @@ export const UPGRADE_V10: string[] = [
     held_at TEXT NOT NULL
   );`,
 ];
+/**
+ * UPGRADE_V11 — stock in integer milli units. Rebuilds ingredients and stock_movements.
+ * The old rows are stashed in TEMP tables and re-inserted after the rename, because with
+ * foreign keys on, dropping the parent only stays valid when its rows come back before COMMIT.
+ * Hook `milli_stock` converts the REAL quantities with realToMilli, checks the ledger and drops the stash.
+ */
+export const UPGRADE_V11: string[] = [
+  `PRAGMA defer_foreign_keys = ON;`,
+  `CREATE TEMP TABLE v11_ingredients AS SELECT * FROM ingredients;`,
+  `CREATE TEMP TABLE v11_movements AS SELECT * FROM stock_movements;`,
+  `CREATE TABLE ingredients_new (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    base_unit TEXT NOT NULL,
+    stock_milli INTEGER NOT NULL DEFAULT 0,
+    min_stock_milli INTEGER,
+    created_at TEXT NOT NULL
+  );`,
+  `CREATE TABLE stock_movements_new (
+    id TEXT PRIMARY KEY,
+    ingredient_id TEXT REFERENCES ingredients(id),
+    product_id TEXT REFERENCES products(id),
+    qty_milli INTEGER NOT NULL,
+    movement_type TEXT NOT NULL CHECK (movement_type IN (
+      'purchase_received','sale_consumption','waste',
+      'adjustment_in','adjustment_out','return_in','return_out')),
+    reference_type TEXT,
+    reference_id TEXT,
+    reason TEXT,
+    actor TEXT,
+    created_at TEXT NOT NULL
+  );`,
+  `DROP TABLE stock_movements;`,
+  `DROP TABLE ingredients;`,
+  `ALTER TABLE ingredients_new RENAME TO ingredients;`,
+  `ALTER TABLE stock_movements_new RENAME TO stock_movements;`,
+  `INSERT INTO ingredients (id, name, base_unit, stock_milli, min_stock_milli, created_at)
+     SELECT id, name, base_unit, 0, NULL, created_at FROM v11_ingredients;`,
+  `INSERT INTO stock_movements (id, ingredient_id, product_id, qty_milli, movement_type, reference_type, reference_id, reason, actor, created_at)
+     SELECT id, ingredient_id, product_id, 0, movement_type, reference_type, reference_id, reason, actor, created_at FROM v11_movements;`,
+  `CREATE INDEX idx_stock_movements_ingredient ON stock_movements(ingredient_id, created_at DESC);`,
+  `CREATE INDEX idx_stock_movements_reference ON stock_movements(reference_type, reference_id);`,
+  `CREATE UNIQUE INDEX uq_stock_movements_ref
+     ON stock_movements(reference_type, reference_id, movement_type, ingredient_id)
+     WHERE reference_type IN ('order', 'order_void', 'order_refund');`,
+  `CREATE TABLE order_item_consumption (
+    order_item_id TEXT NOT NULL REFERENCES order_items(id),
+    ingredient_id TEXT NOT NULL REFERENCES ingredients(id),
+    qty_milli INTEGER NOT NULL CHECK (qty_milli > 0),
+    PRIMARY KEY (order_item_id, ingredient_id)
+  );`,
+];

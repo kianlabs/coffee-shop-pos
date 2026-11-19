@@ -3,6 +3,7 @@ import type { DataHook } from "@/data/migration/runner";
 import type { HookInputs, LegacyKey } from "./inputs";
 import { createLegacyCartShiftHook } from "./legacyCartShift";
 import { createLegacyOwnerHook } from "./legacyOwner";
+import { milliStockHook } from "./milliStock";
 export type { HookInputs, LegacyInputs, LegacyKey } from "./inputs";
 export interface MigrationHooks {
   hooks: Record<string, DataHook>;
@@ -20,6 +21,7 @@ export function createMigrationHooks(inputs: HookInputs): MigrationHooks {
   const hooks: Record<string, DataHook> = {
     legacy_settings: settings.hook,
     legacy_owner: createLegacyOwnerHook(inputs),
+    milli_stock: milliStockHook,
     legacy_cart_shift_held: createLegacyCartShiftHook(inputs, (key) => imported.add(key)),
   };
   const afterCommit = [

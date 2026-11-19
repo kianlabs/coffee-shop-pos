@@ -1,6 +1,6 @@
 import {
   UPGRADE_V1, UPGRADE_V2, UPGRADE_V3, UPGRADE_V4, UPGRADE_V5, UPGRADE_V6, UPGRADE_V7, UPGRADE_V8,
-  UPGRADE_V9, UPGRADE_V10,
+  UPGRADE_V9, UPGRADE_V10, UPGRADE_V11,
 } from "@/data/migrations";
 import type { MigrationStep } from "@/domain/migration";
 /** Every schema step in order. Named hooks are registered by `createMigrationHooks`. */
@@ -15,5 +15,6 @@ export const MIGRATION_STEPS: readonly MigrationStep[] = [
   { version: 8, statements: UPGRADE_V8, hook: "legacy_settings" },
   { version: 9, statements: UPGRADE_V9, hook: "legacy_owner" },
   { version: 10, statements: UPGRADE_V10, hook: "legacy_cart_shift_held" },
+  { version: 11, statements: UPGRADE_V11, hook: "milli_stock" },
 ];
 export const LATEST_VERSION = MIGRATION_STEPS.length;

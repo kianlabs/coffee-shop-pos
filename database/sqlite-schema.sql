@@ -1,5 +1,5 @@
--- Coffee Shop POS — Production SQLite Schema (V10)
--- Hasil menjalankan `src/data/migrations.ts` V1 sampai V10 pada database kosong.
+-- Coffee Shop POS — Production SQLite Schema (V11)
+-- Hasil menjalankan `src/data/migrations.ts` V1 sampai V11 pada database kosong.
 -- Diperiksa oleh `node scripts/check-schema.mjs`: kolom yang ditambah lewat
 -- ALTER TABLE ada di akhir tabel, sesuai urutan migrasinya.
 PRAGMA foreign_keys = ON;
@@ -132,11 +132,13 @@ CREATE TABLE IF NOT EXISTS app_settings (
     updated_by TEXT
 );
 -- V2: HPP dan stok
-CREATE TABLE IF NOT EXISTS ingredients (
+-- V11: ingredients dibangun ulang (stock_milli, min_stock_milli)
+CREATE TABLE "ingredients" (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
     base_unit TEXT NOT NULL,
-    stock_qty REAL NOT NULL DEFAULT 0,
+    stock_milli INTEGER NOT NULL DEFAULT 0,
+    min_stock_milli INTEGER,
     created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS ingredient_cost_history (
@@ -180,11 +182,12 @@ CREATE TABLE IF NOT EXISTS order_item_cost_snapshots (
 );
 CREATE INDEX IF NOT EXISTS idx_cost_snapshots_order_item ON order_item_cost_snapshots(order_item_id);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_cost_snapshot_item ON order_item_cost_snapshots(order_item_id, ingredient_id);
-CREATE TABLE IF NOT EXISTS stock_movements (
+-- V11: stock_movements dibangun ulang (qty_milli)
+CREATE TABLE "stock_movements" (
     id TEXT PRIMARY KEY,
     ingredient_id TEXT REFERENCES ingredients(id),
     product_id TEXT REFERENCES products(id),
-    qty REAL NOT NULL,
+    qty_milli INTEGER NOT NULL,
     movement_type TEXT NOT NULL CHECK (movement_type IN (
         'purchase_received','sale_consumption','waste',
         'adjustment_in','adjustment_out','return_in','return_out')),
@@ -194,13 +197,17 @@ CREATE TABLE IF NOT EXISTS stock_movements (
     actor TEXT,
     created_at TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_stock_movements_ingredient
-ON stock_movements(ingredient_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_stock_movements_reference
-ON stock_movements(reference_type, reference_id);
-CREATE UNIQUE INDEX IF NOT EXISTS uq_stock_movements_ref
+CREATE INDEX idx_stock_movements_ingredient ON stock_movements(ingredient_id, created_at DESC);
+CREATE INDEX idx_stock_movements_reference ON stock_movements(reference_type, reference_id);
+CREATE UNIQUE INDEX uq_stock_movements_ref
 ON stock_movements(reference_type, reference_id, movement_type, ingredient_id)
 WHERE reference_type IN ('order', 'order_void', 'order_refund');
+CREATE TABLE order_item_consumption (
+    order_item_id TEXT NOT NULL REFERENCES order_items(id),
+    ingredient_id TEXT NOT NULL REFERENCES ingredients(id),
+    qty_milli INTEGER NOT NULL CHECK (qty_milli > 0),
+    PRIMARY KEY (order_item_id, ingredient_id)
+);
 -- V8: modul opsional
 CREATE TABLE IF NOT EXISTS modules (
     id TEXT PRIMARY KEY,
