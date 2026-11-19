@@ -57,7 +57,8 @@ describe("migrasi V12 orders_payments_refunds", () => {
       { refund_id: "legacy-refund-o3", order_item_id: "oi3", qty: 1, amount_rp: 27_000 },
     ]);
     expect(await rows("SELECT refunded_qty FROM order_items WHERE id = 'oi3'")).toEqual([{ refunded_qty: 1 }]);
-    expect(await rows("SELECT user_id FROM orders WHERE user_id IS NOT NULL")).toEqual([]);
+    expect(await rows("SELECT DISTINCT user_id FROM orders")).toEqual([{ user_id: PLACEHOLDER_USER_ID }]);
+    expect(await rows("SELECT id, is_active FROM users")).toEqual([{ id: PLACEHOLDER_USER_ID, is_active: 0 }]);
     expect(await fkViolations(db)).toEqual([]);
   });
   it("dengan owner hasil migrasi: user_id order dan executed_by memakai owner", async () => {

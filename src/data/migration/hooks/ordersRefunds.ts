@@ -2,7 +2,7 @@ import type { DbPort } from "@/data/dbPort";
 import type { DataHook } from "@/data/migration/runner";
 import { backfillConsumption } from "./consumptionBackfill";
 import { allocateProportional } from "./chargeAllocation";
-import { migrationUserId, ownerId } from "./migrationUser";
+import { migrationUserId } from "./migrationUser";
 interface OrderRow extends Record<string, unknown> {
   id: string;
   total_rp: number;
@@ -68,8 +68,11 @@ async function addSyntheticRefunds(db: DbPort, now: string): Promise<void> {
 /** V12 data step: order owner, line charges, synthetic refunds. Safe to run again. */
 export function createOrdersRefundsHook(now: () => string): DataHook {
   return async (db) => {
-    const owner = await ownerId(db);
-    if (owner !== null) await db.run("UPDATE orders SET user_id = ? WHERE user_id IS NULL", [owner]);
+    const unowned = await db.query<{ n: number }>("SELECT COUNT(*) AS n FROM orders WHERE user_id IS NULL");
+    if ((unowned[0]?.n ?? 0) > 0) {
+      const userId = await migrationUserId(db, now());
+      await db.run("UPDATE orders SET user_id = ? WHERE user_id IS NULL", [userId]);
+    }
     await fillCharges(db);
     await backfillConsumption(db);
     await addSyntheticRefunds(db, now());
