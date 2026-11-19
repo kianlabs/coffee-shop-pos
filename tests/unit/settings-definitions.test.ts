@@ -24,7 +24,7 @@ describe("definisi pengaturan", () => {
 
   it("kunci yang tidak terdaftar tidak ditemukan", () => {
     expect(settingByKey("tidak_ada")).toBeUndefined();
-    expect(settingByKey("pin_panjang_min")?.type).toBe("int");
+    expect(settingByKey("keamanan.pin_panjang_min")?.type).toBe("int");
   });
 
   it("kunci tidak terdaftar ditandai dengan @ts-expect-error (tsc tidak memeriksa tests/)", () => {
