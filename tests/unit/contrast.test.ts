@@ -16,12 +16,33 @@ const NORMAL_PAIRS: Array<[string, string]> = [
   ["success", "success-soft"],
   ["warning", "warning-soft"],
   ["info", "info-soft"],
+  ["accent-foreground", "accent"],
+  ["sogan-strong", "sogan-soft"],
+  ["sidebar-foreground", "sidebar"],
+  ["sidebar-active-foreground", "sidebar-active"],
+  ["primary", "background"],
+  ...[1, 2, 3, 4, 5, 6].map((n): [string, string] => ["cat-foreground", `cat-${n}`]),
+];
+
+// Non-text marks (WCAG 1.4.11): ≥ 3:1 against the surface they sit on.
+const MARK_PAIRS: Array<[string, string]> = [
+  ["sidebar-mark", "sidebar"],
+  ["sogan", "card"],
+  ["ring", "background"],
 ];
 
 describe("kontras token (WCAG AA)", () => {
   for (const [fg, bg] of NORMAL_PAIRS) {
     it(`${fg} di atas ${bg} ≥ 4,5:1`, () => {
       expect(contrastRatio(normal[fg], normal[bg])).toBeGreaterThanOrEqual(4.5);
+    });
+  }
+});
+
+describe("kontras penanda non-teks (≥ 3:1)", () => {
+  for (const [fg, bg] of MARK_PAIRS) {
+    it(`${fg} di atas ${bg} ≥ 3:1`, () => {
+      expect(contrastRatio(normal[fg], normal[bg])).toBeGreaterThanOrEqual(3);
     });
   }
 });

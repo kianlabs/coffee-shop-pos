@@ -56,9 +56,9 @@ export function CartSummary({ totals, onPay }: CartSummaryProps) {
           </span>
         </Button>
       </div>
-      <div className="flex items-baseline justify-between pt-1">
+      <div className="flex items-baseline justify-between rounded-lg bg-sogan-soft px-3 py-2.5 text-sogan-strong">
         <span className="text-sm font-medium">{t("kasir.summary.total")}</span>
-        <span className="text-2xl font-bold tracking-tight tabular-nums">{formatRupiah(totals.total)}</span>
+        <span className="font-display text-2xl font-extrabold tracking-tight text-foreground tabular-nums">{formatRupiah(totals.total)}</span>
       </div>
       <Button size="lg" className="h-14 w-full text-base" disabled={empty} onClick={onPay}>
         {t("kasir.summary.pay", { amount: formatRupiah(totals.total) })}

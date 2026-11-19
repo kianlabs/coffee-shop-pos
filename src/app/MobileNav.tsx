@@ -18,6 +18,10 @@ const SECONDARY = NAV_ITEMS.filter((item) => !item.primary);
 const itemClass =
   "relative flex min-h-touch flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium outline-none focus-visible:bg-accent";
 
+/** Active tab: nila text plus a short sogan bar on top, so state is not color-only text. */
+const activeClass =
+  "text-primary font-semibold before:absolute before:top-0 before:left-1/2 before:h-[3px] before:w-8 before:-translate-x-1/2 before:rounded-b-full before:bg-sogan";
+
 /** Phone bottom bar (< 768 px): main screens plus a "Lainnya" sheet for the rest. */
 export function MobileNav({ view, onNavigate }: MobileNavProps) {
   const [moreOpen, setMoreOpen] = useState(false);
@@ -44,7 +48,7 @@ export function MobileNav({ view, onNavigate }: MobileNavProps) {
         aria-current={secondaryActive ? "page" : undefined}
         aria-expanded={moreOpen}
         onClick={() => setMoreOpen(true)}
-        className={cn(itemClass, secondaryActive ? "text-foreground" : "text-muted-foreground")}
+        className={cn(itemClass, secondaryActive ? activeClass : "text-muted-foreground")}
       >
         <LayoutGrid className="size-5" aria-hidden />
         {t("app.nav.more")}
@@ -80,7 +84,7 @@ function MobileNavButton({ item, active, onClick }: ItemProps) {
       data-testid="nav-item"
       aria-current={active ? "page" : undefined}
       onClick={() => onClick(item.view)}
-      className={cn(itemClass, active ? "text-foreground" : "text-muted-foreground")}
+      className={cn(itemClass, active ? activeClass : "text-muted-foreground")}
     >
       <Icon className={cn("size-5", active && "stroke-[2.5]")} aria-hidden />
       <span data-testid="nav-label">{t(item.labelKey)}</span>

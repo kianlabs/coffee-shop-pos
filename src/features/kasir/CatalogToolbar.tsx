@@ -2,6 +2,7 @@ import { Search, X } from "lucide-react";
 import { cn } from "cn";
 import { Input } from "@/components/ui/input";
 import { type Category } from "@/domain/catalog";
+import { categoryTone } from "./categoryColor";
 import { t } from "@/services/i18n";
 
 interface CatalogToolbarProps {
@@ -56,7 +57,7 @@ export function CatalogToolbar({
             aria-label={t("kasir.catalog.categories")}
             className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:-mx-6 md:px-6"
           >
-            {categories.map((category) => {
+            {categories.map((category, index) => {
               const active = category.id === categoryId;
               return (
                 <button
@@ -65,10 +66,14 @@ export function CatalogToolbar({
                   aria-pressed={active}
                   onClick={() => onCategory(category.id)}
                   className={cn(
-                    "h-11 shrink-0 rounded-md border px-4 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                    "inline-flex h-11 shrink-0 items-center gap-2 rounded-md border px-4 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
                     active ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:bg-accent",
                   )}
                 >
+                  <span
+                    aria-hidden
+                    className={cn("size-2.5 rounded-full", active ? "bg-primary-foreground" : categoryTone(index).bg)}
+                  />
                   {category.name}
                 </button>
               );
