@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { CircleCheck, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +21,7 @@ export function ReceiptDialog() {
   const receipt = useKasirUi((s) => s.receipt);
   const setReceipt = useKasirUi((s) => s.setReceipt);
   const [printing, setPrinting] = useState(false);
+  const doneRef = useRef<HTMLButtonElement>(null);
 
   async function reprint() {
     if (!receipt) return;
@@ -39,7 +40,13 @@ export function ReceiptDialog() {
   const order = receipt?.order;
   return (
     <Dialog open={receipt !== null} onOpenChange={(open) => !open && setReceipt(null)}>
-      <DialogContent className="max-h-[95dvh] overflow-y-auto sm:max-w-md">
+      <DialogContent
+        className="max-h-[95dvh] overflow-y-auto sm:max-w-md"
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          doneRef.current?.focus();
+        }}
+      >
         <DialogHeader className="items-center text-center">
           <CircleCheck className="size-12 text-success" aria-hidden />
           <DialogTitle className="text-xl">Pembayaran berhasil</DialogTitle>
@@ -71,7 +78,7 @@ export function ReceiptDialog() {
           <Button variant="outline" loading={printing} onClick={() => void reprint()}>
             {!printing && <Printer />} Cetak struk
           </Button>
-          <Button autoFocus onClick={() => setReceipt(null)}>
+          <Button ref={doneRef} onClick={() => setReceipt(null)}>
             Selesai
           </Button>
         </DialogFooter>

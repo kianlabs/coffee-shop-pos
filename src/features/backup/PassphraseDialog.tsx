@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,6 +22,7 @@ interface PassphraseDialogProps {
 /** Asks for the passphrase of an encrypted backup file (replaces window.prompt). */
 export function PassphraseDialog({ open, fileName, loading, onSubmit, onCancel }: PassphraseDialogProps) {
   const [passphrase, setPassphrase] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
 
   function handleOpenChange(next: boolean) {
     if (next || loading) return;
@@ -31,7 +32,13 @@ export function PassphraseDialog({ open, fileName, loading, onSubmit, onCancel }
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent data-testid="restore-passphrase-dialog">
+      <DialogContent
+        data-testid="restore-passphrase-dialog"
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          inputRef.current?.focus();
+        }}
+      >
         <form
           className="flex flex-col gap-4"
           onSubmit={(e) => {
@@ -50,8 +57,8 @@ export function PassphraseDialog({ open, fileName, loading, onSubmit, onCancel }
             <PasswordInput
               id="restore-passphrase"
               value={passphrase}
+              ref={inputRef}
               onChange={(e) => setPassphrase(e.target.value)}
-              autoFocus
               data-testid="restore-passphrase-input"
             />
           </div>
