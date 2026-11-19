@@ -24,7 +24,7 @@ async function convertIngredients(db: DbPort): Promise<Map<string, { real: numbe
 /** Converts every movement; returns per ingredient the legacy and the converted signed sums. */
 async function convertMovements(db: DbPort): Promise<Map<string, { real: number; milli: number }>> {
   const rows = await db.query<MovementRow>(
-    "SELECT id, ingredient_id, movement_type, qty FROM v11_movements",
+    "SELECT id, ingredient_id, movement_type, qty FROM v11_movements WHERE id NOT IN (SELECT id FROM stock_movements_quarantine)",
   );
   const sums = new Map<string, { real: number; milli: number }>();
   for (const row of rows) {
@@ -38,12 +38,22 @@ async function convertMovements(db: DbPort): Promise<Map<string, { real: number;
   }
   return sums;
 }
+/** Reports movements that V11 set aside because their ingredient or product does not exist. */
+async function logQuarantine(db: DbPort, log?: (message: string) => void): Promise<void> {
+  const rows = await db.query<{ id: string; quarantine_reason: string }>(
+    "SELECT id, quarantine_reason FROM stock_movements_quarantine ORDER BY id",
+  );
+  for (const row of rows) {
+    log?.(`Movement stok ${row.id} dipindah ke stock_movements_quarantine (${row.quarantine_reason}).`);
+  }
+}
 /**
  * REAL → integer milli for `ingredients.stock_milli` and `stock_movements.qty_milli`, row by row with
  * `realToMilli`. For every ingredient whose legacy ledger added up, the converted stock must equal the
  * converted movement sum; otherwise the whole version is rolled back (Req 8.8, 8.12).
  */
-export const milliStockHook: DataHook = async (db) => {
+async function convertAll(db: DbPort, log?: (message: string) => void): Promise<void> {
+  await logQuarantine(db, log);
   const stock = await convertIngredients(db);
   const sums = await convertMovements(db);
   for (const [ingredientId, sum] of sums) {
@@ -56,4 +66,5 @@ export const milliStockHook: DataHook = async (db) => {
     }
   }
   await db.exec("DROP TABLE v11_ingredients; DROP TABLE v11_movements;");
-};
+}
+export const createMilliStockHook = (log?: (message: string) => void): DataHook => (db) => convertAll(db, log);

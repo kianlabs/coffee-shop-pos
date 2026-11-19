@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { MigrationError } from "@/data/migration/runner";
 import { NO_LEGACY, fkViolations, migrate, openAt, userVersion, type Db } from "./support/migrationHarness";
+import { createMigrationHooks } from "@/data/migration/hooks";
+import { runMigrations } from "@/data/migration/runner";
+import { MIGRATION_STEPS } from "@/data/migration/steps";
+import { NOW, txFor } from "./support/migrationHarness";
 import { V7_EXPECTED, openV7WithData } from "./support/v7Fixture";
 let db: Db;
 afterEach(() => db.close());
@@ -68,5 +72,26 @@ describe("migrasi V11 milli_stock", () => {
     await db.run("INSERT INTO stock_movements (id, ingredient_id, qty, movement_type, created_at) VALUES ('a','x',1,'purchase_received','t')");
     await migrate(db, NO_LEGACY, 11);
     expect(await db.query("SELECT stock_milli FROM ingredients")).toEqual([{ stock_milli: 9000 }]);
+  });
+  it("movement yatim: dikarantina, V11 selesai, foreign key bersih, tercatat di log", async () => {
+    db = await openAt(10);
+    await db.exec("PRAGMA foreign_keys = OFF");
+    await db.run("INSERT INTO ingredients (id, name, base_unit, stock_qty, created_at) VALUES ('x','X','g',3,'t')");
+    await db.run("INSERT INTO stock_movements (id, ingredient_id, qty, movement_type, created_at) VALUES ('ok','x',3,'purchase_received','t')");
+    await db.run("INSERT INTO stock_movements (id, ingredient_id, qty, movement_type, created_at) VALUES ('ghost-i','nope',1,'waste','t')");
+    await db.run("INSERT INTO stock_movements (id, ingredient_id, product_id, qty, movement_type, created_at) VALUES ('ghost-p','x','nope',2,'waste','t')");
+    await db.exec("PRAGMA foreign_keys = ON");
+    const logs: string[] = [];
+    const { hooks, afterCommit } = createMigrationHooks({ legacy: NO_LEGACY, now: () => NOW, log: (m) => logs.push(m) });
+    await runMigrations({ db, transaction: txFor(db), steps: MIGRATION_STEPS, latest: 11, hooks, afterCommit, now: () => NOW });
+    expect(await userVersion(db)).toBe(11);
+    expect(await fkViolations(db)).toEqual([]);
+    expect(await db.query("SELECT id FROM stock_movements")).toEqual([{ id: "ok" }]);
+    expect(await db.query("SELECT id, ingredient_id, product_id, qty, quarantine_reason FROM stock_movements_quarantine ORDER BY id")).toEqual([
+      { id: "ghost-i", ingredient_id: "nope", product_id: null, qty: 1, quarantine_reason: "ingredient_missing" },
+      { id: "ghost-p", ingredient_id: "x", product_id: "nope", qty: 2, quarantine_reason: "product_missing" },
+    ]);
+    expect(await db.query("SELECT stock_milli FROM ingredients")).toEqual([{ stock_milli: 3000 }]);
+    expect(logs.filter((m) => m.includes("quarantine")).length).toBe(2);
   });
 });

@@ -219,6 +219,19 @@ CREATE INDEX idx_stock_movements_reference ON stock_movements(reference_type, re
 CREATE UNIQUE INDEX uq_stock_movements_ref
 ON stock_movements(reference_type, reference_id, movement_type, ingredient_id)
 WHERE reference_type IN ('order', 'order_void', 'order_refund');
+CREATE TABLE stock_movements_quarantine (
+    id TEXT PRIMARY KEY,
+    ingredient_id TEXT,
+    product_id TEXT,
+    qty REAL NOT NULL,
+    movement_type TEXT NOT NULL,
+    reference_type TEXT,
+    reference_id TEXT,
+    reason TEXT,
+    actor TEXT,
+    created_at TEXT NOT NULL,
+    quarantine_reason TEXT NOT NULL
+);
 CREATE TABLE order_item_consumption (
     order_item_id TEXT NOT NULL REFERENCES order_items(id),
     ingredient_id TEXT NOT NULL REFERENCES ingredients(id),

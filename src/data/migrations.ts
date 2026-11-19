@@ -378,6 +378,29 @@ export const UPGRADE_V11: string[] = [
   `PRAGMA defer_foreign_keys = ON;`,
   `CREATE TEMP TABLE v11_ingredients AS SELECT * FROM ingredients;`,
   `CREATE TEMP TABLE v11_movements AS SELECT * FROM stock_movements;`,
+  // Rows pointing at a missing ingredient or product would fail the deferred FK check at COMMIT.
+  // They are kept (never deleted) in a table without foreign keys.
+  `CREATE TABLE stock_movements_quarantine (
+    id TEXT PRIMARY KEY,
+    ingredient_id TEXT,
+    product_id TEXT,
+    qty REAL NOT NULL,
+    movement_type TEXT NOT NULL,
+    reference_type TEXT,
+    reference_id TEXT,
+    reason TEXT,
+    actor TEXT,
+    created_at TEXT NOT NULL,
+    quarantine_reason TEXT NOT NULL
+  );`,
+  `INSERT INTO stock_movements_quarantine
+     (id, ingredient_id, product_id, qty, movement_type, reference_type, reference_id, reason, actor, created_at, quarantine_reason)
+     SELECT id, ingredient_id, product_id, qty, movement_type, reference_type, reference_id, reason, actor, created_at,
+       CASE WHEN ingredient_id IS NOT NULL AND ingredient_id NOT IN (SELECT id FROM ingredients)
+            THEN 'ingredient_missing' ELSE 'product_missing' END
+     FROM v11_movements
+     WHERE (ingredient_id IS NOT NULL AND ingredient_id NOT IN (SELECT id FROM ingredients))
+        OR (product_id IS NOT NULL AND product_id NOT IN (SELECT id FROM products));`,
   `CREATE TABLE ingredients_new (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
@@ -407,7 +430,8 @@ export const UPGRADE_V11: string[] = [
   `INSERT INTO ingredients (id, name, base_unit, stock_milli, min_stock_milli, created_at)
      SELECT id, name, base_unit, 0, NULL, created_at FROM v11_ingredients;`,
   `INSERT INTO stock_movements (id, ingredient_id, product_id, qty_milli, movement_type, reference_type, reference_id, reason, actor, created_at)
-     SELECT id, ingredient_id, product_id, 0, movement_type, reference_type, reference_id, reason, actor, created_at FROM v11_movements;`,
+     SELECT id, ingredient_id, product_id, 0, movement_type, reference_type, reference_id, reason, actor, created_at FROM v11_movements
+       WHERE id NOT IN (SELECT id FROM stock_movements_quarantine);`,
   `CREATE INDEX idx_stock_movements_ingredient ON stock_movements(ingredient_id, created_at DESC);`,
   `CREATE INDEX idx_stock_movements_reference ON stock_movements(reference_type, reference_id);`,
   `CREATE UNIQUE INDEX uq_stock_movements_ref
