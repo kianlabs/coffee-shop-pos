@@ -1,24 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { RefundCommand } from "@/services/refundTypes";
-import { command, setup } from "./support/orderFixtures";
+import { command, refundCmd, setup } from "./support/orderFixtures";
 
 async function placed() {
   const s = setup();
   const r = await s.checkout.checkout(command());
   if (!r.ok) throw new Error(r.message);
   return { ...s, order: r.order };
-}
-
-function refundCmd(orderId: string, overrides: Partial<RefundCommand> = {}): RefundCommand {
-  return {
-    idempotencyKey: "r-1",
-    orderId,
-    kind: "refund",
-    reason: "  Salah pesan  ",
-    method: "cash",
-    actor: { id: "u-sup", role: "supervisor" },
-    ...overrides,
-  };
 }
 
 const sum = (db: { movements: Array<{ ingredientId: string; type: string; qtyMilli: number }> }, id: string, type: string) =>
