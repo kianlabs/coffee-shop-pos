@@ -4,13 +4,14 @@ import type { Order } from "@/domain/orders";
 import { openSqlJsDb } from "@/testing/sqlJsDb";
 import { DEFAULT_PERF, generatePerfData } from "../support/perfData";
 import { insertPerfData } from "../support/perfDataInsert";
-import { migrate } from "./support/migrationHarness";
+import { LATEST_VERSION } from "@/data/migration/steps";
+import { migrate, userVersion } from "./support/migrationHarness";
 /**
  * Report query benchmark (task 26.4). Regression warning only: timings are
  * printed, and the asserted bound is deliberately generous (machine noise).
  * Scale up with PERF_ORDERS=50000 npx vitest run tests/unit/report-benchmark.test.ts
  */
-const ORDERS = Number(process.env.PERF_ORDERS ?? 2_000);
+const ORDERS = Number(process.env.PERF_ORDERS ?? 5_000);
 const BOUND_MS_PER_1K_ORDERS = 500;
 type Db = Awaited<ReturnType<typeof openSqlJsDb>>;
 type Row = Record<string, unknown>;
@@ -40,6 +41,7 @@ function toOrder(o: Row, items: Row[], p: Row | undefined): Order {
 beforeAll(async () => {
   db = await openSqlJsDb();
   await migrate(db);
+  if ((await userVersion(db)) !== LATEST_VERSION) throw new Error("skema belum versi terbaru");
   const rows = generatePerfData({ ...DEFAULT_PERF, orders: ORDERS });
   await timed(`insert ${ORDERS} orders (+items, payments, movements)`, () => insertPerfData(db, rows));
 }, 600_000);
@@ -47,7 +49,7 @@ afterAll(() => {
   db.close();
   process.stdout.write(`report benchmark, ${ORDERS} orders (ms):\n${timings.map(([l, ms]) => `  ${l}: ${ms}`).join("\n")}\n`);
 });
-describe("benchmark kueri laporan (sql.js, V1..V14)", () => {
+describe("benchmark kueri laporan (sql.js, V1..V18)", () => {
   it("loadAll: tiga SELECT seperti orderRepository + buildReport 30 hari", async () => {
     const orders = await timed("SELECT orders ORDER BY created_at DESC", () => db.query("SELECT * FROM orders ORDER BY created_at DESC"));
     const items = await timed("SELECT order_items", () => db.query("SELECT * FROM order_items ORDER BY created_at ASC"));
