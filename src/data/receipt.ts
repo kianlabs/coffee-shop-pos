@@ -6,7 +6,7 @@ const PRODUCT_NAME_MAX = 28;
 
 // DEFAULT: ganti nama toko / lebar kolom di sini bila ganti kertas.
 // WIDTH=32 untuk kertas 58mm; pakai 42 untuk 80mm.
-const SHOP_NAME = "KOPI POS";
+const SHOP_NAME = "SURA POS";
 // DEFAULT: file logo raster belum ada. Bila `assets/logo.png` + plugin
 // raster tersedia, isi logoText via opts (lihat printLogoPlaceholder di
 // src/data/printer.ts). Tanpa file, template tetap jalan (tanpa logo).

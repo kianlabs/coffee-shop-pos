@@ -1,4 +1,4 @@
-# ☕ Kopi POS
+# ☕ Sura POS
 
 [English](README.md) · **Bahasa Indonesia**
 
@@ -17,7 +17,7 @@
 
 ## Deskripsi
 
-Kopi POS berjalan di tablet Android dan menyimpan setiap penjualan di database SQLite lokal pada perangkat, sehingga kasir tetap bisa berjualan saat internet mati. Penjualan disimpan lebih dulu sebelum struk dicetak, harga berupa Rupiah bulat (tanpa pecahan desimal), dan HPP dicatat saat transaksi terjadi sehingga laba historis tidak berubah ketika harga bahan naik.
+Sura POS berjalan di tablet Android dan menyimpan setiap penjualan di database SQLite lokal pada perangkat, sehingga kasir tetap bisa berjualan saat internet mati. Penjualan disimpan lebih dulu sebelum struk dicetak, harga berupa Rupiah bulat (tanpa pecahan desimal), dan HPP dicatat saat transaksi terjadi sehingga laba historis tidak berubah ketika harga bahan naik.
 
 Proyek ini dibuat agar mudah dipahami: aplikasi web React + TypeScript yang dibungkus Capacitor, dengan seluruh aturan bisnis berupa fungsi murni yang punya unit test.
 
