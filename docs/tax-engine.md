@@ -72,3 +72,20 @@ Pajak eksklusif 11% atas dasar + layanan, layanan 5%, pembulatan 100:
 | Pajak 11% × 28.770 = 3.164,7 | 3.165 |
 | Sebelum pembulatan | 31.935 |
 | Pembulatan ke 100 | −35, total 31.900 |
+
+## Pembayaran (`src/domain/payments.ts`)
+
+`validatePayments(total, payments, { maxPerOrder })` memeriksa pembayaran sesuai
+urutan input. Sisa tagihan = total − pembayaran sebelumnya.
+
+- Nominal wajib integer 1–999.999.999 Rupiah.
+- Jumlah pembayaran ≤ `pembayaran.maks_per_order` (1–20, default 10).
+- Non-tunai tidak boleh melebihi sisa tagihan saat itu.
+- Tunai yang melebihi sisa menghasilkan kembalian = tunai − sisa; sisa jadi 0.
+- Pembayaran setelah sisa 0 ditolak (tagihan sudah lunas).
+- Jumlah kurang dari total ditolak dengan `remainingRp` untuk ditampilkan.
+- Hasil sah memenuhi `Σ bayar − kembalian = total`, kembalian > 0 hanya bila ada tunai.
+
+`suggestCashAmounts(total)` memberi tombol nominal cepat: "uang pas" lebih dulu,
+lalu sampai empat nominal lebih besar dari kelipatan 5.000, 10.000, 50.000, dan
+100.000 di atas total. Total ≤ 0 atau di atas 999.999.999 menghasilkan daftar kosong.
