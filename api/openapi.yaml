@@ -21,6 +21,21 @@ servers:
     description: Placeholder — ganti dengan server nyata.
   - url: http://localhost:8787
     description: Mock dev (`scripts/mock-sync-server.mjs`). http hanya untuk localhost.
+x-sync-events:
+  # Every event_type the client emits (src/data/orderRepository.ts). scripts/check-openapi.mjs
+  # validates each example against its payload schema and fails with the event name.
+  "order.completed":
+    aggregate_type: order
+    payload: "#/components/schemas/OrderCompletedPayload"
+    example: {"orderId": "ord_20261119_0001", "totalRp": 45000, "serviceChargeRp": 0, "roundingRp": 0}
+  "order.voided":
+    aggregate_type: order
+    payload: "#/components/schemas/OrderStatusPayload"
+    example: {"orderId": "ord_20261119_0001"}
+  "order.refunded":
+    aggregate_type: order
+    payload: "#/components/schemas/OrderStatusPayload"
+    example: {"orderId": "ord_20261119_0001"}
 paths:
   /v1/sync/events:
     post:
@@ -219,6 +234,34 @@ components:
         payload:
           type: object
           additionalProperties: true
+    OrderCompletedPayload:
+      type: object
+      description: Payload event `order.completed`. Semua nominal integer Rupiah.
+      required: [orderId, totalRp]
+      additionalProperties: false
+      properties:
+        orderId:
+          type: string
+          minLength: 1
+        totalRp:
+          type: integer
+          minimum: 0
+        serviceChargeRp:
+          type: integer
+          minimum: 0
+          description: Tidak dikirim oleh event hasil restore backup.
+        roundingRp:
+          type: integer
+          description: Pembulatan kas (boleh negatif). Tidak dikirim oleh event hasil restore backup.
+    OrderStatusPayload:
+      type: object
+      description: Payload event `order.voided` dan `order.refunded`.
+      required: [orderId]
+      additionalProperties: false
+      properties:
+        orderId:
+          type: string
+          minLength: 1
     SyncResponse:
       type: object
       required: [acknowledged_event_ids, rejected]
