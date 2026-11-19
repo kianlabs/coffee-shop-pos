@@ -420,3 +420,65 @@ export const UPGRADE_V11: string[] = [
     PRIMARY KEY (order_item_id, ingredient_id)
   );`,
 ];
+/** UPGRADE_V12 — payments rebuild (new methods, voided, split_id), order columns, modifiers, refunds. Hook `orders_refunds`. */
+export const UPGRADE_V12: string[] = [
+  `PRAGMA defer_foreign_keys = ON;`,
+  `CREATE TABLE payments_new (
+    id TEXT PRIMARY KEY,
+    order_id TEXT NOT NULL REFERENCES orders(id),
+    method TEXT NOT NULL CHECK (method IN ('cash','qris_manual','card_edc','bank_transfer','other')),
+    amount_rp INTEGER NOT NULL CHECK (amount_rp >= 0),
+    status TEXT NOT NULL CHECK (status IN ('pending','paid','failed','refunded','voided')),
+    reference_note TEXT,
+    paid_at TEXT,
+    created_at TEXT NOT NULL,
+    split_id TEXT
+  );`,
+  `INSERT INTO payments_new (id, order_id, method, amount_rp, status, reference_note, paid_at, created_at, split_id)
+     SELECT id, order_id, method, amount_rp, status, reference_note, paid_at, created_at, NULL FROM payments;`,
+  `DROP TABLE payments;`,
+  `ALTER TABLE payments_new RENAME TO payments;`,
+  `CREATE INDEX idx_payments_order ON payments(order_id);`,
+  `ALTER TABLE orders ADD COLUMN user_id TEXT REFERENCES users(id);`,
+  `ALTER TABLE orders ADD COLUMN shift_id TEXT REFERENCES shifts(id);`,
+  `ALTER TABLE orders ADD COLUMN order_type TEXT NOT NULL DEFAULT 'dine_in' CHECK (order_type IN ('dine_in','takeaway','delivery'));`,
+  `ALTER TABLE orders ADD COLUMN table_no TEXT;`,
+  `ALTER TABLE orders ADD COLUMN customer_name TEXT;`,
+  `ALTER TABLE orders ADD COLUMN customer_id TEXT;`,
+  `ALTER TABLE orders ADD COLUMN change_rp INTEGER NOT NULL DEFAULT 0 CHECK (change_rp >= 0);`,
+  `ALTER TABLE orders ADD COLUMN queue_no INTEGER;`,
+  `ALTER TABLE orders ADD COLUMN item_discount_rp INTEGER NOT NULL DEFAULT 0;`,
+  `ALTER TABLE orders ADD COLUMN promo_discount_rp INTEGER NOT NULL DEFAULT 0;`,
+  `ALTER TABLE order_items ADD COLUMN note TEXT;`,
+  `ALTER TABLE order_items ADD COLUMN charge_total_rp INTEGER NOT NULL DEFAULT 0 CHECK (charge_total_rp >= 0);`,
+  `ALTER TABLE order_items ADD COLUMN refunded_qty INTEGER NOT NULL DEFAULT 0;`,
+  `CREATE TABLE order_item_modifiers (
+    id TEXT PRIMARY KEY,
+    order_item_id TEXT NOT NULL REFERENCES order_items(id),
+    modifier_id TEXT,
+    name_snapshot TEXT NOT NULL,
+    price_delta_rp INTEGER NOT NULL DEFAULT 0,
+    hpp_rp INTEGER NOT NULL DEFAULT 0
+  );`,
+  `CREATE INDEX idx_order_item_modifiers_item ON order_item_modifiers(order_item_id);`,
+  `CREATE TABLE refunds (
+    id TEXT PRIMARY KEY,
+    order_id TEXT NOT NULL REFERENCES orders(id),
+    idempotency_key TEXT NOT NULL UNIQUE,
+    kind TEXT NOT NULL CHECK (kind IN ('void','full','partial')),
+    amount_rp INTEGER NOT NULL CHECK (amount_rp >= 0),
+    method TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    executed_by TEXT NOT NULL REFERENCES users(id),
+    approved_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL
+  );`,
+  `CREATE INDEX idx_refunds_order ON refunds(order_id);`,
+  `CREATE TABLE refund_items (
+    refund_id TEXT NOT NULL REFERENCES refunds(id),
+    order_item_id TEXT NOT NULL REFERENCES order_items(id),
+    qty INTEGER NOT NULL CHECK (qty >= 1),
+    amount_rp INTEGER NOT NULL CHECK (amount_rp >= 0),
+    PRIMARY KEY (refund_id, order_item_id)
+  );`,
+];

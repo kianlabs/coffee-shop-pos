@@ -1,5 +1,5 @@
--- Coffee Shop POS — Production SQLite Schema (V11)
--- Hasil menjalankan `src/data/migrations.ts` V1 sampai V11 pada database kosong.
+-- Coffee Shop POS — Production SQLite Schema (V12)
+-- Hasil menjalankan `src/data/migrations.ts` V1 sampai V12 pada database kosong.
 -- Diperiksa oleh `node scripts/check-schema.mjs`: kolom yang ditambah lewat
 -- ALTER TABLE ada di akhir tabel, sesuai urutan migrasinya.
 PRAGMA foreign_keys = ON;
@@ -54,7 +54,18 @@ CREATE TABLE IF NOT EXISTS orders (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     -- V3
-    rounding_rp INTEGER NOT NULL DEFAULT 0
+    rounding_rp INTEGER NOT NULL DEFAULT 0,
+    -- V12
+    user_id TEXT REFERENCES users(id),
+    shift_id TEXT REFERENCES shifts(id),
+    order_type TEXT NOT NULL DEFAULT 'dine_in' CHECK (order_type IN ('dine_in','takeaway','delivery')),
+    table_no TEXT,
+    customer_name TEXT,
+    customer_id TEXT,
+    change_rp INTEGER NOT NULL DEFAULT 0 CHECK (change_rp >= 0),
+    queue_no INTEGER,
+    item_discount_rp INTEGER NOT NULL DEFAULT 0,
+    promo_discount_rp INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC);
 CREATE TABLE IF NOT EXISTS order_items (
@@ -74,21 +85,27 @@ CREATE TABLE IF NOT EXISTS order_items (
     -- V4
     hpp_unit_rp INTEGER NOT NULL DEFAULT 0,
     hpp_source TEXT NOT NULL DEFAULT 'none',
-    hpp_detail_json TEXT
+    hpp_detail_json TEXT,
+    -- V12
+    note TEXT,
+    charge_total_rp INTEGER NOT NULL DEFAULT 0 CHECK (charge_total_rp >= 0),
+    refunded_qty INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_order_items_order_created ON order_items(order_id, created_at ASC);
-CREATE TABLE IF NOT EXISTS payments (
+-- V12: payments dibangun ulang (metode baru, status voided, split_id)
+CREATE TABLE "payments" (
     id TEXT PRIMARY KEY,
     order_id TEXT NOT NULL REFERENCES orders(id),
-    method TEXT NOT NULL CHECK (method IN ('cash','qris_manual','other')),
+    method TEXT NOT NULL CHECK (method IN ('cash','qris_manual','card_edc','bank_transfer','other')),
     amount_rp INTEGER NOT NULL CHECK (amount_rp >= 0),
-    status TEXT NOT NULL CHECK (status IN ('pending','paid','failed','refunded')),
+    status TEXT NOT NULL CHECK (status IN ('pending','paid','failed','refunded','voided')),
     reference_note TEXT,
     paid_at TEXT,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    split_id TEXT
 );
-CREATE INDEX IF NOT EXISTS idx_payments_order ON payments(order_id);
+CREATE INDEX idx_payments_order ON payments(order_id);
 CREATE TABLE IF NOT EXISTS audit_logs (
     id TEXT PRIMARY KEY,
     actor_id TEXT,
@@ -267,4 +284,34 @@ CREATE TABLE held_orders (
     label TEXT NOT NULL,
     payload_json TEXT NOT NULL,
     held_at TEXT NOT NULL
+);
+-- V12: modifier, refund
+CREATE TABLE order_item_modifiers (
+    id TEXT PRIMARY KEY,
+    order_item_id TEXT NOT NULL REFERENCES order_items(id),
+    modifier_id TEXT,
+    name_snapshot TEXT NOT NULL,
+    price_delta_rp INTEGER NOT NULL DEFAULT 0,
+    hpp_rp INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX idx_order_item_modifiers_item ON order_item_modifiers(order_item_id);
+CREATE TABLE refunds (
+    id TEXT PRIMARY KEY,
+    order_id TEXT NOT NULL REFERENCES orders(id),
+    idempotency_key TEXT NOT NULL UNIQUE,
+    kind TEXT NOT NULL CHECK (kind IN ('void','full','partial')),
+    amount_rp INTEGER NOT NULL CHECK (amount_rp >= 0),
+    method TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    executed_by TEXT NOT NULL REFERENCES users(id),
+    approved_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL
+);
+CREATE INDEX idx_refunds_order ON refunds(order_id);
+CREATE TABLE refund_items (
+    refund_id TEXT NOT NULL REFERENCES refunds(id),
+    order_item_id TEXT NOT NULL REFERENCES order_items(id),
+    qty INTEGER NOT NULL CHECK (qty >= 1),
+    amount_rp INTEGER NOT NULL CHECK (amount_rp >= 0),
+    PRIMARY KEY (refund_id, order_item_id)
 );
