@@ -482,3 +482,36 @@ export const UPGRADE_V12: string[] = [
     PRIMARY KEY (refund_id, order_item_id)
   );`,
 ];
+/** UPGRADE_V13 — suppliers, purchases, stocktakes. */
+export const UPGRADE_V13: string[] = [
+  `CREATE TABLE suppliers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    name_ci TEXT NOT NULL UNIQUE,
+    contact TEXT,
+    note TEXT,
+    created_at TEXT NOT NULL
+  );`,
+  `CREATE TABLE stock_purchases (
+    id TEXT PRIMARY KEY,
+    supplier_id TEXT NOT NULL REFERENCES suppliers(id),
+    ingredient_id TEXT NOT NULL REFERENCES ingredients(id),
+    qty_milli INTEGER NOT NULL CHECK (qty_milli > 0),
+    total_rp INTEGER NOT NULL CHECK (total_rp BETWEEN 0 AND 999999999),
+    user_id TEXT NOT NULL REFERENCES users(id),
+    created_at TEXT NOT NULL
+  );`,
+  `CREATE INDEX idx_stock_purchases_ingredient ON stock_purchases(ingredient_id, created_at DESC);`,
+  `CREATE TABLE stocktakes (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );`,
+  `CREATE TABLE stocktake_items (
+    stocktake_id TEXT NOT NULL REFERENCES stocktakes(id),
+    ingredient_id TEXT NOT NULL REFERENCES ingredients(id),
+    system_milli INTEGER NOT NULL,
+    physical_milli INTEGER NOT NULL CHECK (physical_milli >= 0),
+    PRIMARY KEY (stocktake_id, ingredient_id)
+  );`,
+];
