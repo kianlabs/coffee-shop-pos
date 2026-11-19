@@ -44,6 +44,12 @@ export function importRule(fromLayer, target) {
   return null;
 }
 
+/** True for a spesifier yang beresolusi ke src/modules/<id>/ (bukan src/modules itself atau src/modules/index). */
+export function isModuleInternal(rel) {
+  if (!rel.startsWith("src/modules/")) return false;
+  const rest = rel.slice("src/modules/".length).replace(/\.(ts|tsx)$/, "");
+  return rest !== "" && rest !== "index";
+}
 function externalRule(fromLayer, pkg) {
   if (pkg === SQLITE_PKG && fromLayer !== "data") return "no-sqlite-outside-data";
   if (fromLayer === "domain" && (FRAMEWORK.test(pkg) || CAPACITOR.test(pkg) || pkg === SQLITE_PKG)) {
@@ -133,6 +139,9 @@ export function findViolations(files) {
       const target = targetOf(rel, spec);
       const rule = importRule(fromLayer, target);
       if (rule) add(rel, rule, spec, lineOf(node));
+      if (!rel.startsWith("src/modules/") && target.rel && isModuleInternal(target.rel)) {
+        add(rel, "module-internal-import", spec, lineOf(node));
+      }
     }
     if (fromLayer === "domain") {
       for (const hit of domainImpurity(sf)) add(rel, hit.rule, hit.detail, lineOf(hit.node));
