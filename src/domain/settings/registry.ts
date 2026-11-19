@@ -3,6 +3,7 @@ export type SettingType = "int" | "bool" | "text" | "enum";
 
 interface BaseDef<K extends string, T> {
   key: K;
+  label: { id: string; en: string };
   default: T;
   auditable: boolean;
   requiresRestart: boolean;

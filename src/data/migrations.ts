@@ -287,3 +287,22 @@ export const UPGRADE_V7: string[] = [
   `CREATE INDEX IF NOT EXISTS idx_order_items_order_created
      ON order_items(order_id, created_at ASC);`,
 ];
+
+/**
+ * UPGRADE_V8 — settings audit, append-only audit log, and modules table.
+ * Applied by the Migration_Runner (src/data/migration/runner.ts) and not by the
+ * plugin: PLUGIN_DB_VERSION stays at 7 until the runner is wired into startup.
+ */
+export const UPGRADE_V8: string[] = [
+  "ALTER TABLE app_settings ADD COLUMN updated_by TEXT;",
+  "ALTER TABLE audit_logs ADD COLUMN approver_id TEXT;",
+  "ALTER TABLE audit_logs ADD COLUMN action_type TEXT;",
+  "CREATE TRIGGER IF NOT EXISTS trg_audit_no_update BEFORE UPDATE ON audit_logs BEGIN SELECT RAISE(ABORT, 'audit_logs is append-only'); END;",
+  "CREATE TRIGGER IF NOT EXISTS trg_audit_no_delete BEFORE DELETE ON audit_logs BEGIN SELECT RAISE(ABORT, 'audit_logs is append-only'); END;",
+  `CREATE TABLE IF NOT EXISTS modules (
+    id TEXT PRIMARY KEY,
+    enabled INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0,1)),
+    enabled_at TEXT,
+    updated_by TEXT
+  );`,
+];
