@@ -10,7 +10,7 @@
 
 ## Reporting a Vulnerability
 
-We take the security of Sura POS and customer retail data seriously. If you discover a security vulnerability, please report it responsibly:
+We take the security of Suro POS and customer retail data seriously. If you discover a security vulnerability, please report it responsibly:
 
 - **Email**: Send vulnerability reports directly to `security@kianlabs.com`.
 - **Details to Include**:

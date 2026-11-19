@@ -1,5 +1,5 @@
 {
-  "name": "sura-pos",
+  "name": "suro-pos",
   "version": "1.0.1",
   "description": "Production-ready, offline-first Tablet POS for cafés and small food and beverage shops. Features native SQLite V7, ESC/POS Bluetooth 58mm thermal printing with raster logo, recipe-based HPP costing, and zero cloud subscription cost.",
   "main": "index.js",
@@ -11,15 +11,16 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "node scripts/test-domain.mjs && node scripts/test-guards.mjs",
-    "check": "node scripts/check-brand.mjs && node scripts/check-no-apk.mjs && node scripts/check-no-ai-files.mjs && node scripts/check-readme-links.mjs && node scripts/check-changelog.mjs",
+    "test": "node scripts/test-domain.mjs && node scripts/test-guards.mjs && vitest run --coverage",
+    "check": "node scripts/run-checks.mjs",
     "smoke:ui": "node scripts/smoke-ui.mjs",
     "test:e2e": "node scripts/test-e2e-exhaustive.mjs",
     "ota:pack": "node scripts/package-ota.mjs",
     "android:assets": "npm run build && node scripts/sync-android-assets.mjs",
     "apk": "bash scripts/build-apk.sh",
     "mock:sync": "node scripts/mock-sync-server.mjs --port 8787",
-    "screenshots": "node scripts/capture-tablet-screenshots.mjs"
+    "screenshots": "node scripts/capture-tablet-screenshots.mjs",
+    "lint": "eslint src tests"
   },
   "repository": {
     "type": "git",
@@ -66,11 +67,22 @@
     "zustand": "5.1.0"
   },
   "devDependencies": {
+    "@eslint/js": "9.39.5",
     "@types/node": "26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/sql.js": "1.4.9",
     "@vitejs/plugin-react": "^6.2.1",
-    "typescript": "^7.0.2",
-    "vite": "^8.3.5"
+    "@vitest/coverage-v8": "4.1.12",
+    "eslint": "9.39.5",
+    "eslint-plugin-jsx-a11y": "6.10.2",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "fast-check": "4.10.3",
+    "sql.js": "1.17.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.73.0",
+    "vite": "^8.3.5",
+    "vitest": "4.1.12",
+    "ws": "8.23.0"
   }
 }

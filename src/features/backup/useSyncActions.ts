@@ -48,7 +48,7 @@ export function useSyncActions() {
       await refreshPending().catch(() => undefined);
       setSyncing(false);
     }
-  }, [settings, syncing]);
+  }, [settings, syncing, setMeta]);
 
   return { settings, meta, syncing, update, save, runSync };
 }

@@ -50,6 +50,7 @@ export function LogoField({ logoB64, onChange }: LogoFieldProps) {
       <input
         ref={inputRef}
         id="store-logo"
+        aria-label="Pilih file logo"
         type="file"
         accept="image/png, image/jpeg, image/webp"
         className="sr-only"

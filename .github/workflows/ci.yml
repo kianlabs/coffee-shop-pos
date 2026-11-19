@@ -10,6 +10,7 @@ jobs:
   test-and-build:
     name: Typecheck, Test & Build
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     strategy:
       matrix:
@@ -28,16 +29,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Repository guards (no client brand, no APK, no AI instruction files)
-        run: npm run check
-
-      - name: Typecheck (TypeScript Strict)
+      - name: Typecheck (TypeScript strict)
         run: npm run typecheck
-
-      - name: Run Domain & Semver Tests
+      - name: Lint (ESLint, typescript-eslint, jsx-a11y)
+        run: npm run lint
+      - name: Unit tests with coverage gate (domain 90%)
         run: |
           npm test
           node scripts/test-updater.mjs
-
-      - name: Build Web Production Assets
+      - name: Repository guards and architecture boundaries
+        run: npm run check
+      - name: Build web production assets
         run: npm run build
+      - name: Headless UI smoke test
+        run: npm run smoke:ui

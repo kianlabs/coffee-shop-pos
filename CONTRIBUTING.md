@@ -1,6 +1,6 @@
-# Contributing to Sura POS
+# Contributing to Suro POS
 
-Thank you for your interest in contributing. Sura POS is an offline-first Point of Sale app for cafés and small food and beverage shops. Please read this page before opening an issue or a pull request.
+Thank you for your interest in contributing. Suro POS is an offline-first Point of Sale app for cafés and small food and beverage shops. Please read this page before opening an issue or a pull request.
 
 By taking part you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md). You can write issues and pull requests in English or Bahasa Indonesia.
 

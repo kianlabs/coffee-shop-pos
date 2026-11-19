@@ -14,7 +14,7 @@
     @com.getcapacitor.annotation.PermissionCallback *;
 }
 
-# Lindungi Native Plugins Sura POS
+# Lindungi Native Plugins Suro POS
 -keep class com.kianlabs.coffeeshoppos.PrinterPlugin { *; }
 -keep class com.kianlabs.coffeeshoppos.BackupPlugin { *; }
 -keep class com.kianlabs.coffeeshoppos.EscPosRaster { *; }

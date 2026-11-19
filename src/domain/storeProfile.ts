@@ -50,14 +50,22 @@ export interface SettingRow {
   value: string;
 }
 
-const CONTROL_CHARS = /[\u0000-\u001F\u007F]/g;
+/** Removes C0 control characters and DEL without a control-character regex. */
+function stripControlChars(text: string): string {
+  let out = "";
+  for (const ch of text) {
+    const code = ch.codePointAt(0) ?? 0;
+    if (code > 0x1f && code !== 0x7f) out += ch;
+  }
+  return out;
+}
 const PNG_DATA_URL = /^data:image\/png;base64,[A-Za-z0-9+/]*={0,2}$/;
 
 function cleanText(value: unknown, max: number): string {
   if (typeof value !== "string") {
     return "";
   }
-  const stripped = value.replace(CONTROL_CHARS, "").trim();
+  const stripped = stripControlChars(value).trim();
   return Array.from(stripped).slice(0, max).join("");
 }
 

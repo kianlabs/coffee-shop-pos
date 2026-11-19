@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +21,7 @@ interface PinDialogProps {
 
 export function PinDialog({ pin }: PinDialogProps) {
   const { request, verifying } = pin;
+  const inputRef = useRef<HTMLInputElement>(null);
   const title = request?.action === "refund" ? "PIN refund" : "PIN void";
   const showAttempts = pin.error === null && pin.attempts > 0;
 
@@ -32,6 +34,10 @@ export function PinDialog({ pin }: PinDialogProps) {
     >
       <DialogContent
         showCloseButton={false}
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          inputRef.current?.focus();
+        }}
         onEscapeKeyDown={(e) => verifying && e.preventDefault()}
         onInteractOutside={(e) => verifying && e.preventDefault()}
       >
@@ -58,7 +64,7 @@ export function PinDialog({ pin }: PinDialogProps) {
               type="password"
               inputMode="numeric"
               autoComplete="off"
-              autoFocus
+              ref={inputRef}
               value={pin.input}
               disabled={verifying}
               aria-invalid={pin.error !== null || undefined}
