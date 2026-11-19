@@ -349,7 +349,12 @@ async function main() {
     browser?.kill("SIGKILL");
     preview.kill("SIGKILL");
     try {
+      try {
       rmSync(profileDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    } catch (e) {
+      // Chromium can still hold files after SIGTERM. The run already has its result; warn only.
+      console.warn(`peringatan: profil sementara tidak terhapus: ${e instanceof Error ? e.message : e}`);
+    }
     } catch {
       // abaikan
     }
