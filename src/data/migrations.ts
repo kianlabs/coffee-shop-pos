@@ -564,3 +564,173 @@ export const UPGRADE_V14: string[] = [
   );`,
   `CREATE INDEX idx_unprinted_receipts_order ON unprinted_receipts(order_id);`,
 ];
+
+/** UPGRADE_V15 — module `fnb`: modifiers, product order and sold-out flag, photos, bar queue. */
+export const UPGRADE_V15: string[] = [
+  `CREATE TABLE modifier_groups (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    min_select INTEGER NOT NULL,
+    max_select INTEGER NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    CHECK (min_select >= 0 AND max_select >= 1 AND min_select <= max_select)
+  );`,
+  `CREATE TABLE modifiers (
+    id TEXT PRIMARY KEY,
+    group_id TEXT NOT NULL REFERENCES modifier_groups(id),
+    name TEXT NOT NULL,
+    price_delta_rp INTEGER NOT NULL DEFAULT 0 CHECK (price_delta_rp >= 0),
+    hpp_manual_rp INTEGER CHECK (hpp_manual_rp >= 0),
+    is_active INTEGER NOT NULL DEFAULT 1,
+    UNIQUE (group_id, name)
+  );`,
+  `CREATE TABLE product_modifier_groups (
+    product_id TEXT NOT NULL REFERENCES products(id),
+    group_id TEXT NOT NULL REFERENCES modifier_groups(id),
+    PRIMARY KEY (product_id, group_id)
+  );`,
+  `CREATE TABLE modifier_recipes (
+    modifier_id TEXT NOT NULL REFERENCES modifiers(id),
+    ingredient_id TEXT NOT NULL REFERENCES ingredients(id),
+    qty_milli INTEGER NOT NULL CHECK (qty_milli > 0),
+    PRIMARY KEY (modifier_id, ingredient_id)
+  );`,
+  `ALTER TABLE products ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;`,
+  `ALTER TABLE products ADD COLUMN is_sold_out INTEGER NOT NULL DEFAULT 0 CHECK (is_sold_out IN (0,1));`,
+  `CREATE TABLE product_photos (
+    product_id TEXT PRIMARY KEY REFERENCES products(id),
+    mime TEXT NOT NULL,
+    data_b64 TEXT NOT NULL
+  );`,
+  `CREATE TABLE order_queue (
+    order_id TEXT PRIMARY KEY REFERENCES orders(id),
+    status TEXT NOT NULL CHECK (status IN ('baru','dibuat','selesai')),
+    updated_at TEXT NOT NULL
+  );`,
+];
+
+/**
+ * UPGRADE_V16 — module `pelanggan`: customers (with the fixed anonymous row) and `orders.customer_id` FK.
+ * SQLite cannot add an FK to an existing column, so `orders` is rebuilt through a copy table (children are checked
+ * deferred; re-inserting the parent rows clears the count). Unknown customer ids become NULL.
+ */
+export const UPGRADE_V16: string[] = [
+  `PRAGMA defer_foreign_keys = ON;`,
+  `CREATE TABLE customers (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    phone TEXT UNIQUE,
+    note TEXT,
+    is_anonymous INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+  );`,
+  `INSERT INTO customers (id, name, is_anonymous, created_at) VALUES ('customer-anonymous', NULL, 1, '1970-01-01T00:00:00Z');`,
+  `CREATE TABLE orders_v16_copy AS SELECT * FROM orders;`,
+  `DROP TABLE orders;`,
+  `CREATE TABLE orders (
+    id TEXT PRIMARY KEY,
+    receipt_number TEXT NOT NULL UNIQUE,
+    idempotency_key TEXT NOT NULL UNIQUE,
+    status TEXT NOT NULL CHECK (status IN ('completed','voided','partially_refunded','refunded')),
+    subtotal_rp INTEGER NOT NULL CHECK (subtotal_rp >= 0),
+    discount_rp INTEGER NOT NULL DEFAULT 0 CHECK (discount_rp >= 0),
+    tax_rp INTEGER NOT NULL DEFAULT 0 CHECK (tax_rp >= 0),
+    service_charge_rp INTEGER NOT NULL DEFAULT 0 CHECK (service_charge_rp >= 0),
+    total_rp INTEGER NOT NULL CHECK (total_rp >= 0),
+    notes TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    rounding_rp INTEGER NOT NULL DEFAULT 0,
+    user_id TEXT REFERENCES users(id),
+    shift_id TEXT REFERENCES shifts(id),
+    order_type TEXT NOT NULL DEFAULT 'dine_in' CHECK (order_type IN ('dine_in','takeaway','delivery')),
+    table_no TEXT,
+    customer_name TEXT,
+    customer_id TEXT REFERENCES customers(id),
+    change_rp INTEGER NOT NULL DEFAULT 0 CHECK (change_rp >= 0),
+    queue_no INTEGER,
+    item_discount_rp INTEGER NOT NULL DEFAULT 0,
+    promo_discount_rp INTEGER NOT NULL DEFAULT 0
+  );`,
+  `INSERT INTO orders (id, receipt_number, idempotency_key, status, subtotal_rp, discount_rp, tax_rp, service_charge_rp,
+      total_rp, notes, created_at, updated_at, rounding_rp, user_id, shift_id, order_type, table_no, customer_name, customer_id,
+      change_rp, queue_no, item_discount_rp, promo_discount_rp)
+    SELECT id, receipt_number, idempotency_key, status, subtotal_rp, discount_rp, tax_rp, service_charge_rp,
+      total_rp, notes, created_at, updated_at, rounding_rp, user_id, shift_id, order_type, table_no, customer_name,
+      CASE WHEN customer_id IN (SELECT id FROM customers) THEN customer_id ELSE NULL END,
+      change_rp, queue_no, item_discount_rp, promo_discount_rp FROM orders_v16_copy;`,
+  `DROP TABLE orders_v16_copy;`,
+  `CREATE INDEX idx_orders_created_at ON orders(created_at DESC);`,
+];
+
+/** UPGRADE_V17 — module `fnb`: promos, vouchers, expenses, open bills, split bills, queue counters. */
+export const UPGRADE_V17: string[] = [
+  `CREATE TABLE promos (
+    id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL CHECK (kind IN ('bundle','happy_hour')),
+    name TEXT NOT NULL,
+    config_json TEXT NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1
+  );`,
+  `CREATE TABLE vouchers (
+    id TEXT PRIMARY KEY,
+    code TEXT NOT NULL UNIQUE,
+    discount_json TEXT NOT NULL,
+    valid_from TEXT NOT NULL,
+    valid_until TEXT NOT NULL,
+    max_uses INTEGER,
+    min_subtotal_rp INTEGER
+  );`,
+  `CREATE TABLE voucher_redemptions (
+    id TEXT PRIMARY KEY,
+    voucher_id TEXT NOT NULL REFERENCES vouchers(id),
+    order_id TEXT NOT NULL UNIQUE REFERENCES orders(id),
+    status TEXT NOT NULL CHECK (status IN ('active','released')),
+    created_at TEXT NOT NULL
+  );`,
+  `CREATE TABLE expenses (
+    id TEXT PRIMARY KEY,
+    category TEXT NOT NULL,
+    amount_rp INTEGER NOT NULL CHECK (amount_rp > 0),
+    from_drawer INTEGER NOT NULL DEFAULT 0,
+    shift_id TEXT REFERENCES shifts(id),
+    user_id TEXT NOT NULL REFERENCES users(id),
+    note TEXT,
+    spent_at TEXT NOT NULL
+  );`,
+  `CREATE TABLE open_bills (
+    id TEXT PRIMARY KEY,
+    table_no TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('open','paid','cancelled')),
+    opened_by TEXT NOT NULL REFERENCES users(id),
+    opened_at TEXT NOT NULL,
+    order_id TEXT REFERENCES orders(id)
+  );`,
+  `CREATE UNIQUE INDEX uq_open_bill_table ON open_bills(table_no) WHERE status = 'open';`,
+  `CREATE TABLE open_bill_items (
+    id TEXT PRIMARY KEY,
+    bill_id TEXT NOT NULL REFERENCES open_bills(id),
+    round_no INTEGER NOT NULL,
+    payload_json TEXT NOT NULL,
+    added_at TEXT NOT NULL
+  );`,
+  `CREATE TABLE bill_splits (
+    id TEXT PRIMARY KEY,
+    order_id TEXT NOT NULL REFERENCES orders(id),
+    label TEXT NOT NULL,
+    amount_rp INTEGER NOT NULL CHECK (amount_rp >= 0)
+  );`,
+  `CREATE TABLE queue_counters (
+    business_day TEXT PRIMARY KEY,
+    last_no INTEGER NOT NULL
+  );`,
+];
+
+/**
+ * UPGRADE_V18 — report indexes. `stock_movements(ingredient_id, created_at)` already exists as
+ * `idx_stock_movements_ingredient` (V11), so it is not repeated.
+ */
+export const UPGRADE_V18: string[] = [
+  `CREATE INDEX idx_orders_created_status ON orders(created_at, status);`,
+  `CREATE INDEX idx_payments_method_order ON payments(method, order_id);`,
+];
