@@ -70,7 +70,12 @@ export function allocateDiscount(
     return lineTotals.map(() => 0);
   }
   const capped = Math.min(discountRp, total);
-  const shares = lineTotals.map((lt) => Math.floor((lt * capped) / total));
+  // lt * capped can exceed Number.MAX_SAFE_INTEGER; use BigInt there so floor() is exact.
+  const shares = lineTotals.map((lt) =>
+    Number.isSafeInteger(lt * capped)
+      ? Math.floor((lt * capped) / total)
+      : Number((BigInt(lt) * BigInt(capped)) / BigInt(total)),
+  );
   let remainder = capped - shares.reduce((a, b) => a + b, 0);
   // Sisa dibagikan ke baris dengan nilai terbesar (deterministik).
   const order = lineTotals

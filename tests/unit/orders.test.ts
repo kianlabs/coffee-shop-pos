@@ -115,3 +115,13 @@ describe("createCompletedOrder", () => {
     expect(createCompletedOrder(sampleCheckout({ notes: "tanpa es" }), new Date()).notes).toBe("tanpa es");
   });
 });
+
+describe("allocateDiscount dengan nilai besar", () => {
+  it("tetap tepat saat hasil kali melewati batas bilangan bulat aman", () => {
+    const lines = [80_893_000, 40_883_000, 2_043_000, 64_679_000, 3_676_000, 19_357_000, 31_634_000, 12_864_000];
+    const discount = 153_200_647;
+    const shares = allocateDiscount(lines, discount);
+    expect(shares.reduce((a, b) => a + b, 0)).toBe(discount);
+    shares.forEach((s, i) => expect(s).toBeLessThanOrEqual(lines[i]));
+  });
+});
