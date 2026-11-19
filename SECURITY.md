@@ -2,23 +2,43 @@
 
 ## Supported Versions
 
+Security fixes are released for the versions below. Older versions do not receive fixes; upgrade to a supported version.
+
 | Version | Supported          |
 | ------- | ------------------ |
-| 1.0.x   | :white_check_mark: |
+| 1.1.x   | :white_check_mark: |
+| 1.0.x   | :x:                |
+| < 1.0   | :x:                |
+
+When a new minor or major version is released, this table is updated in the same pull request.
 
 ---
 
 ## Reporting a Vulnerability
 
-We take the security of Suro POS and customer retail data seriously. If you discover a security vulnerability, please report it responsibly:
+We take the security of Suro POS and customer retail data seriously. Report vulnerabilities privately through either channel:
 
-- **Email**: Send vulnerability reports directly to `security@kianlabs.com`.
-- **Details to Include**:
-  - Description of the vulnerability and attack vector.
-  - Steps to reproduce or proof-of-concept (PoC).
-  - Affected components (Web UI, Android Native Bridge, SQLite, or AES-GCM Crypto Backup).
+- **Email**: `security@kianlabs.com`.
+- **GitHub**: use "Report a vulnerability" under the repository's **Security** tab (private security advisory), when it is enabled.
 
-Please **do not** open public GitHub issues for sensitive security vulnerabilities.
+Include as much of the following as you can:
+
+- Description of the vulnerability and attack vector.
+- Steps to reproduce or a proof of concept.
+- Affected components (Web UI, Android native bridge, SQLite, AES-GCM encrypted backup, update/OTA, sync).
+- Affected app version and device model (if relevant).
+
+Please **do not** open public GitHub issues, pull requests, or discussions for security vulnerabilities, and do not include real customer data in reports.
+
+### Response targets
+
+| Step | Target |
+| ---- | ------ |
+| Initial response (acknowledgement of your report) | within **7 calendar days** of receipt |
+| Assessment and severity rating | shared with you after the initial response |
+| Fix and release | depends on severity; you get a status update at least every 14 days until resolved |
+
+We credit reporters in the release notes unless you ask to stay anonymous. Please allow us to release a fix before you disclose the issue publicly.
 
 ---
 

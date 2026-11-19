@@ -2,6 +2,7 @@ import {
   BarChart3,
   BookOpen,
   Calculator,
+  CircleHelp,
   CloudUpload,
   Package,
   ReceiptText,
@@ -18,7 +19,8 @@ export type View =
   | "hpp"
   | "stok"
   | "backup"
-  | "pengaturan";
+  | "pengaturan"
+  | "bantuan";
 
 export interface NavItem {
   view: View;
@@ -40,6 +42,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { view: "hpp", labelKey: "app.nav.hpp", titleKey: "app.title.hpp", icon: Calculator, primary: false },
   { view: "backup", labelKey: "app.nav.backup", titleKey: "app.title.backup", icon: CloudUpload, primary: false },
   { view: "pengaturan", labelKey: "app.nav.settings", titleKey: "app.title.settings", icon: Settings, primary: false },
+  { view: "bantuan", labelKey: "app.nav.help", titleKey: "app.title.help", icon: CircleHelp, primary: false },
 ];
 
 export function navItemFor(view: View): NavItem {
