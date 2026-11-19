@@ -182,9 +182,9 @@ async function main() {
     await waitFor("document.readyState === 'complete'");
     await wait(900);
     check("judul aplikasi", (await evalJs("document.title")) === "Kopi POS — Kasir");
-    check("nav rail tampil", await evalJs("!!document.querySelector('.nav-rail')"));
+    check("nav samping tampil", await evalJs(`!!document.querySelector('[data-testid="nav"]')`));
     check("tidak ada overflow horizontal", await evalJs("document.documentElement.scrollWidth <= window.innerWidth + 1"));
-    check("keranjang tampil", await evalJs("!!document.querySelector('.cart-panel')"));
+    check("keranjang tampil", await evalJs(`!!document.querySelector('[data-testid="cart-panel"]')`));
 
     console.log("\n[2] katalog -> keranjang -> bayar -> struk");
     await evalJs(`(() => {
@@ -206,10 +206,10 @@ async function main() {
     check("menu hasil seed tampil", await waitFor(`!!document.querySelector('[aria-label="Tambah Espresso Smoke"]')`));
 
     await evalJs(`document.querySelector('[aria-label="Tambah Espresso Smoke"]').click()`);
-    check("item masuk keranjang", await waitFor(`!!document.querySelector('.cart-line')`));
+    check("item masuk keranjang", await waitFor(`!!document.querySelector('[data-testid="cart-line"]')`));
     check(
       "total keranjang Rp18.000",
-      (await evalJs(`document.querySelector('.cart-line-total')?.textContent || ''`)).includes("18.000"),
+      (await evalJs(`document.querySelector('[data-testid="cart-line-total"]')?.textContent || ''`)).includes("18.000"),
     );
 
     const payClicked = await evalJs(`(() => {
@@ -219,8 +219,22 @@ async function main() {
       return true;
     })()`);
     check("tombol bayar bisa ditekan", payClicked);
-    check("struk muncul", await waitFor(`!!document.querySelector('.receipt-preview')`));
-    const receipt = await evalJs(`document.querySelector('.receipt-preview')?.textContent || ''`);
+    check("dialog pembayaran muncul", await waitFor(`!!document.querySelector('[data-testid="payment-dialog"]')`));
+    const exactClicked = await evalJs(`(() => {
+      const btn = [...document.querySelectorAll('[data-testid="payment-dialog"] button')].find((b) => b.textContent.trim() === 'Uang pas');
+      btn?.click();
+      return !!btn;
+    })()`);
+    check("tombol uang pas ada", exactClicked);
+    const finishClicked = await waitFor(`(() => {
+      const btn = [...document.querySelectorAll('[data-testid="payment-dialog"] button')].find((b) => b.textContent.trim().startsWith('Selesaikan'));
+      if (!btn || btn.disabled) return false;
+      btn.click();
+      return true;
+    })()`);
+    check("pembayaran bisa diselesaikan", finishClicked);
+    check("struk muncul", await waitFor(`!!document.querySelector('[data-testid="receipt-preview"]')`));
+    const receipt = await evalJs(`document.querySelector('[data-testid="receipt-preview"]')?.textContent || ''`);
     check("struk memuat menu", receipt.includes("Espresso Smoke"));
     check("struk memuat total", receipt.includes("18.000"));
 
@@ -229,11 +243,11 @@ async function main() {
       if (btn) btn.click();
       return true;
     })()`);
-    check("modal struk tertutup", await waitFor(`!document.querySelector('.receipt-preview')`));
+    check("modal struk tertutup", await waitFor(`!document.querySelector('[data-testid="receipt-preview"]')`));
 
     console.log("\n[3] riwayat");
     await evalJs(`(() => {
-      const nav = [...document.querySelectorAll('.nav-item')].find((b) => b.textContent.includes('Riwayat'));
+      const nav = [...document.querySelectorAll('[data-testid="nav-item"]')].find((b) => b.textContent.includes('Riwayat'));
       nav?.click();
       return !!nav;
     })()`);
@@ -253,55 +267,37 @@ async function main() {
       "tombol void tampil",
       await evalJs(`[...document.querySelectorAll('button')].some((b) => b.textContent.includes('Void'))`),
     );
-    check("filter refund ada di UI", await evalJs(`[...document.querySelectorAll('.chip')].some((c) => c.textContent.trim() === 'Refund')`));
+    check("filter refund ada di UI", await evalJs(`[...document.querySelectorAll('[data-testid="history-filter"]')].some((c) => c.textContent.trim() === 'Refund')`));
 
     console.log("\n[4] laporan + grafik");
     await evalJs(`(() => {
-      const nav = [...document.querySelectorAll('.nav-item')].find((b) => b.textContent.includes('Laporan'));
+      const nav = [...document.querySelectorAll('[data-testid="nav-item"]')].find((b) => b.textContent.includes('Laporan'));
       nav?.click();
       return !!nav;
     })()`);
     check("halaman laporan terbuka", await waitFor(`document.body.innerText.includes('Tren omzet')`));
-    check("grafik tren tampil", await evalJs(`!!document.querySelector('.trend-chart')`));
-    check("lima kartu ringkasan", (await evalJs(`document.querySelectorAll('.stat-card').length`)) === 5);
-    check("grafik hari ini 24 bucket", (await evalJs(`document.querySelectorAll('.trend-bar').length`)) === 24);
-    check("bar metode bayar tampil", await evalJs(`!!document.querySelector('.payment-mix-bar')`));
+    check("grafik tren tampil", await evalJs(`!!document.querySelector('[data-testid="trend-chart"]')`));
+    check("lima kartu ringkasan", (await evalJs(`document.querySelectorAll('[data-testid="stat-card"]').length`)) === 5);
+    check("grafik hari ini 24 bucket", (await evalJs(`document.querySelectorAll('[data-testid="trend-bar"]').length`)) === 24);
+    check("bar metode bayar tampil", await evalJs(`!!document.querySelector('[data-testid="payment-mix-bar"]')`));
 
     console.log("\n[5] layout 390x844");
     await setViewport(390, 844, true);
     await reload();
-    check("nav bawah tampil", await evalJs("!!document.querySelector('.nav-rail')"));
+    check("nav bawah tampil", await evalJs(`!!document.querySelector('[data-testid="mobile-nav"]')`));
     check("tidak ada overflow horizontal", await evalJs("document.documentElement.scrollWidth <= window.innerWidth + 1"));
-    const navInfo = await evalJs(`(() => {
-      const nav = document.querySelector('.nav-list');
-      if (!nav) return null;
-      const labels = [...nav.querySelectorAll('.nav-label')].map((el) => el.textContent.trim());
-      const rail = document.querySelector('.nav-rail');
-      return {
-        labels,
-        scrollable: nav.scrollWidth > nav.clientWidth + 1,
-        hasEdgeFade: rail.className.includes('has-more'),
-        width: nav.clientWidth,
-        scrollWidth: nav.scrollWidth,
-      };
-    })()`);
-    check("8 tujuan tersedia", navInfo?.labels.length === 8, JSON.stringify(navInfo?.labels));
+    const primaryLabels = await evalJs(`[...document.querySelectorAll('[data-testid="mobile-nav"] > [data-testid="nav-item"] [data-testid="nav-label"]')].map((el) => el.textContent.trim())`);
+    check("3 tujuan utama di nav bawah", primaryLabels?.length === 3, JSON.stringify(primaryLabels));
     check(
-      "nav bisa di-scroll",
-      navInfo?.scrollable === true,
-      `client=${navInfo?.width} scroll=${navInfo?.scrollWidth}`,
+      "item aktif ditandai",
+      await evalJs(`!!document.querySelector('[data-testid="mobile-nav"] [aria-current="page"]')`),
     );
-    check("ada petunjuk tepi nav", navInfo?.hasEdgeFade === true);
-    const activeVisible = await evalJs(`(() => {
-      const active = document.querySelector('.nav-item[aria-current="page"]');
-      if (!active) return false;
-      const nav = document.querySelector('.nav-list');
-      const a = active.getBoundingClientRect();
-      const n = nav.getBoundingClientRect();
-      return a.left >= n.left - 1 && a.right <= n.right + 1;
-    })()`);
-    check("item aktif terlihat", activeVisible);
-
+    await evalJs(`document.querySelector('[data-testid="nav-more"]')?.click()`);
+    check("sheet Lainnya terbuka", await waitFor(`document.body.innerText.includes('Menu lainnya')`));
+    const moreLabels = await evalJs(`[...document.querySelectorAll('[role="dialog"] [data-testid="nav-label"]')].map((el) => el.textContent.trim())`);
+    check("8 tujuan tersedia", (primaryLabels?.length ?? 0) + (moreLabels?.length ?? 0) === 8, JSON.stringify(moreLabels));
+    const touchOk = await evalJs(`[...document.querySelectorAll('[data-testid="mobile-nav"] button')].every((b) => b.getBoundingClientRect().height >= 44)`);
+    check("area sentuh nav >= 44px", touchOk);
     const realErrors = consoleErrors.filter(
       (e) => !/favicon|net::ERR_|Failed to load resource/i.test(e),
     );

@@ -3,34 +3,34 @@
 Dokumen ini menggantikan klaim di blueprint awal. Yang tertulis di sini sudah
 diverifikasi dengan build/test, bukan rencana.
 
-Terakhir diperbarui: 6 November 2026.
+Terakhir diperbarui: 19 November 2026.
 
 ## Sudah jalan
 
 | Fitur | Bukti |
 |-------|-------|
-| Kasir offline (tambah keranjang, diskon, pajak, layanan, pembulatan, bayar, kembalian) | `npm run build` + `npm test` (110 assertion) |
+| Kasir offline (tambah keranjang, diskon, pajak, layanan, pembulatan, bayar, kembalian) | `npm run build` + `npm test` (175 assertion) |
 | Proteksi atomik void & refund SQLite (`transaction=false`) | `src/data/orderRepository.ts` |
 | Migrasi V7: penjagaan stok refund (`uq_stock_movements_ref`) & indeks komposit | `src/data/migrations.ts#UPGRADE_V7` |
 | Inisialisasi DB aman dari balapan startup | `src/data/db.ts#openConnection` |
 | Background sync outbox diserialkan via `runSerializedWrite` | `src/data/sync.ts` |
-| Proteksi brute force PIN persisten (lockout 5 menit) & verifikasi PIN lama di Pengaturan | `src/data/settings.ts`, `src/App.tsx` |
+| Proteksi brute force PIN persisten (lockout 5 menit) & verifikasi PIN lama di Pengaturan | `src/data/settings.ts`, `src/features/riwayat/useVoidPin.ts`, `src/features/pengaturan/securityRules.ts` |
 | Proteksi crash Bluetooth Android 12+ & pencegahan OOM pada logo struk | `PrinterPlugin.java`, `proguard-rules.pro` |
-| Ergonomi touch target tablet (min 40–44px untuk qty, varian, menu) | `src/styles/theme.css` |
-| Menu & harga diisi sendiri oleh user (katalog kosong di awal) | `src/components/CatalogEditor.tsx`, `src/data/catalogRepo.ts` |
-| Katalog dibaca dari database, bukan daftar hardcoded | `loadCatalog()` di `App.tsx` |
+| Ergonomi touch target tablet (min 44px di layar kasir) | `src/components/ui/button.tsx`, `docs/design-system.md` |
+| Menu & harga diisi sendiri oleh user (katalog kosong di awal) | `src/features/menu/`, `src/data/catalogRepo.ts` |
+| Katalog dibaca dari database, bukan daftar hardcoded | `loadCatalog()` di `src/app/useAppBootstrap.ts` |
 | Checkout atomik: order + item + pembayaran + stok + snapshot HPP dalam transaksi manual yang diserialkan | `src/data/orderRepository.ts#checkoutAtomicAsync`, `src/data/tx.ts` |
 | Idempotensi checkout (double-tap tidak membuat order baru) | `idempotency_key` unik + test manual |
-| HPP manual per produk/varian (user isi sendiri) | `src/components/HppEditor.tsx`, `docs/hpp.md` |
+| HPP manual per produk/varian (user isi sendiri) | `src/features/hpp/`, `docs/hpp.md` |
 | HPP resep otomatis dari bahan | `src/domain/hpp.ts`, `prepareConsumption()` |
-| Editor resep di UI (per produk/varian, versi otomatis, audit log) | `src/components/RecipeEditor.tsx`, `src/data/recipeRepo.ts` |
+| Editor resep di UI (per produk/varian, versi otomatis, audit log) | `src/features/hpp/RecipeDialog.tsx`, `src/data/recipeRepo.ts` |
 | Snapshot HPP terkunci saat transaksi | `order_items.hpp_unit_rp`, `hpp_source`, `hpp_detail_json` |
 | Stok berkurang saat jual, kembali saat void (idempoten) | unique index `uq_stock_movements_ref`, `prepareVoidReversal()` |
 | Void atomik & tahan balapan ganda | conditional status update (`WHERE id = ? AND status = 'completed'`) |
 | Refund penuh atomik: status refunded, pembayaran refunded, pengembalian stok idempoten | `orderRepository.ts#refundOrderAsync`, `orderStore.ts#refund` |
 | Refund atomik & tahan balapan ganda | `refundOrderAsync`: conditional status update + `order_refund` reversal marker, indicator stabilisasi status. Indikasi lintasan void vs refund terpisah lewat `reference_type` (`order_void`/`order_refund`) |
 | Per-connection SQLite PRAGMAs (FK on, busy_timeout 5000, WAL di native) | `src/data/db.ts#applyConnectionPragmas` |
-| Pembelian bahan + koreksi stok dari aplikasi | `src/components/StockEditor.tsx` |
+| Pembelian bahan + koreksi stok dari aplikasi | `src/features/stok/` |
 | Konversi satuan input (kg↔g, l↔ml) tanpa mengubah satuan dasar tersimpan | `src/domain/units.ts`, `StockEditor.tsx` |
 | Semua tulis SQLite (checkout, void, katalog, HPP, stok) melewati satu antrean serial | `runSerializedWrite()` di `src/data/tx.ts` |
 | Rekap shift + tutup shift memakai seluruh order | `repo.loadAll()`, `handleCloseShift` |
@@ -44,8 +44,8 @@ Terakhir diperbarui: 6 November 2026.
 | Sync: timeout 15s, single-flight, klasifikasi 2xx/409/429/4xx, event_id UUID | `src/data/sync.ts` |
 | Security hardening: void PIN salted PBKDF2, sync API key in-memory/sessionStorage, CSP meta, Android networkSecurityConfig | `src/data/settings.ts`, `src/data/sync.ts`, `index.html`, `network_security_config.xml` |
 | Backup terenkripsi: PBKDF2 600k, salt/IV acak, checksum SHA-256 | `src/data/cryptoBackup.ts` |
-| Laporan penjualan per periode: omzet, laba, HPP, produk terlaris, metode bayar, grafik tren | `src/components/SalesReport.tsx`, `salesTrend()` di `src/domain/sales.ts`, 5 assertion tren di `npm test` |
-| Smoke test UI headless: alur kasir → bayar → struk → riwayat → laporan/grafik, layout tablet & ponsel | `npm run smoke:ui` (31 cek, Chromium/CDP) |
+| Laporan penjualan per periode: omzet, laba, HPP, produk terlaris, metode bayar, grafik tren | `src/features/laporan/`, `salesTrend()` di `src/domain/sales.ts`, 5 assertion tren di `npm test` |
+| Smoke test UI headless: alur kasir → bayar → struk → riwayat → laporan/grafik, layout tablet & ponsel | `npm run smoke:ui` (35 cek) + `npm run test:e2e` (87 cek), Chromium/CDP |
 | APK memuat bundle terbaru | `npm run android:assets` (diverifikasi lewat isi APK) |
 
 ## Belum selesai / perlu hardware
