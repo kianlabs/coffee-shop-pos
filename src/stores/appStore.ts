@@ -6,6 +6,7 @@ import { DEFAULT_STORE_PROFILE, type StoreProfile } from "@/domain/storeProfile"
 import { getLegacyStoreProfile } from "@/data/storeProfile";
 import { getSettings, type PosSettings } from "@/data/settings";
 import { type PrinterStatus } from "@/data/printer";
+import { loadSyncMeta, type SyncMeta } from "@/data/sync";
 import { type AvailableUpdate } from "@/services/appUpdater";
 import { type View } from "@/app/navigation";
 import { loadStoredShift, saveStoredShift } from "./persistence";
@@ -22,6 +23,7 @@ interface AppState {
   shift: Shift | null;
   online: boolean;
   pendingCount: number | null;
+  syncMeta: SyncMeta;
   printer: PrinterStatus;
   availableUpdate: AvailableUpdate | null;
   updateDialogOpen: boolean;
@@ -37,6 +39,7 @@ interface AppState {
   setShift: (shift: Shift | null) => void;
   setOnline: (online: boolean) => void;
   setPendingCount: (count: number | null) => void;
+  setSyncMeta: (meta: SyncMeta) => void;
   setPrinter: (printer: PrinterStatus) => void;
   setAvailableUpdate: (update: AvailableUpdate | null) => void;
   setUpdateDialogOpen: (open: boolean) => void;
@@ -62,6 +65,7 @@ export const useAppStore = create<AppState>()((set) => ({
   shift: loadStoredShift(),
   online: typeof navigator === "undefined" ? true : navigator.onLine,
   pendingCount: null,
+  syncMeta: loadSyncMeta(),
   printer: { connected: false, address: null, name: null },
   availableUpdate: null,
   updateDialogOpen: false,
@@ -81,6 +85,7 @@ export const useAppStore = create<AppState>()((set) => ({
   },
   setOnline: (online) => set({ online }),
   setPendingCount: (pendingCount) => set({ pendingCount }),
+  setSyncMeta: (syncMeta) => set({ syncMeta }),
   setPrinter: (printer) => set({ printer }),
   setAvailableUpdate: (availableUpdate) => set({ availableUpdate }),
   setUpdateDialogOpen: (updateDialogOpen) => set({ updateDialogOpen }),

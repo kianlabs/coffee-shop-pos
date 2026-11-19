@@ -3,7 +3,7 @@ import { loadCatalog } from "@/data/catalogRepo";
 import { repo } from "@/data/orderRepo";
 import { migrateLegacyVoidPin } from "@/data/settings";
 import { loadStoreProfile } from "@/data/storeProfile";
-import { countPendingOutbox, loadSyncSettings, syncNow } from "@/data/sync";
+import { countPendingOutbox, loadSyncMeta, loadSyncSettings, syncNow } from "@/data/sync";
 import { checkForAppUpdate, initAppUpdater } from "@/services/appUpdater";
 import { errorMessage, notify } from "@/lib/notify";
 import { useAppStore } from "@/stores/appStore";
@@ -89,7 +89,9 @@ function useBackgroundSync() {
     const timer = window.setInterval(async () => {
       if (cancelled || document.hidden || !navigator.onLine) return;
       await syncNow(loadSyncSettings()).catch(() => undefined);
-      if (!cancelled) await refreshPending();
+      if (cancelled) return;
+      useAppStore.getState().setSyncMeta(loadSyncMeta());
+      await refreshPending();
     }, SYNC_INTERVAL_MS);
     return () => {
       cancelled = true;
