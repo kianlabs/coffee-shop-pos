@@ -2,24 +2,19 @@ import type { PromoResult, TaxConfig, Totals } from "@/domain/taxEngine";
 import { NO_PROMO } from "@/domain/taxEngine";
 import type { Clock, Ids } from "./ports";
 import type { CartLine, CartState, HeldOrderRecord, OrderType, ShiftTx, ShiftUnitOfWork } from "./ports/shifts";
+import { timerScheduler, type Scheduler } from "./scheduler";
+import { holdCart, restoreHeld, type HeldResult, type HoldDeps, type RestoreChoice, type RestoreResult } from "./cartHold";
 import {
-  ORDER_TYPES, cartFail, cartOk, cartTotals, emptyCart, heldLabel, isValidQty, lineKey, validateLabelText, validateTable,
-  type CartLimits, type CartMutation,
+  ORDER_TYPES, cartFail, cartOk, cartTotals, emptyCart, isValidQty, lineKey, validateLabelText, validateTable,
+  readCartLimits, type AddItemInput, type CartLimits, type CartMutation,
 } from "./cartModel";
 import type { SettingsService } from "./settingsService";
 
 export const CART_SAVE_DEBOUNCE_MS = 500;
 export type { CartMutation } from "./cartModel";
-
-export interface Scheduler {
-  set(fn: () => void, ms: number): unknown;
-  clear(handle: unknown): void;
-}
-
-const timerScheduler: Scheduler = {
-  set: (fn, ms) => setTimeout(fn, ms),
-  clear: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
-};
+export type { AddItemInput } from "./cartModel";
+export type { Scheduler } from "./scheduler";
+export type { HeldResult, RestoreChoice, RestoreResult } from "./cartHold";
 
 export interface CartServiceDeps {
   uow: ShiftUnitOfWork;
@@ -30,21 +25,6 @@ export interface CartServiceDeps {
   onWarning?: (message: string) => void;
   scheduler?: Scheduler;
 }
-
-export interface AddItemInput {
-  productId: string;
-  variantId: string | null;
-  modifierIds: string[];
-  name: string;
-  unitPriceRp: number;
-  adjustmentsRp: number;
-  qty: number;
-  note?: string;
-}
-
-export type HeldResult = { ok: true; held: HeldOrderRecord } | { ok: false; code: "empty_cart" | "held_limit" | "save_failed"; message: string };
-export type RestoreChoice = "hold_current" | "discard_current";
-export type RestoreResult = { ok: true; cart: CartState } | Exclude<CartMutation, { ok: true }>;
 
 /**
  * Owns the active cart in memory. Changes are saved after a 500 ms pause; a failed save only warns
@@ -159,55 +139,22 @@ export class CartService {
   }
 
   async hold(actor: { id: string }): Promise<HeldResult> {
-    if (this.cart.lines.length === 0) return { ok: false, code: "empty_cart", message: "Keranjang kosong, tidak ada yang ditahan." };
-    try {
-      const outcome = await this.deps.uow.transact(async (tx) => {
-        const list = await tx.heldOrders.list();
-        const max = this.limits().heldMax;
-        if (list.length >= max) return { limit: max } as const;
-        const held = this.makeHeld(actor, this.cart, list);
-        await tx.heldOrders.insert(held);
-        await tx.carts.clear();
-        return { held } as const;
-      });
-      if ("limit" in outcome) return { ok: false, code: "held_limit", message: `Pesanan ditahan sudah mencapai batas ${outcome.limit}. Lanjutkan atau hapus salah satunya.` };
-      this.reset();
-      return { ok: true, held: outcome.held };
-    } catch {
-      return { ok: false, code: "save_failed", message: "Pesanan gagal ditahan. Keranjang tidak berubah." };
-    }
+    const result = await holdCart(this.hookDeps(), actor, this.cart, this.limits().heldMax);
+    if (result.ok) this.reset();
+    return result;
   }
 
   /** Brings a held order back; it is deleted only inside the same transaction that saved the cart (Req 4.6, 4.7). */
   async restore(actor: { id: string }, heldId: string, choice?: RestoreChoice): Promise<RestoreResult> {
-    if (this.cart.lines.length > 0 && choice === undefined) {
-      return cartFail("active_cart_not_empty", "Keranjang aktif berisi item. Tahan keranjang aktif atau batalkan.");
-    }
-    try {
-      const restored = await this.deps.uow.transact(async (tx) => {
-        const held = await tx.heldOrders.get(heldId);
-        if (!held) return null;
-        if (this.cart.lines.length > 0 && choice === "hold_current") {
-          await tx.heldOrders.insert(this.makeHeld(actor, this.cart, await tx.heldOrders.list()));
-        }
-        await tx.carts.save(held.cart);
-        await tx.heldOrders.remove(heldId);
-        return held.cart;
-      });
-      if (!restored) return cartFail("not_found", "Pesanan ditahan tidak ditemukan.");
-      this.cancelTimer();
-      this.cart = structuredClone(restored);
-      return { ok: true, cart: this.state };
-    } catch {
-      return cartFail("save_failed", "Pesanan gagal dilanjutkan. Pesanan ditahan tetap tersimpan.");
-    }
+    const result = await restoreHeld(this.hookDeps(), actor, heldId, this.cart, choice);
+    if (!result.ok) return result;
+    this.cancelTimer();
+    this.cart = structuredClone(result.cart);
+    return { ok: true, cart: this.state };
   }
 
-  private makeHeld(actor: { id: string }, cart: CartState, existing: readonly HeldOrderRecord[]): HeldOrderRecord {
-    return {
-      id: this.deps.ids.next(), label: heldLabel(cart, existing), heldBy: actor.id,
-      heldAt: this.deps.clock.now().toISOString(), cart: structuredClone(cart),
-    };
+  private hookDeps(): HoldDeps {
+    return { uow: this.deps.uow, clock: this.deps.clock, ids: this.deps.ids };
   }
 
   private persist(tx: ShiftTx, cart: CartState): Promise<void> {
@@ -215,11 +162,7 @@ export class CartService {
   }
 
   private limits(): CartLimits {
-    const s = this.deps.settings;
-    return {
-      tableMax: s.get("kasir.nomor_meja_maks_karakter"), customerMax: s.get("kasir.nama_pelanggan_maks_karakter"),
-      noteMax: s.get("kasir.catatan_item_maks_karakter"), heldMax: s.get("kasir.pesanan_ditahan_maks"),
-    };
+    return readCartLimits(this.deps.settings);
   }
 
   private find(key: string): CartLine | undefined {

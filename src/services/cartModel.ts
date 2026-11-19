@@ -1,5 +1,6 @@
 import { computeTotals, NO_PROMO, type PromoResult, type TaxConfig, type Totals } from "@/domain/taxEngine";
 import { validateText } from "@/domain/validation";
+import type { SettingsService } from "./settingsService";
 import type { CartState, HeldOrderRecord, OrderType } from "./ports/shifts";
 
 export const ORDER_TYPES: readonly OrderType[] = ["dine_in", "takeaway", "delivery"];
@@ -58,4 +59,22 @@ export function heldLabel(cart: CartState, existing: readonly HeldOrderRecord[])
   if (table !== "") return table;
   const used = existing.map((h) => /^Pesanan (\d+)$/.exec(h.label)).map((m) => (m ? Number(m[1]) : 0));
   return `Pesanan ${Math.max(0, ...used) + 1}`;
+}
+
+export interface AddItemInput {
+  productId: string;
+  variantId: string | null;
+  modifierIds: string[];
+  name: string;
+  unitPriceRp: number;
+  adjustmentsRp: number;
+  qty: number;
+  note?: string;
+}
+
+export function readCartLimits(settings: Pick<SettingsService, "get">): CartLimits {
+  return {
+    tableMax: settings.get("kasir.nomor_meja_maks_karakter"), customerMax: settings.get("kasir.nama_pelanggan_maks_karakter"),
+    noteMax: settings.get("kasir.catatan_item_maks_karakter"), heldMax: settings.get("kasir.pesanan_ditahan_maks"),
+  };
 }
