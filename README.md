@@ -101,7 +101,7 @@ flowchart TD
 | :--- | :--- |
 | `src/domain/` | Business rules as pure functions, no React or database access |
 | `src/data/` | Repositories, SQLite migrations, receipt formatting, printer, backup |
-| `src/components/`, `src/hooks/` | React UI |
+| `src/app/`, `src/features/`, `src/stores/`, `src/components/` | React UI |
 | `android/` | Capacitor Android project and the native printer plugin |
 | `database/` | Reference SQLite schema |
 | `scripts/` | Tests, release packaging, repository guards |

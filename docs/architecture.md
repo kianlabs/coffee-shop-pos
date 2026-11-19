@@ -6,7 +6,7 @@ This document explains how Kopi POS is organized and how to extend it. It descri
 
 ```mermaid
 flowchart TD
-    UI["UI: src/App.tsx, src/components, src/hooks"] --> Domain["Domain: src/domain (pure functions)"]
+    UI["UI: src/app, src/features, src/stores, src/components"] --> Domain["Domain: src/domain (pure functions)"]
     UI --> Data["Data: src/data (repositories, receipt, printer, backup)"]
     Data --> Domain
     Data --> Store[("SQLite on Android / localStorage in the browser")]
@@ -19,7 +19,7 @@ flowchart TD
 | Domain | `src/domain/` | Pure TypeScript functions: money, orders, HPP, shifts, units, store profile, sales aggregation. No React, no storage, no Capacitor, no clock reads unless passed in. |
 | Data | `src/data/` | Reads and writes storage, formats receipts, talks to the printer, encrypts backups, runs the sync outbox. May import `src/domain/`. |
 | Services | `src/services/` | App-level services such as the over-the-air updater. |
-| UI | `src/App.tsx`, `src/components/`, `src/hooks/` | React. Calls the data layer and domain functions. |
+| UI | `src/app/` (shell, navigation), `src/features/<screen>/`, `src/stores/` (Zustand), `src/components/ui/` (shadcn/ui), `src/components/common/` | React. Calls the data layer and domain functions. Follows [design-system.md](design-system.md). |
 | Native bridge | `android/app/src/main/java/.../` | Java plugins registered in `MainActivity.java`: `PrinterPlugin` (Bluetooth ESC/POS) and `BackupPlugin` (file access). |
 
 Keep business rules in the domain layer. A rule that lives in a pure function can be unit tested in `scripts/test-domain.mjs` without a browser or a database.
@@ -49,7 +49,7 @@ All writes to one SQLite connection go through `runSerializedWrite` in `src/data
 
 1. Put the rule in `src/domain/` as a pure function and add cases to `scripts/test-domain.mjs`. New files must also be added to the `tsc` file list at the top of that script.
 2. If the feature saves data, add storage for **both** backends (see above).
-3. Add UI in `src/components/` or `src/hooks/`. Keep components small. `src/App.tsx` is large, so prefer putting new UI in its own file.
+3. Add UI in the screen's folder under `src/features/`. Shared state goes in `src/stores/`, shared building blocks in `src/components/common/`. Keep files under 200 lines.
 4. Run `npm run typecheck`, `npm test`, `npm run build`, and `npm run check`.
 5. Add a line to `[Unreleased]` in [CHANGELOG.md](../CHANGELOG.md).
 
@@ -72,7 +72,7 @@ A payment method appears in several places that must stay in sync:
 2. `PAYMENT_METHODS` list in `src/data/orderStore.ts` (browser backend validation).
 3. The `CHECK (method IN (...))` constraint on the `payments` table. SQLite cannot alter a CHECK constraint in place, so this needs a table rebuild in one transaction. `ensureV3Columns` in `src/data/db.ts` is an example of that pattern.
 4. `paymentLabel` in `src/data/receipt.ts`, which names the method on the receipt.
-5. The payment buttons in `src/App.tsx`.
+5. `METHODS` in `src/features/kasir/PaymentDialog.tsx`.
 6. Aggregation in `src/domain/sales.ts` (the report groups by method).
 
 Add test cases for each of these, and update `database/sqlite-schema.sql`.

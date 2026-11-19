@@ -101,7 +101,7 @@ flowchart TD
 | :--- | :--- |
 | `src/domain/` | Aturan bisnis berupa fungsi murni, tanpa React atau akses database |
 | `src/data/` | Repositori, migrasi SQLite, format struk, printer, backup |
-| `src/components/`, `src/hooks/` | UI React |
+| `src/app/`, `src/features/`, `src/stores/`, `src/components/` | UI React |
 | `android/` | Proyek Android Capacitor dan plugin printer native |
 | `database/` | Skema SQLite acuan |
 | `scripts/` | Test, paket rilis, penjaga repositori |
