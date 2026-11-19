@@ -9,6 +9,7 @@
 // Butuh Chromium/Chrome. Set CHROMIUM_BIN bila lokasinya tidak standar.
 // Keluar dengan kode 1 bila ada pengecekan gagal atau terjadi error fatal.
 import { spawn, spawnSync } from "node:child_process";
+import WebSocket from "ws";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -58,7 +59,7 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function waitForHttp(url, timeoutMs = 15000) {
+async function waitForHttp(url, timeoutMs = 60000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
@@ -756,7 +757,12 @@ async function main() {
     browser?.kill("SIGKILL");
     preview.kill("SIGKILL");
     try {
-      rmSync(profileDir, { recursive: true, force: true });
+      try {
+      rmSync(profileDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    } catch (e) {
+      // Chromium can still hold files after SIGTERM. The run already has its result; warn only.
+      console.warn(`peringatan: profil sementara tidak terhapus: ${e instanceof Error ? e.message : e}`);
+    }
     } catch {
       // abaikan
     }
