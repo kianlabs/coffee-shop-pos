@@ -11,7 +11,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "node scripts/test-domain.mjs && node scripts/test-guards.mjs",
+    "test": "node scripts/test-domain.mjs && node scripts/test-guards.mjs && vitest run --coverage",
     "check": "node scripts/check-brand.mjs && node scripts/check-no-apk.mjs && node scripts/check-no-ai-files.mjs && node scripts/check-readme-links.mjs && node scripts/check-changelog.mjs",
     "smoke:ui": "node scripts/smoke-ui.mjs",
     "test:e2e": "node scripts/test-e2e-exhaustive.mjs",
@@ -70,7 +70,11 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.2.1",
+    "@vitest/coverage-v8": "4.1.12",
+    "fast-check": "4.10.3",
+    "sql.js": "1.17.0",
     "typescript": "^7.0.2",
-    "vite": "^8.3.5"
+    "vite": "^8.3.5",
+    "vitest": "4.1.12"
   }
 }
