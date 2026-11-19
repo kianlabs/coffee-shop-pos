@@ -30,6 +30,7 @@ const SCREENS: Record<Exclude<View, "kasir">, LazyExoticComponent<ComponentType>
   stok: lazyScreen(() => import("@/features/stok/StokScreen"), "StokScreen"),
   backup: lazyScreen(() => import("@/features/backup/BackupScreen"), "BackupScreen"),
   pengaturan: lazyScreen(() => import("@/features/pengaturan/PengaturanScreen"), "PengaturanScreen"),
+  bantuan: lazyScreen(() => import("@/features/bantuan/BantuanScreen"), "BantuanScreen"),
 };
 
 function CurrentScreen({ view }: { view: View }) {

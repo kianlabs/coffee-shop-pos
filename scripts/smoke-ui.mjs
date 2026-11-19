@@ -296,7 +296,7 @@ async function main() {
     await evalJs(`document.querySelector('[data-testid="nav-more"]')?.click()`);
     check("sheet Lainnya terbuka", await waitFor(`document.body.innerText.includes('Menu lainnya')`));
     const moreLabels = await evalJs(`[...document.querySelectorAll('[role="dialog"] [data-testid="nav-label"]')].map((el) => el.textContent.trim())`);
-    check("8 tujuan tersedia", (primaryLabels?.length ?? 0) + (moreLabels?.length ?? 0) === 8, JSON.stringify(moreLabels));
+    check("9 tujuan tersedia", (primaryLabels?.length ?? 0) + (moreLabels?.length ?? 0) === 9, JSON.stringify(moreLabels));
     const touchOk = await evalJs(`[...document.querySelectorAll('[data-testid="mobile-nav"] button')].every((b) => b.getBoundingClientRect().height >= 44)`);
     check("area sentuh nav >= 44px", touchOk);
     const realErrors = consoleErrors.filter(
