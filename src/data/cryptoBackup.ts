@@ -54,6 +54,8 @@ export type EncryptedBackup = {
 export type EncryptOptions = {
   appVersion?: string;
   schemaVersion?: number;
+  /** PBKDF2 iterations written to the header. Default 600k; the lower bound keeps tests fast, not production. */
+  iterations?: number;
 };
 
 function b64encode(bytes: Uint8Array): string {
@@ -136,8 +138,12 @@ export async function encryptJson(
   if (salt.length !== SALT_BYTES || iv.length !== IV_BYTES) {
     throw new Error("Gagal membuat salt/IV acak.");
   }
+  const iterations = opts.iterations ?? PBKDF2_ITERATIONS;
+  if (!Number.isInteger(iterations) || iterations < MIN_ITERATIONS || iterations > MAX_ITERATIONS) {
+    throw new Error("Parameter iterasi backup di luar batas aman.");
+  }
   const checksum = await sha256Hex(plainJson);
-  const key = await deriveKey(passphrase, salt, PBKDF2_ITERATIONS);
+  const key = await deriveKey(passphrase, salt, iterations);
   const ct = await subtle.encrypt(
     { name: "AES-GCM", iv: iv as BufferSource },
     key,
@@ -146,7 +152,7 @@ export async function encryptJson(
   const env: EncryptedBackup = {
     format: ENC_BACKUP_FORMAT,
     kdf: "PBKDF2-SHA256",
-    iterations: PBKDF2_ITERATIONS,
+    iterations,
     cipher: "AES-GCM-256",
     salt: b64encode(salt),
     iv: b64encode(iv),
