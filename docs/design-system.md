@@ -23,10 +23,25 @@ exposed to Tailwind through `@theme inline` (`bg-primary`, `text-muted-foregroun
 `border-border`, `bg-success-soft`, ...). Components never use literal hex,
 rgb, or hsl values.
 
-- Palette: neutral zinc greys, near-black primary. Color carries meaning only:
-  `success` (paid, change due), `destructive` (void, delete, errors),
-  `warning` (low stock, offline), `info` (sync, hints).
-- Radius: `--radius` 0.5rem. Cards `rounded-lg`, controls `rounded-md`, pills
+- Identity: Suro POS takes its look from Surakarta batik. **Nila** (natural
+  indigo, `primary`) carries actions, focus, selection, and the sidebar.
+  **Sogan** (warm brown-gold, `sogan`, `sogan-soft`, `sogan-strong`) is the
+  accent and appears only at the key moment: the brand mark, the active
+  navigation marker, and the cart total. The base is warm paper
+  (`background`) with white cards.
+- Brand mark: one kawung motif (`src/components/common/BrandMark.tsx`). The
+  repeating kawung texture (`KawungPattern`) is used once, at 5% opacity,
+  behind the tablet sidebar. Do not add it elsewhere.
+- Category colors (`cat-1` … `cat-6`) are muted batik tones assigned by
+  category position. They mark which category a product belongs to (chip dot
+  and tile monogram) so cashiers find items faster. They are not decoration;
+  do not use them for anything else.
+- Status colors carry meaning only: `success` (paid, change due),
+  `destructive` (void, delete, errors), `warning` (low stock, offline),
+  `info` (sync, hints).
+- Type: Inter for body text and tables; Plus Jakarta Sans (`font-display`,
+  designed in Jakarta) for headings, the brand, and large amounts.
+- Radius: `--radius` 0.625rem. Cards `rounded-lg`, controls `rounded-md`, pills
   only for status badges.
 - Shadows: none on cards; a border separates surfaces. Popovers and dialogs use
   the shadcn defaults.
