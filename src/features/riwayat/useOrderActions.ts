@@ -7,7 +7,7 @@ import { useAppStore } from "@/stores/appStore";
 import { type ActionRequest, type OrderAction } from "./historyUtils";
 import { useVoidPin, type VoidPinState } from "./useVoidPin";
 
-export interface OrderActions {
+interface OrderActions {
   busyId: string | null;
   reloading: boolean;
   pin: VoidPinState;

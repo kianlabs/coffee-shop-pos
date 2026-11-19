@@ -19,7 +19,7 @@ const FIELDS: FieldSpec[] = [
   { field: "receiptFooter", label: "Teks bawah struk", placeholder: "Opsional", hint: "Kosongkan untuk memakai \"Terima kasih\"." },
 ];
 
-export interface StoreProfileFieldsProps {
+interface StoreProfileFieldsProps {
   draft: StoreProfile;
   onChange: (next: StoreProfile) => void;
 }

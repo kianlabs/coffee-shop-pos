@@ -36,7 +36,7 @@ export interface CatalogActions {
   removeVariant: (variant: ProductVariant) => Promise<boolean>;
 }
 
-export type LoadStatus = "loading" | "ready" | "error";
+type LoadStatus = "loading" | "ready" | "error";
 
 const EMPTY_CATALOG: Catalog = { categories: [], products: [] };
 const LOAD_FALLBACK = "Gagal memuat menu.";

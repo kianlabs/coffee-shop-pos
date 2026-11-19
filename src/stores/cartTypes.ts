@@ -1,5 +1,4 @@
 import { type Rupiah } from "@/domain/money";
-import { type PaymentMethod } from "@/domain/orders";
 
 export interface CartLine {
   productId: string;
@@ -23,4 +22,3 @@ export interface HeldOrder {
   heldAt: string;
 }
 
-export type { PaymentMethod };

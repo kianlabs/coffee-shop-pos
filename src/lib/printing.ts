@@ -4,7 +4,7 @@ import { activePrinter } from "@/data/printer";
 import { renderReceiptText, type ReceiptOptions } from "@/data/receipt";
 import { type PosSettings } from "@/data/settings";
 
-export function receiptOptions(profile: StoreProfile, settings: PosSettings): ReceiptOptions {
+function receiptOptions(profile: StoreProfile, settings: PosSettings): ReceiptOptions {
   return {
     storeName: profile.name,
     storeAddress: profile.address,

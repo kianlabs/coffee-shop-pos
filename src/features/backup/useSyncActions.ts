@@ -1,11 +1,11 @@
 import { useCallback, useState } from "react";
 import { refreshPending } from "@/app/useAppBootstrap";
+import { useAppStore } from "@/stores/appStore";
 import {
   loadSyncMeta,
   loadSyncSettings,
   saveSyncSettings,
   syncNow,
-  type SyncMeta,
   type SyncSettings,
 } from "@/data/sync";
 import { errorMessage, notify } from "@/lib/notify";
@@ -17,7 +17,8 @@ import { errorMessage, notify } from "@/lib/notify";
  */
 export function useSyncActions() {
   const [settings, setSettings] = useState<SyncSettings>(() => loadSyncSettings());
-  const [meta, setMeta] = useState<SyncMeta>(() => loadSyncMeta());
+  const meta = useAppStore((s) => s.syncMeta);
+  const setMeta = useAppStore((s) => s.setSyncMeta);
   const [syncing, setSyncing] = useState(false);
 
   const update = useCallback((patch: Partial<SyncSettings>) => {

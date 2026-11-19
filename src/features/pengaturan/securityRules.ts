@@ -1,9 +1,9 @@
 import { type PosSettings } from "@/data/settings";
 
-export const PIN_MIN_LENGTH = 4;
+const PIN_MIN_LENGTH = 4;
 export const PIN_MAX_LENGTH = 32;
 
-export interface SecurityCheckInput {
+interface SecurityCheckInput {
   saved: PosSettings;
   draft: PosSettings;
   newPin: string;

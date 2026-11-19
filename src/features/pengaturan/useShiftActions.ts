@@ -14,7 +14,7 @@ const useLastSummary = create<{ text: string | null; set: (text: string | null) 
 
 const RECENT_LIMIT = 200;
 
-export interface ShiftActions {
+interface ShiftActions {
   shift: Shift | null;
   summary: ShiftSummary | null;
   /** The store only holds the 200 newest orders; older shift orders are not counted live. */
