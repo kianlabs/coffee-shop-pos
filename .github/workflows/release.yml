@@ -67,7 +67,8 @@ jobs:
             chmod 600 android/release.jks android/keystore.properties
             echo "Keystore produksi berhasil dikonfigurasi."
           else
-            echo "Secret ANDROID_KEYSTORE_BASE64 tidak ditemukan, assembleRelease akan menggunakan signing default."
+            echo "::error::Secret ANDROID_KEYSTORE_BASE64 tidak ditemukan. Rilis dibatalkan supaya APK tidak ditandatangani kunci default."
+            exit 1
           fi
 
       - name: Build Android Release APK
