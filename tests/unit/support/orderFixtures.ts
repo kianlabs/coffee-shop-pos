@@ -1,4 +1,6 @@
 import type { CheckoutCommand, CheckoutLineInput } from "@/services/checkoutTypes";
+import type { OrderUnitOfWork } from "@/services/ports/orders";
+import type { RefundCommand } from "@/services/refundTypes";
 import { CheckoutService } from "@/services/checkoutService";
 import { RefundService } from "@/services/refundService";
 import { fixedClock, sequentialIds } from "@/testing/memory/settings";
@@ -33,8 +35,22 @@ export function command(overrides: Partial<CheckoutCommand> = {}): CheckoutComma
   };
 }
 
+export function servicesFor(uow: OrderUnitOfWork) {
+  const deps = { uow, clock: fixedClock(), ids: sequentialIds("id") };
+  return { checkout: new CheckoutService(deps), refunds: new RefundService(deps), deps };
+}
 export function setup() {
   const db = createMemoryOrderDb();
-  const deps = { uow: db.uow, clock: fixedClock(), ids: sequentialIds("id") };
-  return { db, checkout: new CheckoutService(deps), refunds: new RefundService(deps), deps };
+  return { db, ...servicesFor(db.uow) };
+}
+export function refundCmd(orderId: string, overrides: Partial<RefundCommand> = {}): RefundCommand {
+  return {
+    idempotencyKey: "r-1",
+    orderId,
+    kind: "refund",
+    reason: "  Salah pesan  ",
+    method: "cash",
+    actor: { id: "u-sup", role: "supervisor" },
+    ...overrides,
+  };
 }
