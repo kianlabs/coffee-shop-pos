@@ -1,0 +1,21 @@
+{
+  "app.name": "Sura POS",
+  "nav.cashier": "Cashier",
+  "nav.history": "History",
+  "nav.report": "Reports",
+  "nav.menu": "Menu",
+  "nav.stock": "Stock",
+  "nav.hpp": "COGS",
+  "nav.backup": "Backup",
+  "nav.settings": "Settings",
+  "nav.more": "More",
+  "common.save": "Save",
+  "common.cancel": "Cancel",
+  "common.close": "Close",
+  "common.delete": "Delete",
+  "common.retry": "Try again",
+  "common.loading": "Loading…",
+  "status.online": "Online",
+  "status.offline": "Offline",
+  "error.generic": "Something went wrong. Please try again."
+}

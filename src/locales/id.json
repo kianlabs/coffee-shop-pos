@@ -1,0 +1,21 @@
+{
+  "app.name": "Sura POS",
+  "nav.cashier": "Kasir",
+  "nav.history": "Riwayat",
+  "nav.report": "Laporan",
+  "nav.menu": "Menu",
+  "nav.stock": "Stok",
+  "nav.hpp": "HPP",
+  "nav.backup": "Backup",
+  "nav.settings": "Setelan",
+  "nav.more": "Lainnya",
+  "common.save": "Simpan",
+  "common.cancel": "Batal",
+  "common.close": "Tutup",
+  "common.delete": "Hapus",
+  "common.retry": "Coba lagi",
+  "common.loading": "Memuat…",
+  "status.online": "Online",
+  "status.offline": "Offline",
+  "error.generic": "Terjadi kesalahan. Coba lagi."
+}
