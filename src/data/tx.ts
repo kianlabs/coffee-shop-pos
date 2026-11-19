@@ -1,4 +1,5 @@
 import type { SQLiteDBConnection } from "@capacitor-community/sqlite";
+import type { DbPort, SqlParam } from "./dbPort";
 
 /**
  * Utilitas transaksi manual untuk operasi tulis yang harus atomik.
@@ -69,4 +70,31 @@ export async function execStatements(
   for (const stmt of statements) {
     await execStatement(db, stmt);
   }
+}
+
+/**
+ * Runs `fn` between BEGIN and COMMIT on a DbPort, queued behind every other
+ * write. Any error rolls back and is rethrown.
+ */
+export function withPortTransaction<T>(db: DbPort, fn: () => Promise<T>): Promise<T> {
+  return runSerializedWrite(async () => {
+    await db.exec("BEGIN");
+    try {
+      const result = await fn();
+      await db.exec("COMMIT");
+      return result;
+    } catch (e) {
+      try {
+        await db.exec("ROLLBACK");
+      } catch {
+        // Keep the original error.
+      }
+      throw e;
+    }
+  });
+}
+
+/** One parameterized write for repositories that run inside `withPortTransaction`. */
+export function writeInTx(db: DbPort, sql: string, params: SqlParam[]): Promise<void> {
+  return db.run(sql, params);
 }
