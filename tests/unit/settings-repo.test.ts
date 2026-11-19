@@ -25,17 +25,17 @@ describe("SettingsRepo di sql.js (V1..V8)", () => {
   it("menyimpan nilai sebagai JSON dengan updated_by dan tetap berlaku setelah dibuka ulang", async () => {
     const s = service();
     await s.load();
-    expect(await s.setMany({ "pajak.tarif_bp": 1100, "pembayaran.metode_aktif": ["tunai", "qris"], "struk.footer": "Terima kasih" }, owner)).toMatchObject({ ok: true });
+    expect(await s.setMany({ "pajak.tarif_bp": 1100, "pembayaran.metode_aktif": ["cash", "qris_manual"], "struk.footer": "Terima kasih" }, owner)).toMatchObject({ ok: true });
     const rows = await db.query("SELECT key, value, updated_at, updated_by FROM app_settings ORDER BY key");
     expect(rows).toEqual([
       { key: "pajak.tarif_bp", value: "1100", updated_at: "2026-11-19T00:00:00.000Z", updated_by: "u-owner" },
-      { key: "pembayaran.metode_aktif", value: '["tunai","qris"]', updated_at: "2026-11-19T00:00:00.000Z", updated_by: "u-owner" },
+      { key: "pembayaran.metode_aktif", value: '["cash","qris_manual"]', updated_at: "2026-11-19T00:00:00.000Z", updated_by: "u-owner" },
       { key: "struk.footer", value: '"Terima kasih"', updated_at: "2026-11-19T00:00:00.000Z", updated_by: "u-owner" },
     ]);
     const reopened = service();
     await reopened.load();
     expect(reopened.get("pajak.tarif_bp")).toBe(1100);
-    expect(reopened.get("pembayaran.metode_aktif")).toEqual(["tunai", "qris"]);
+    expect(reopened.get("pembayaran.metode_aktif")).toEqual(["cash", "qris_manual"]);
     expect(reopened.get("struk.footer")).toBe("Terima kasih");
   });
 
