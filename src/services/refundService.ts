@@ -98,7 +98,10 @@ export class RefundService<T extends OrderTx = OrderTx> {
       resultStatus: cmd.kind === "void" ? "voided" : plan.status,
     };
     await tx.refunds.insert(refund);
-    for (const l of plan.lines) await tx.orders.addRefundedQty(order.id, l.lineId, l.qty);
+    for (const l of plan.lines) {
+      const changed = await tx.orders.addRefundedQty(order.id, l.lineId, l.qty);
+      if (changed !== 1) throw new Error(`refund: guarded update changed ${changed} rows for line ${l.lineId}`);
+    }
     await tx.orders.setStatus(order.id, refund.resultStatus);
     if (cmd.kind === "void") await tx.payments.voidByOrder(order.id);
     await tx.stock.append(

@@ -54,7 +54,11 @@ export interface OrderStore {
   get(id: string): Promise<OrderRecord | null>;
   insert(order: OrderRecord): Promise<void>;
   setStatus(id: string, status: OrderRecordStatus): Promise<void>;
-  addRefundedQty(orderId: string, lineId: string, qty: number): Promise<void>;
+  /**
+   * Adds to `refunded_qty` only while `refunded_qty + qty <= quantity` and returns the number of
+   * rows changed. 0 means the guard refused the update (for example a concurrent refund).
+   */
+  addRefundedQty(orderId: string, lineId: string, qty: number): Promise<number>;
 }
 
 export interface PaymentRecord {

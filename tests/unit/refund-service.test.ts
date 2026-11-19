@@ -109,6 +109,24 @@ describe("RefundService", () => {
     expect(db.refunds).toEqual([]);
   });
 
+  it("guard refunded_qty yang mengubah 0 baris membatalkan seluruh refund", async () => {
+    const { db, refunds, order } = await placed();
+    const before = structuredClone({ o: db.orders, m: db.movements, p: db.payments, a: db.audit });
+    db.fail.zeroRows = true;
+    const r = await refunds.refund(refundCmd(order.id, { items: [{ lineId: order.lines[0].lineId, qty: 1 }] }));
+    expect(r).toMatchObject({ ok: false, code: "failed" });
+    expect({ o: db.orders, m: db.movements, p: db.payments, a: db.audit }).toEqual(before);
+    expect(db.refunds).toEqual([]);
+  });
+  it("store memory melaporkan 0 baris bila refunded_qty melebihi qty", async () => {
+    const { db, order } = await placed();
+    const line = order.lines[0];
+    await db.uow.transact(async (tx) => {
+      expect(await tx.orders.addRefundedQty(order.id, line.lineId, line.qty + 1)).toBe(0);
+      expect(await tx.orders.addRefundedQty(order.id, line.lineId, line.qty)).toBe(1);
+      expect(await tx.orders.addRefundedQty(order.id, line.lineId, 1)).toBe(0);
+    });
+  });
   it("order tidak ditemukan dan metode tidak dikenal ditolak", async () => {
     const { refunds, order } = await placed();
     expect(await refunds.refund(refundCmd("nope", { kind: "void" }))).toMatchObject({ ok: false, code: "invalid" });

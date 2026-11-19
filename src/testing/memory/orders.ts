@@ -22,7 +22,7 @@ interface State {
 export interface MemoryOrderDb extends State {
   uow: OrderUnitOfWork;
   /** Make the named write throw, to exercise rollback. */
-  fail: { stock: boolean; outbox: boolean; audit: boolean; refunds: boolean };
+  fail: { stock: boolean; outbox: boolean; audit: boolean; refunds: boolean; zeroRows: boolean };
 }
 
 const KEYS: Array<keyof State> = ["orders", "payments", "movements", "outbox", "refunds", "audit"];
@@ -36,7 +36,7 @@ export function createMemoryOrderDb(): MemoryOrderDb {
     outbox: [],
     refunds: [],
     audit: [],
-    fail: { stock: false, outbox: false, audit: false, refunds: false },
+    fail: { stock: false, outbox: false, audit: false, refunds: false, zeroRows: false },
   };
   const guard = (flag: keyof MemoryOrderDb["fail"]): void => {
     if (db.fail[flag]) throw new Error(`memory: ${flag} write failed`);
@@ -67,7 +67,9 @@ export function createMemoryOrderDb(): MemoryOrderDb {
       addRefundedQty: async (orderId, lineId, qty) => {
         const line = find(orderId).lines.find((l) => l.lineId === lineId);
         if (line === undefined) throw new Error(`memory: line ${lineId} missing`);
+        if (db.fail.zeroRows || line.refundedQty + qty > line.qty) return 0;
         line.refundedQty += qty;
+        return 1;
       },
     },
     payments: {
