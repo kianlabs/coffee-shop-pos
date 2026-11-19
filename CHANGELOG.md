@@ -12,11 +12,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Repository guards** (`npm run check`, also run in CI): fail on client branding, tracked `.apk` files, AI assistant instruction files, and broken README links.
 - Bilingual README (`README.md`, `README.id.md`) with screenshots, `CODE_OF_CONDUCT.md`, issue and pull request templates, and label definitions.
 - `scripts/check-changelog.mjs` to validate this file and to require an entry for each release tag.
+- UI foundation: Tailwind CSS v4, shadcn/ui components in `src/components/ui/`, lucide icons, bundled Inter font, and design tokens in `src/styles/globals.css`. See `docs/design-system.md`.
 
 ### Changed
 - The default store name is now neutral ("Nama Toko") instead of a specific shop's name.
 - `scripts/capture-tablet-screenshots.mjs` writes to `docs/screenshots/` instead of a machine-specific path.
 - Release artifacts are named `Kopi-POS-<tag>.apk`.
+- The interface uses a neutral grey palette with smaller corner radii instead of the warm coffee palette.
 
 ### Removed
 - The client-specific APK from the repository tree. APK files are published only on GitHub Releases.

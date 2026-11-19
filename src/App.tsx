@@ -3137,7 +3137,7 @@ export default function App() {
             <div className="ota-modal-body">
               <div className="ota-meta-row">
                 <span>Versi saat ini: <strong>v{APP_VERSION}</strong></span>
-                <span>Versi baru: <strong style={{ color: "var(--accent)" }}>{availableUpdate.tagName}</strong></span>
+                <span>Versi baru: <strong style={{ color: "var(--pos-accent)" }}>{availableUpdate.tagName}</strong></span>
                 <span>Ukuran paket: <strong>{(availableUpdate.sizeBytes / (1024 * 1024)).toFixed(2)} MB</strong></span>
               </div>
               <div className="ota-notes-box">
