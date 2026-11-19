@@ -76,7 +76,7 @@ jobs:
           chmod +x ./gradlew
           ./gradlew assembleRelease -x lintVitalAnalyzeRelease
           cd ..
-          cp android/app/build/outputs/apk/release/app-release.apk "Sura-POS-${{ github.ref_name }}.apk" || cp android/app/build/outputs/apk/release/app-release-unsigned.apk "Sura-POS-${{ github.ref_name }}.apk" || true
+          cp android/app/build/outputs/apk/release/app-release.apk "Suro-POS-${{ github.ref_name }}.apk" || cp android/app/build/outputs/apk/release/app-release-unsigned.apk "Suro-POS-${{ github.ref_name }}.apk" || true
 
       - name: Publish GitHub Release
         env:
@@ -86,9 +86,9 @@ jobs:
           if [ -f "dist.zip.sha256" ]; then
             ASSETS="$ASSETS dist.zip.sha256"
           fi
-          if [ -f "Sura-POS-${{ github.ref_name }}.apk" ]; then
-            ASSETS="$ASSETS Sura-POS-${{ github.ref_name }}.apk"
+          if [ -f "Suro-POS-${{ github.ref_name }}.apk" ]; then
+            ASSETS="$ASSETS Suro-POS-${{ github.ref_name }}.apk"
           fi
           gh release create "${{ github.ref_name }}" $ASSETS \
-            --title "Sura POS ${{ github.ref_name }}" \
+            --title "Suro POS ${{ github.ref_name }}" \
             --generate-notes

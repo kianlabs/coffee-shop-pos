@@ -181,7 +181,7 @@ async function main() {
     await send("Page.navigate", { url: URL }, sessionId);
     await waitFor("document.readyState === 'complete'");
     await wait(900);
-    check("judul aplikasi", (await evalJs("document.title")) === "Sura POS — Kasir");
+    check("judul aplikasi", (await evalJs("document.title")) === "Suro POS — Kasir");
     check("nav samping tampil", await evalJs(`!!document.querySelector('[data-testid="nav"]')`));
     check("tidak ada overflow horizontal", await evalJs("document.documentElement.scrollWidth <= window.innerWidth + 1"));
     check("keranjang tampil", await evalJs(`!!document.querySelector('[data-testid="cart-panel"]')`));

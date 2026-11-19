@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Sura POS</string>
-    <string name="title_activity_main">Sura POS</string>
+    <string name="app_name">Suro POS</string>
+    <string name="title_activity_main">Suro POS</string>
     <string name="package_name">com.kianlabs.coffeeshoppos</string>
     <string name="custom_url_scheme">com.kianlabs.coffeeshoppos</string>
 </resources>

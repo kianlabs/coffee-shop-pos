@@ -1,6 +1,6 @@
 # Code of Conduct
 
-This project follows the spirit of the [Contributor Covenant, version 2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/) (licensed CC BY 4.0). This is a shorter restatement for Sura POS.
+This project follows the spirit of the [Contributor Covenant, version 2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/) (licensed CC BY 4.0). This is a shorter restatement for Suro POS.
 
 ## Our pledge
 

@@ -1,6 +1,6 @@
 # Architecture
 
-This document explains how Sura POS is organized and how to extend it. It describes the code as it is today.
+This document explains how Suro POS is organized and how to extend it. It describes the code as it is today.
 
 ## Layers
 
