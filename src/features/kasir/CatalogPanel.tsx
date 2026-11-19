@@ -8,6 +8,7 @@ import { useAppStore } from "@/stores/appStore";
 import { useCartStore } from "@/stores/cartStore";
 import { CatalogToolbar } from "./CatalogToolbar";
 import { ProductTile } from "./ProductTile";
+import { categoryTone } from "./categoryColor";
 import { VariantPickerDialog } from "./VariantPickerDialog";
 import { useVisibleProducts } from "./useVisibleProducts";
 
@@ -23,6 +24,7 @@ export function CatalogPanel() {
     ? chosenCategory
     : (catalog.categories[0]?.id ?? "");
   const { products, variantsById, qtyById } = useVisibleProducts(catalog, categoryId, search);
+  const categoryIndex = new Map(catalog.categories.map((c, i) => [c.id, i]));
 
   const addPlain = useCallback((product: CatalogProduct) => add(product, null), [add]);
   const addVariant = useCallback(
@@ -70,6 +72,7 @@ export function CatalogPanel() {
                 product={product}
                 variants={variantsById.get(product.id) ?? []}
                 cartQuantity={qtyById.get(product.id) ?? 0}
+                tone={categoryTone(categoryIndex.get(product.categoryId) ?? 0)}
                 onAdd={addPlain}
                 onPickVariant={setPicking}
               />

@@ -4,11 +4,13 @@ import { cn } from "cn";
 import { type CatalogProduct, type ProductVariant } from "@/domain/catalog";
 import { formatRupiah } from "@/domain/money";
 import { t } from "@/services/i18n";
+import { monogram, type CategoryTone } from "./categoryColor";
 
 interface ProductTileProps {
   product: CatalogProduct;
   variants: ProductVariant[];
   cartQuantity: number;
+  tone: CategoryTone;
   onAdd: (product: CatalogProduct) => void;
   onPickVariant: (product: CatalogProduct) => void;
 }
@@ -21,6 +23,7 @@ export const ProductTile = memo(function ProductTile({
   product,
   variants,
   cartQuantity,
+  tone,
   onAdd,
   onPickVariant,
 }: ProductTileProps) {
@@ -40,11 +43,20 @@ export const ProductTile = memo(function ProductTile({
       }
       onClick={() => (hasVariants ? onPickVariant(product) : onAdd(product))}
       className={cn(
-        "group relative flex h-32 flex-col justify-between rounded-lg border bg-card p-3 text-left transition-colors",
+        "group relative flex h-36 flex-col gap-2 rounded-lg border bg-card p-3 text-left transition-colors",
         "outline-none hover:border-foreground/30 focus-visible:ring-[3px] focus-visible:ring-ring/50 active:bg-accent",
         cartQuantity > 0 && "border-primary ring-1 ring-primary",
       )}
     >
+      <span
+        aria-hidden
+        className={cn(
+          "flex size-9 shrink-0 items-center justify-center rounded-md font-display text-sm font-bold text-cat-foreground",
+          tone.bg,
+        )}
+      >
+        {monogram(product.name)}
+      </span>
       <span className="line-clamp-2 pr-8 text-[15px] leading-snug font-medium">{product.name}</span>
       {cartQuantity > 0 && (
         <span
@@ -54,8 +66,8 @@ export const ProductTile = memo(function ProductTile({
           {cartQuantity}
         </span>
       )}
-      <span className="flex flex-col-reverse items-start gap-0.5">
-        <span className="text-base font-semibold tabular-nums">
+      <span className="mt-auto flex flex-col-reverse items-start gap-0.5">
+        <span className="font-display text-base font-bold tabular-nums">
           {hasVariants && (
             <span className="mr-1 text-xs font-normal text-muted-foreground">{t("kasir.product.from")}</span>
           )}
