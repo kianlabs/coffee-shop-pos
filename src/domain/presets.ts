@@ -40,13 +40,13 @@ export const PRESETS: Readonly<Record<BusinessType, BusinessPreset>> = {
   fnb_resto: {
     businessType: "fnb_resto",
     modules: ["fnb"],
-    settings: { pajak_mode: "exclusive", tarif_bp: 1000, biaya_layanan_aktif: true, biaya_layanan_bp: 500, lebar_kertas: "80mm" },
+    settings: { "pajak.mode": "exclusive", "pajak.tarif_bp": 1000, "pajak.biaya_layanan_aktif": true, "pajak.biaya_layanan_bp": 500, "printer.lebar_kertas": "80mm" },
     labels: {},
   },
   fnb_warung: {
     businessType: "fnb_warung",
     modules: ["fnb"],
-    settings: { pembulatan_aktif: true, pembulatan_kelipatan: 500 },
+    settings: { "pajak.pembulatan_aktif": true, "pajak.pembulatan_kelipatan": 500 },
     labels: {},
   },
   lainnya: {

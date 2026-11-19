@@ -59,9 +59,9 @@ describe("isi preset", () => {
   it("berpindah preset mengembalikan kunci yang dikelola ke default", () => {
     const resto = new Map(planOf("fnb_resto").settings.map((s) => [s.key, s.value]));
     const kafe = new Map(planOf("fnb_kafe").settings.map((s) => [s.key, s.value]));
-    expect(resto.get("biaya_layanan_aktif")).toBe(true);
-    expect(kafe.get("biaya_layanan_aktif")).toBe(false);
-    expect(kafe.get("pajak_mode")).toBe("off");
+    expect(resto.get("pajak.biaya_layanan_aktif")).toBe(true);
+    expect(kafe.get("pajak.biaya_layanan_aktif")).toBe(false);
+    expect(kafe.get("pajak.mode")).toBe("off");
     expect([...kafe.keys()]).toEqual([...resto.keys()]);
   });
   it("label lainnya dihapus saat beralih ke preset fnb", () => {

@@ -68,7 +68,7 @@ describe("dependensi", () => {
 
 describe("kunci pengaturan", () => {
   it("hanya menerima kunci yang terdaftar di Registry_Pengaturan", () => {
-    expect(unknownSettingKeyErrors([mod("fnb", { settingKeys: ["tarif_bp", "lebar_kertas"] })])).toEqual([]);
+    expect(unknownSettingKeyErrors([mod("fnb", { settingKeys: ["pajak.tarif_bp", "printer.lebar_kertas"] })])).toEqual([]);
     const errors = unknownSettingKeyErrors([mod("fnb", { settingKeys: ["tidak_ada" as SettingKey] })]);
     expect(errors).toEqual(['Modul "fnb" memakai kunci pengaturan "tidak_ada" yang tidak terdaftar.']);
   });
