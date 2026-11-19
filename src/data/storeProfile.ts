@@ -11,7 +11,7 @@ import { getDb, isNativePlatform } from "./db";
 import { getSettings } from "./settings";
 import { execStatements, runSerializedWrite, withTransaction, type SqlStatement } from "./tx";
 
-const SELECT_ALL = "SELECT key AS key, value AS value FROM app_settings;";
+export const STORE_PROFILE_SELECT = "SELECT key AS key, value AS value FROM app_settings;";
 const UPSERT =
   "INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?);";
 
@@ -76,12 +76,19 @@ export async function loadStoreProfile(): Promise<StoreProfile> {
     return loadLocal() ?? legacyOrDefault();
   }
   const db = await getDb();
-  const res = await db.query(SELECT_ALL);
+  const res = await db.query(STORE_PROFILE_SELECT);
   const rows = toSettingRows(res.values);
   const hasStoredName = rows.some((r) => r.key === STORE_PROFILE_KEYS.name);
   return hasStoredName ? profileFromRows(rows) : legacyOrDefault();
 }
 
+/** Upsert statements for every profile key; values are JSON-encoded like `SettingsRepo`. */
+export function storeProfileStatements(profile: StoreProfile, nowIso: string): SqlStatement[] {
+  return profileToRows(profile).map((row) => ({
+    statement: UPSERT,
+    values: [row.key, row.value, nowIso],
+  }));
+}
 /** Simpan Store_Profile (satu transaksi di SQLite) dan kembalikan nilai yang sudah dibersihkan. */
 export async function saveStoreProfile(next: StoreProfile): Promise<StoreProfile> {
   const clean = sanitizeStoreProfile(next);
@@ -90,10 +97,7 @@ export async function saveStoreProfile(next: StoreProfile): Promise<StoreProfile
     return clean;
   }
   const now = new Date().toISOString();
-  const statements: SqlStatement[] = profileToRows(clean).map((row) => ({
-    statement: UPSERT,
-    values: [row.key, row.value, now],
-  }));
+  const statements = storeProfileStatements(clean, now);
   const db = await getDb();
   await runSerializedWrite(() =>
     withTransaction(db, () => execStatements(db, statements)),

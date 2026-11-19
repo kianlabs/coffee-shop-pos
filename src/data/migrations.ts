@@ -306,3 +306,261 @@ export const UPGRADE_V8: string[] = [
     updated_by TEXT
   );`,
 ];
+/**
+ * UPGRADE_V9..V14 are applied by the Migration_Runner only (the plugin stays at
+ * version 7). They live here because scripts/check-schema.mjs reads UPGRADE_Vn
+ * from this file. Steps with a data hook are listed in src/data/migration/steps.ts.
+ */
+/** UPGRADE_V9 — users. Hook `legacy_owner` carries the old supervisor PIN over as the owner. */
+export const UPGRADE_V9: string[] = [
+  `CREATE TABLE users (
+    id TEXT PRIMARY KEY,
+    display_name TEXT NOT NULL,
+    display_name_ci TEXT NOT NULL,
+    role TEXT NOT NULL CHECK (role IN ('owner','supervisor','kasir')),
+    pin_hash TEXT NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
+    failed_attempts INTEGER NOT NULL DEFAULT 0,
+    locked_until INTEGER,
+    locked_at INTEGER,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );`,
+  `CREATE UNIQUE INDEX uq_users_name_active ON users(display_name_ci) WHERE is_active = 1;`,
+];
+/** UPGRADE_V10 — shifts, cash entries, carts, held orders. Hook `legacy_cart_shift_held` imports localStorage data. */
+export const UPGRADE_V10: string[] = [
+  `CREATE TABLE shifts (
+    id TEXT PRIMARY KEY,
+    opened_by TEXT NOT NULL REFERENCES users(id),
+    opened_at TEXT NOT NULL,
+    opening_cash_rp INTEGER NOT NULL CHECK (opening_cash_rp >= 0),
+    status TEXT NOT NULL CHECK (status IN ('terbuka','ditutup')),
+    closed_by TEXT REFERENCES users(id),
+    closed_at TEXT,
+    counted_cash_rp INTEGER,
+    expected_cash_rp INTEGER,
+    variance_rp INTEGER,
+    variance_reason TEXT
+  );`,
+  `CREATE UNIQUE INDEX uq_one_open_shift ON shifts(status) WHERE status = 'terbuka';`,
+  `CREATE TABLE cash_entries (
+    id TEXT PRIMARY KEY,
+    shift_id TEXT NOT NULL REFERENCES shifts(id),
+    kind TEXT NOT NULL CHECK (kind IN ('in','out','expense')),
+    amount_rp INTEGER NOT NULL CHECK (amount_rp > 0),
+    reason TEXT NOT NULL,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    created_at TEXT NOT NULL
+  );`,
+  `CREATE INDEX idx_cash_entries_shift ON cash_entries(shift_id);`,
+  `CREATE TABLE carts (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    payload_json TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );`,
+  `CREATE TABLE held_orders (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    label TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    held_at TEXT NOT NULL
+  );`,
+];
+/**
+ * UPGRADE_V11 — stock in integer milli units. Rebuilds ingredients and stock_movements.
+ * The old rows are stashed in TEMP tables and re-inserted after the rename, because with
+ * foreign keys on, dropping the parent only stays valid when its rows come back before COMMIT.
+ * Hook `milli_stock` converts the REAL quantities with realToMilli, checks the ledger and drops the stash.
+ */
+export const UPGRADE_V11: string[] = [
+  `PRAGMA defer_foreign_keys = ON;`,
+  `CREATE TEMP TABLE v11_ingredients AS SELECT * FROM ingredients;`,
+  `CREATE TEMP TABLE v11_movements AS SELECT * FROM stock_movements;`,
+  // Rows pointing at a missing ingredient or product would fail the deferred FK check at COMMIT.
+  // They are kept (never deleted) in a table without foreign keys.
+  `CREATE TABLE stock_movements_quarantine (
+    id TEXT PRIMARY KEY,
+    ingredient_id TEXT,
+    product_id TEXT,
+    qty REAL NOT NULL,
+    movement_type TEXT NOT NULL,
+    reference_type TEXT,
+    reference_id TEXT,
+    reason TEXT,
+    actor TEXT,
+    created_at TEXT NOT NULL,
+    quarantine_reason TEXT NOT NULL
+  );`,
+  `INSERT INTO stock_movements_quarantine
+     (id, ingredient_id, product_id, qty, movement_type, reference_type, reference_id, reason, actor, created_at, quarantine_reason)
+     SELECT id, ingredient_id, product_id, qty, movement_type, reference_type, reference_id, reason, actor, created_at,
+       CASE WHEN ingredient_id IS NOT NULL AND ingredient_id NOT IN (SELECT id FROM ingredients)
+            THEN 'ingredient_missing' ELSE 'product_missing' END
+     FROM v11_movements
+     WHERE (ingredient_id IS NOT NULL AND ingredient_id NOT IN (SELECT id FROM ingredients))
+        OR (product_id IS NOT NULL AND product_id NOT IN (SELECT id FROM products));`,
+  `CREATE TABLE ingredients_new (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    base_unit TEXT NOT NULL,
+    stock_milli INTEGER NOT NULL DEFAULT 0,
+    min_stock_milli INTEGER,
+    created_at TEXT NOT NULL
+  );`,
+  `CREATE TABLE stock_movements_new (
+    id TEXT PRIMARY KEY,
+    ingredient_id TEXT REFERENCES ingredients(id),
+    product_id TEXT REFERENCES products(id),
+    qty_milli INTEGER NOT NULL,
+    movement_type TEXT NOT NULL CHECK (movement_type IN (
+      'purchase_received','sale_consumption','waste',
+      'adjustment_in','adjustment_out','return_in','return_out')),
+    reference_type TEXT,
+    reference_id TEXT,
+    reason TEXT,
+    actor TEXT,
+    created_at TEXT NOT NULL
+  );`,
+  `DROP TABLE stock_movements;`,
+  `DROP TABLE ingredients;`,
+  `ALTER TABLE ingredients_new RENAME TO ingredients;`,
+  `ALTER TABLE stock_movements_new RENAME TO stock_movements;`,
+  `INSERT INTO ingredients (id, name, base_unit, stock_milli, min_stock_milli, created_at)
+     SELECT id, name, base_unit, 0, NULL, created_at FROM v11_ingredients;`,
+  `INSERT INTO stock_movements (id, ingredient_id, product_id, qty_milli, movement_type, reference_type, reference_id, reason, actor, created_at)
+     SELECT id, ingredient_id, product_id, 0, movement_type, reference_type, reference_id, reason, actor, created_at FROM v11_movements
+       WHERE id NOT IN (SELECT id FROM stock_movements_quarantine);`,
+  `CREATE INDEX idx_stock_movements_ingredient ON stock_movements(ingredient_id, created_at DESC);`,
+  `CREATE INDEX idx_stock_movements_reference ON stock_movements(reference_type, reference_id);`,
+  `CREATE UNIQUE INDEX uq_stock_movements_ref
+     ON stock_movements(reference_type, reference_id, movement_type, ingredient_id)
+     WHERE reference_type IN ('order', 'order_void', 'order_refund');`,
+  `CREATE TABLE order_item_consumption (
+    order_item_id TEXT NOT NULL REFERENCES order_items(id),
+    ingredient_id TEXT NOT NULL REFERENCES ingredients(id),
+    qty_milli INTEGER NOT NULL CHECK (qty_milli > 0),
+    PRIMARY KEY (order_item_id, ingredient_id)
+  );`,
+];
+/** UPGRADE_V12 — payments rebuild (new methods, voided, split_id), order columns, modifiers, refunds. Hook `orders_refunds`. */
+export const UPGRADE_V12: string[] = [
+  `PRAGMA defer_foreign_keys = ON;`,
+  `CREATE TABLE payments_new (
+    id TEXT PRIMARY KEY,
+    order_id TEXT NOT NULL REFERENCES orders(id),
+    method TEXT NOT NULL CHECK (method IN ('cash','qris_manual','card_edc','bank_transfer','other')),
+    amount_rp INTEGER NOT NULL CHECK (amount_rp >= 0),
+    status TEXT NOT NULL CHECK (status IN ('pending','paid','failed','refunded','voided')),
+    reference_note TEXT,
+    paid_at TEXT,
+    created_at TEXT NOT NULL,
+    split_id TEXT
+  );`,
+  `INSERT INTO payments_new (id, order_id, method, amount_rp, status, reference_note, paid_at, created_at, split_id)
+     SELECT id, order_id, method, amount_rp, status, reference_note, paid_at, created_at, NULL FROM payments;`,
+  `DROP TABLE payments;`,
+  `ALTER TABLE payments_new RENAME TO payments;`,
+  `CREATE INDEX idx_payments_order ON payments(order_id);`,
+  `ALTER TABLE orders ADD COLUMN user_id TEXT REFERENCES users(id);`,
+  `ALTER TABLE orders ADD COLUMN shift_id TEXT REFERENCES shifts(id);`,
+  `ALTER TABLE orders ADD COLUMN order_type TEXT NOT NULL DEFAULT 'dine_in' CHECK (order_type IN ('dine_in','takeaway','delivery'));`,
+  `ALTER TABLE orders ADD COLUMN table_no TEXT;`,
+  `ALTER TABLE orders ADD COLUMN customer_name TEXT;`,
+  `ALTER TABLE orders ADD COLUMN customer_id TEXT;`,
+  `ALTER TABLE orders ADD COLUMN change_rp INTEGER NOT NULL DEFAULT 0 CHECK (change_rp >= 0);`,
+  `ALTER TABLE orders ADD COLUMN queue_no INTEGER;`,
+  `ALTER TABLE orders ADD COLUMN item_discount_rp INTEGER NOT NULL DEFAULT 0;`,
+  `ALTER TABLE orders ADD COLUMN promo_discount_rp INTEGER NOT NULL DEFAULT 0;`,
+  `ALTER TABLE order_items ADD COLUMN note TEXT;`,
+  `ALTER TABLE order_items ADD COLUMN charge_total_rp INTEGER NOT NULL DEFAULT 0 CHECK (charge_total_rp >= 0);`,
+  `ALTER TABLE order_items ADD COLUMN refunded_qty INTEGER NOT NULL DEFAULT 0;`,
+  `CREATE TABLE order_item_modifiers (
+    id TEXT PRIMARY KEY,
+    order_item_id TEXT NOT NULL REFERENCES order_items(id),
+    modifier_id TEXT,
+    name_snapshot TEXT NOT NULL,
+    price_delta_rp INTEGER NOT NULL DEFAULT 0,
+    hpp_rp INTEGER NOT NULL DEFAULT 0
+  );`,
+  `CREATE INDEX idx_order_item_modifiers_item ON order_item_modifiers(order_item_id);`,
+  `CREATE TABLE refunds (
+    id TEXT PRIMARY KEY,
+    order_id TEXT NOT NULL REFERENCES orders(id),
+    idempotency_key TEXT NOT NULL UNIQUE,
+    kind TEXT NOT NULL CHECK (kind IN ('void','full','partial')),
+    amount_rp INTEGER NOT NULL CHECK (amount_rp >= 0),
+    method TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    executed_by TEXT NOT NULL REFERENCES users(id),
+    approved_by TEXT REFERENCES users(id),
+    created_at TEXT NOT NULL
+  );`,
+  `CREATE INDEX idx_refunds_order ON refunds(order_id);`,
+  `CREATE TABLE refund_items (
+    refund_id TEXT NOT NULL REFERENCES refunds(id),
+    order_item_id TEXT NOT NULL REFERENCES order_items(id),
+    qty INTEGER NOT NULL CHECK (qty >= 1),
+    amount_rp INTEGER NOT NULL CHECK (amount_rp >= 0),
+    PRIMARY KEY (refund_id, order_item_id)
+  );`,
+];
+/** UPGRADE_V13 — suppliers, purchases, stocktakes. */
+export const UPGRADE_V13: string[] = [
+  `CREATE TABLE suppliers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    name_ci TEXT NOT NULL UNIQUE,
+    contact TEXT,
+    note TEXT,
+    created_at TEXT NOT NULL
+  );`,
+  `CREATE TABLE stock_purchases (
+    id TEXT PRIMARY KEY,
+    supplier_id TEXT NOT NULL REFERENCES suppliers(id),
+    ingredient_id TEXT NOT NULL REFERENCES ingredients(id),
+    qty_milli INTEGER NOT NULL CHECK (qty_milli > 0),
+    total_rp INTEGER NOT NULL CHECK (total_rp BETWEEN 0 AND 999999999),
+    user_id TEXT NOT NULL REFERENCES users(id),
+    created_at TEXT NOT NULL
+  );`,
+  `CREATE INDEX idx_stock_purchases_ingredient ON stock_purchases(ingredient_id, created_at DESC);`,
+  `CREATE TABLE stocktakes (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );`,
+  `CREATE TABLE stocktake_items (
+    stocktake_id TEXT NOT NULL REFERENCES stocktakes(id),
+    ingredient_id TEXT NOT NULL REFERENCES ingredients(id),
+    system_milli INTEGER NOT NULL,
+    physical_milli INTEGER NOT NULL CHECK (physical_milli >= 0),
+    PRIMARY KEY (stocktake_id, ingredient_id)
+  );`,
+];
+/** UPGRADE_V14 — printers, print routes, unprinted receipts. Hook `legacy_printer` imports the single old printer. */
+export const UPGRADE_V14: string[] = [
+  `CREATE TABLE printers (
+    id TEXT PRIMARY KEY,
+    alias TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    address TEXT NOT NULL,
+    role TEXT NOT NULL CHECK (role IN ('receipt','kitchen')),
+    paper TEXT NOT NULL CHECK (paper IN ('58mm','80mm'))
+  );`,
+  `CREATE TABLE print_routes (
+    category_id TEXT PRIMARY KEY REFERENCES categories(id),
+    printer_id TEXT NOT NULL REFERENCES printers(id)
+  );`,
+  `CREATE TABLE unprinted_receipts (
+    id TEXT PRIMARY KEY,
+    order_id TEXT NOT NULL REFERENCES orders(id),
+    kind TEXT NOT NULL CHECK (kind IN ('receipt','kitchen','bar','refund','z_report')),
+    printer_id TEXT,
+    refund_id TEXT,
+    created_at TEXT NOT NULL,
+    last_error TEXT
+  );`,
+  `CREATE INDEX idx_unprinted_receipts_order ON unprinted_receipts(order_id);`,
+];
