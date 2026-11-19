@@ -57,5 +57,7 @@ jobs:
         run: npm run check
       - name: Build web production assets
         run: npm run build
+      - name: Initial bundle size budget (gzip)
+        run: npm run check:bundle
       - name: Headless UI smoke test
         run: npm run smoke:ui

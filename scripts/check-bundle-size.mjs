@@ -1,8 +1,9 @@
 // Mengukur ukuran gzip JS dan CSS awal dari dist/ (setelah `npm run build`) dan
 // gagal bila melebihi scripts/bundle-budget.json. JS awal = skrip entri,
 // modulepreload, dan impor statis transitifnya; chunk lazy tidak dihitung.
-// Pemakaian: node scripts/check-bundle-size.mjs [folder-repo] [--require-dist]
-// Tanpa dist/ dan tanpa --require-dist: dilewati (agar `npm run check` jalan tanpa build).
+// Pemakaian: npm run check:bundle (= node scripts/check-bundle-size.mjs --require-dist), setelah build.
+// Tanpa --require-dist (mis. dipanggil run-checks.mjs) skrip ini selalu dilewati, karena dist/ bisa
+// tidak ada atau basi; anggaran dicek di CI sesudah langkah build.
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { gzipSync } from "node:zlib";
@@ -58,13 +59,13 @@ function main() {
   const required = args.includes("--require-dist");
   const root = path.resolve(args.find((a) => !a.startsWith("--")) ?? process.cwd());
   const dist = path.join(root, "dist");
-  if (!existsSync(path.join(dist, "index.html"))) {
-    if (required) {
-      console.error("check-bundle-size gagal: dist/index.html tidak ada. Jalankan `npm run build` dulu.");
-      process.exit(1);
-    }
-    console.log("check-bundle-size dilewati: dist/ tidak ada (jalankan setelah build, atau pakai --require-dist).");
+  if (!required) {
+    console.log("check-bundle-size dilewati: jalankan `npm run check:bundle` setelah `npm run build`.");
     return;
+  }
+  if (!existsSync(path.join(dist, "index.html"))) {
+    console.error("check-bundle-size gagal: dist/index.html tidak ada. Jalankan `npm run build` dulu.");
+    process.exit(1);
   }
   const budget = JSON.parse(readFileSync(path.join(root, "scripts/bundle-budget.json"), "utf8"));
   const result = measure(readFileSync(path.join(dist, "index.html"), "utf8"), (f) => readFileSync(path.join(dist, f)));
