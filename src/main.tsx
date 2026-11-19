@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 // CSS di-bundle Vite (bukan CDN) supaya tampilan tetap benar saat offline.
 import "./theme-init";
+import "./styles/globals.css";
 import "./styles/theme.css";
 import App from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
