@@ -8,6 +8,8 @@ export type SqlParam = string | number | null;
 export interface DbPort {
   /** Runs one or more statements that return no rows. */
   exec(sql: string): Promise<void>;
+  /** Runs one statement with bound parameters; does not return rows. */
+  run(sql: string, params?: SqlParam[]): Promise<void>;
   /** Runs a single statement with bound parameters and returns row objects. */
   query<T extends Record<string, unknown>>(sql: string, params?: SqlParam[]): Promise<T[]>;
 }

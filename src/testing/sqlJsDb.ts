@@ -9,6 +9,9 @@ export async function openSqlJsDb(): Promise<DbPort & { close(): void }> {
     async exec(sql: string): Promise<void> {
       db.exec(sql);
     },
+    async run(sql: string, params: SqlParam[] = []): Promise<void> {
+      db.run(sql, params as SqlValue[]);
+    },
     async query<T extends Record<string, unknown>>(sql: string, params: SqlParam[] = []): Promise<T[]> {
       const stmt = db.prepare(sql);
       try {
