@@ -1,4 +1,5 @@
 import { type Order } from "@/domain/orders";
+import { t } from "@/services/i18n";
 
 export type HistoryFilter = "all" | Order["status"];
 export type OrderAction = "void" | "refund";
@@ -10,11 +11,12 @@ export interface ActionRequest {
   label: string;
 }
 
+/** Filter value and the message key for its label. */
 export const HISTORY_FILTERS: ReadonlyArray<readonly [HistoryFilter, string]> = [
-  ["all", "Semua"],
-  ["completed", "Selesai"],
-  ["voided", "Void"],
-  ["refunded", "Refund"],
+  ["all", "riwayat.filter.all"],
+  ["completed", "riwayat.status.completed"],
+  ["voided", "riwayat.status.voided"],
+  ["refunded", "riwayat.status.refunded"],
 ];
 
 export function filterOrders(orders: Order[], filter: HistoryFilter, rawQuery: string): Order[] {
@@ -58,11 +60,11 @@ export function orderTime(order: Order): string {
 }
 
 export function statusLabel(status: Order["status"]): string {
-  if (status === "voided") return "Void";
-  if (status === "refunded") return "Refund";
-  return "Selesai";
+  if (status === "voided") return t("riwayat.status.voided");
+  if (status === "refunded") return t("riwayat.status.refunded");
+  return t("riwayat.status.completed");
 }
 
 export function actionLabel(action: OrderAction): string {
-  return action === "refund" ? "Refund" : "Void";
+  return action === "refund" ? t("riwayat.action.refund") : t("riwayat.action.void");
 }

@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, type ComponentType, type LazyExoticComponent
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ScreenSkeleton } from "@/components/common/ScreenSkeleton";
+import { t } from "@/services/i18n";
 import { useAppStore } from "@/stores/appStore";
 import { KasirScreen } from "@/features/kasir/KasirScreen";
 import { UpdateDialog } from "@/features/update/UpdateDialog";
@@ -35,7 +36,7 @@ function CurrentScreen({ view }: { view: View }) {
   if (view === "kasir") return <KasirScreen />;
   const Screen = SCREENS[view];
   return (
-    <Suspense fallback={<ScreenSkeleton label={`Memuat ${navItemFor(view).title}…`} />}>
+    <Suspense fallback={<ScreenSkeleton label={t("app.screen.loading", { layar: t(navItemFor(view).titleKey) })} />}>
       <div className="mx-auto w-full max-w-6xl p-4 pb-24 md:p-6 md:pb-6">
         <Screen />
       </div>
@@ -49,7 +50,7 @@ export default function App() {
   const setView = useAppStore((s) => s.setView);
 
   useEffect(() => {
-    document.title = `${APP_NAME} — ${navItemFor(view).title}`;
+    document.title = `${APP_NAME} — ${t(navItemFor(view).titleKey)}`;
   }, [view]);
 
   return (

@@ -10,6 +10,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { buttonVariants } from "@/components/ui/button";
+import { t } from "@/services/i18n";
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -49,7 +50,7 @@ export function ConfirmDialog({
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel ref={cancelRef}>Batal</AlertDialogCancel>
+          <AlertDialogCancel ref={cancelRef}>{t("app.common.cancel")}</AlertDialogCancel>
           <AlertDialogAction
             className={destructive ? buttonVariants({ variant: "destructive" }) : undefined}
             onClick={onConfirm}

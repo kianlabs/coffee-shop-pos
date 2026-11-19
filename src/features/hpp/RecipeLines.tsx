@@ -1,5 +1,6 @@
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { t } from "@/services/i18n";
 import { FormAlert } from "./FormAlert";
 import { RecipeLineRow } from "./RecipeLineRow";
 import { RecipeSummary } from "./RecipeSummary";
@@ -14,7 +15,7 @@ export function RecipeLines({ editor, basePriceRp }: RecipeLinesProps) {
   const { lines, ingredients, byId, busy } = editor;
   return (
     <div className="grid gap-3">
-      <ul className="grid gap-2" aria-label="Bahan resep">
+      <ul className="grid gap-2" aria-label={t("hpp.recipe.list.ariaLabel")}>
         {lines.map((line, index) => (
           <RecipeLineRow
             key={line.key}
@@ -31,7 +32,7 @@ export function RecipeLines({ editor, basePriceRp }: RecipeLinesProps) {
       </ul>
       <Button variant="outline" size="sm" className="w-fit" disabled={busy} onClick={editor.addLine}>
         <Plus aria-hidden />
-        Tambah bahan
+        {t("hpp.recipe.addLine")}
       </Button>
       <RecipeSummary basePriceRp={basePriceRp} totalPerUnit={editor.totalPerUnit} margin={editor.margin} />
       <FormAlert message={lines.length > 0 ? editor.validationError : null} />

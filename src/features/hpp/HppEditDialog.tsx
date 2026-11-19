@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { type HppProductView } from "@/data/productRepo";
 import { type VariantHppMode } from "@/domain/hppResolve";
+import { t } from "@/services/i18n";
 import { HppEditFields } from "./HppEditFields";
 import { lineLabel, productLine, variantLine, type HppLine } from "./hppModel";
 import { HppPreview } from "./HppPreview";
@@ -52,10 +53,8 @@ export function HppEditDialog({ open, onOpenChange, line, product, onSave, onOpe
     <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg" data-testid="hpp-edit-dialog">
         <DialogHeader>
-          <DialogTitle>Ubah HPP {lineLabel(line)}</DialogTitle>
-          <DialogDescription>
-            HPP dikunci saat transaksi, jadi laporan laba lama tidak berubah ketika harga bahan naik.
-          </DialogDescription>
+          <DialogTitle>{t("hpp.edit.title", { nama: lineLabel(line) })}</DialogTitle>
+          <DialogDescription>{t("hpp.lock.note")}</DialogDescription>
         </DialogHeader>
         <HppEditFields
           isVariant={line.kind === "variant"}
@@ -68,17 +67,17 @@ export function HppEditDialog({ open, onOpenChange, line, product, onSave, onOpe
         <HppPreview line={preview} />
         <DialogFooter>
           <Button variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>
-            Batal
+            {t("common.cancel")}
           </Button>
           {mode === "recipe" && (
             <Button variant="outline" disabled={busy} onClick={() => void save(true)}>
               <BookOpen aria-hidden />
-              Simpan &amp; atur resep
+              {t("hpp.edit.saveAndRecipe")}
             </Button>
           )}
           <Button loading={busy} onClick={() => void save(false)} data-testid="hpp-edit-save">
             <Check aria-hidden />
-            Simpan
+            {t("common.save")}
           </Button>
         </DialogFooter>
       </DialogContent>

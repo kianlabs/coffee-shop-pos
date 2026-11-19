@@ -3,6 +3,7 @@ import { PauseCircle, ShoppingCart, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { notify } from "@/lib/notify";
+import { t } from "@/services/i18n";
 import { useCartStore } from "@/stores/cartStore";
 
 interface CartHeaderProps {
@@ -20,7 +21,7 @@ export function CartHeader({ itemCount, total }: CartHeaderProps) {
     <div className="flex items-center gap-2 border-b px-4 py-3">
       <h2 className="flex flex-1 items-center gap-2 text-base font-semibold">
         <ShoppingCart className="size-5" aria-hidden />
-        Pesanan
+        {t("kasir.cart.heading")}
         {itemCount > 0 && (
           <span className="rounded-full bg-muted px-2 text-sm font-medium tabular-nums">{itemCount}</span>
         )}
@@ -32,26 +33,26 @@ export function CartHeader({ itemCount, total }: CartHeaderProps) {
             size="sm"
             onClick={() => {
               hold(total);
-              notify.info("Pesanan ditahan. Antrean berikutnya bisa dilayani.");
+              notify.info(t("kasir.cart.held"));
             }}
           >
-            <PauseCircle /> Tahan
+            <PauseCircle /> {t("kasir.cart.hold")}
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setConfirmClear(true)}>
-            <Trash2 /> Kosongkan
+            <Trash2 /> {t("kasir.cart.clear")}
           </Button>
         </>
       )}
       <ConfirmDialog
         open={confirmClear}
         onOpenChange={setConfirmClear}
-        title="Kosongkan pesanan?"
-        description={`${itemCount} item, diskon, pajak, dan catatan di pesanan ini akan dihapus.`}
-        confirmLabel="Kosongkan"
+        title={t("kasir.clear.title")}
+        description={t("kasir.clear.description", { count: itemCount })}
+        confirmLabel={t("kasir.cart.clear")}
         destructive
         onConfirm={() => {
           reset();
-          notify.info("Keranjang dikosongkan.");
+          notify.info(t("kasir.cart.cleared"));
         }}
       />
     </div>

@@ -1,3 +1,5 @@
+import { t } from "@/services/i18n";
+
 interface MenuHeaderProps {
   productCount: number;
 }
@@ -6,13 +8,10 @@ export function MenuHeader({ productCount }: MenuHeaderProps) {
   return (
     <div>
       <h2 className="text-lg font-semibold">
-        Daftar menu{" "}
+        {t("menu.header.title")}{" "}
         <span className="font-normal text-muted-foreground tabular-nums">({productCount})</span>
       </h2>
-      <p className="text-sm text-muted-foreground">
-        Isi sendiri nama menu dan harganya. Menu yang tidak dijual lagi bisa dihapus, riwayat
-        transaksi lama tetap utuh.
-      </p>
+      <p className="text-sm text-muted-foreground">{t("menu.header.description")}</p>
     </div>
   );
 }

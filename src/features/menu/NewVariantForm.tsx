@@ -4,6 +4,7 @@ import { MoneyInput } from "@/components/MoneyInput";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { t } from "@/services/i18n";
 
 interface NewVariantFormProps {
   productId: string;
@@ -33,19 +34,19 @@ export function NewVariantForm({ productId, onAdd }: NewVariantFormProps) {
       data-testid="variant-add-form"
     >
       <div className="grid gap-1.5">
-        <Label htmlFor="new-variant-name">Varian baru</Label>
+        <Label htmlFor="new-variant-name">{t("menu.variant.newLabel")}</Label>
         <Input
           id="new-variant-name"
-          placeholder="mis. Large"
+          placeholder={t("menu.variant.newPlaceholder")}
           value={name}
           onChange={(e) => setName(e.target.value.slice(0, 40))}
         />
       </div>
       <div className="grid gap-1.5">
-        <Label htmlFor="new-variant-delta">Tambahan harga</Label>
+        <Label htmlFor="new-variant-delta">{t("menu.variant.extraPriceLabel")}</Label>
         <MoneyInput
           id="new-variant-delta"
-          placeholder="+Rp"
+          placeholder={t("menu.variant.extraPricePlaceholder")}
           value={delta}
           allowEmpty
           allowNegative
@@ -60,7 +61,7 @@ export function NewVariantForm({ productId, onAdd }: NewVariantFormProps) {
         disabled={name.trim() === ""}
       >
         <Plus aria-hidden />
-        Varian
+        {t("menu.variant.addButton")}
       </Button>
     </form>
   );

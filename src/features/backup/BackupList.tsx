@@ -1,6 +1,7 @@
 import { FileArchive, History } from "lucide-react";
 import { EmptyState } from "@/components/common/EmptyState";
 import { type BackupRecord } from "@/data/orderRepo";
+import { t } from "@/services/i18n";
 
 interface BackupListProps {
   backups: BackupRecord[];
@@ -15,13 +16,13 @@ export function BackupList({ backups }: BackupListProps) {
   return (
     <section aria-labelledby="backup-list-title" className="flex flex-col gap-2">
       <h3 id="backup-list-title" className="text-sm font-semibold">
-        Backup terakhir
+        {t("backup.list.title")}
       </h3>
       {backups.length === 0 ? (
         <EmptyState
           icon={History}
-          title="Belum ada backup"
-          description="Backup yang Anda buat akan muncul di sini."
+          title={t("backup.list.empty.title")}
+          description={t("backup.list.empty.description")}
           className="py-8"
         />
       ) : (
@@ -39,7 +40,7 @@ export function BackupList({ backups }: BackupListProps) {
                 <p className="text-xs text-muted-foreground">{formatDate(backup.createdAt)}</p>
               </div>
               <span className="shrink-0 text-sm text-muted-foreground">
-                {backup.orderCount} order
+                {t("backup.list.orders", { jumlah: backup.orderCount })}
               </span>
             </li>
           ))}

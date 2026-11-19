@@ -1,5 +1,6 @@
 import { Check, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { t } from "@/services/i18n";
 
 interface ProductFormFooterProps {
   formId: string;
@@ -35,11 +36,11 @@ export function ProductFormFooter({
           onClick={onDelete}
         >
           <Trash2 aria-hidden />
-          Hapus menu
+          {t("menu.product.delete")}
         </Button>
       )}
       <Button type="button" variant="outline" className={isEdit ? undefined : "sm:ml-auto"} onClick={onCancel}>
-        Batal
+        {t("menu.common.cancel")}
       </Button>
       <Button
         type="submit"
@@ -49,7 +50,7 @@ export function ProductFormFooter({
         disabled={!canSave}
       >
         <Check aria-hidden />
-        {isEdit ? "Simpan" : "Tambah menu"}
+        {isEdit ? t("menu.common.save") : t("menu.product.add")}
       </Button>
     </div>
   );

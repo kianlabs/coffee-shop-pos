@@ -2,6 +2,7 @@ import { TrendingDown } from "lucide-react";
 import { cn } from "cn";
 import { formatPct, type MarginInfo } from "@/domain/hppResolve";
 import { formatRupiah } from "@/domain/money";
+import { t } from "@/services/i18n";
 
 interface RecipeSummaryProps {
   basePriceRp: number;
@@ -14,23 +15,23 @@ export function RecipeSummary({ basePriceRp, totalPerUnit, margin }: RecipeSumma
   return (
     <dl className="grid grid-cols-2 gap-3 rounded-md bg-muted p-3 text-sm sm:grid-cols-4" aria-live="polite" data-testid="recipe-summary">
       <div>
-        <dt className="text-muted-foreground">Harga jual</dt>
+        <dt className="text-muted-foreground">{t("hpp.price.label")}</dt>
         <dd>{formatRupiah(basePriceRp)}</dd>
       </div>
       <div>
-        <dt className="text-muted-foreground">HPP per unit</dt>
+        <dt className="text-muted-foreground">{t("hpp.recipe.summary.costPerUnit")}</dt>
         <dd className="text-base font-semibold">{formatRupiah(totalPerUnit)}</dd>
       </div>
       <div>
-        <dt className="text-muted-foreground">Laba / unit</dt>
+        <dt className="text-muted-foreground">{t("hpp.profit.label")}</dt>
         <dd className={cn("font-medium", loss && "flex flex-wrap items-center gap-1 text-destructive")}>
           {loss && <TrendingDown className="size-4" aria-hidden />}
           {formatRupiah(margin.profitRp)}
-          {loss && <span className="text-xs">(rugi)</span>}
+          {loss && <span className="text-xs">{t("hpp.loss.badge")}</span>}
         </dd>
       </div>
       <div>
-        <dt className="text-muted-foreground">Margin</dt>
+        <dt className="text-muted-foreground">{t("hpp.margin.label")}</dt>
         <dd className={cn(loss && "text-destructive")}>{formatPct(margin.marginPct)}</dd>
       </div>
     </dl>

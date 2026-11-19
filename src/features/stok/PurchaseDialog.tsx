@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { t } from "@/services/i18n";
 import { FormAlert } from "./FormAlert";
 import { IngredientSelect } from "./IngredientSelect";
 import { PurchaseAmountFields } from "./PurchaseAmountFields";
@@ -37,10 +38,10 @@ export function PurchaseDialog({ open, onOpenChange, items, initialId, onSaved }
     <Dialog open={open} onOpenChange={(next) => !form.busy && onOpenChange(next)}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl" data-testid="stok-purchase-dialog">
         <DialogHeader>
-          <DialogTitle>{form.selected ? `Catat pembelian ${form.selected.name}` : "Catat pembelian"}</DialogTitle>
-          <DialogDescription>
-            Stok bertambah dan harga per satuan terakhir dipakai sebagai HPP resep.
-          </DialogDescription>
+          <DialogTitle>
+            {form.selected ? t("stok.purchase.titleNamed", { nama: form.selected.name }) : t("stok.purchase.title")}
+          </DialogTitle>
+          <DialogDescription>{t("stok.purchase.description")}</DialogDescription>
         </DialogHeader>
         <form className="grid gap-4" onSubmit={(e) => void handleSubmit(e)} noValidate>
           <IngredientSelect
@@ -55,11 +56,11 @@ export function PurchaseDialog({ open, onOpenChange, items, initialId, onSaved }
           <FormAlert message={form.error} />
           <DialogFooter>
             <Button type="button" variant="outline" disabled={form.busy} onClick={() => onOpenChange(false)}>
-              Batal
+              {t("common.cancel")}
             </Button>
             <Button type="submit" loading={form.busy} data-testid="stok-buy-submit">
               <PackagePlus aria-hidden />
-              Simpan pembelian
+              {t("stok.purchase.submit")}
             </Button>
           </DialogFooter>
         </form>

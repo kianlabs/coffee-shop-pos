@@ -1,6 +1,7 @@
 import { CloudDownload, Clock, Printer, RefreshCw, Wifi, WifiOff } from "lucide-react";
 import { type ReactNode } from "react";
 import { cn } from "cn";
+import { t } from "@/services/i18n";
 import { useAppStore } from "@/stores/appStore";
 import { navItemFor } from "./navigation";
 
@@ -53,7 +54,7 @@ export function TopBar() {
   return (
     <header className="flex h-16 shrink-0 items-center gap-3 border-b bg-card px-4 md:px-6">
       <div className="min-w-0 flex-1">
-        <h1 className="truncate text-lg leading-tight font-semibold">{navItemFor(view).title}</h1>
+        <h1 className="truncate text-lg leading-tight font-semibold">{t(navItemFor(view).titleKey)}</h1>
         <p className="truncate text-xs text-muted-foreground">
           {storeName} · {todayLabel()}
         </p>
@@ -61,18 +62,20 @@ export function TopBar() {
       <div className="flex items-center gap-2">
         {update && (
           <StatusPill tone="neutral" icon={<CloudDownload />} onClick={() => openUpdate(true)}>
-            Update v{update.version}
+            {t("app.topbar.updateAvailable", { versi: update.version })}
           </StatusPill>
         )}
         <StatusPill tone={online ? "ok" : "warn"} icon={online ? <Wifi /> : <WifiOff />}>
-          {online ? "Online" : "Offline"}
+          {online ? t("app.status.online") : t("app.status.offline")}
         </StatusPill>
         <StatusPill tone={shift ? "ok" : "neutral"} icon={<Clock />} className="hidden lg:inline-flex">
-          {shift ? `Shift · ${shift.cashierName || "Kasir"}` : "Shift tutup"}
+          {shift
+            ? t("app.topbar.shiftOpen", { kasir: shift.cashierName || t("app.topbar.cashierFallback") })
+            : t("app.topbar.shiftClosed")}
         </StatusPill>
         {pending !== null && pending > 0 && (
           <StatusPill tone="warn" icon={<RefreshCw />} className="hidden lg:inline-flex">
-            {pending} belum sync
+            {t("app.topbar.pendingSync", { jumlah: pending })}
           </StatusPill>
         )}
         <StatusPill
@@ -81,7 +84,9 @@ export function TopBar() {
           className="hidden sm:inline-flex"
           onClick={() => setView("pengaturan")}
         >
-          {printer.connected ? (printer.name ?? "Printer") : "Printer belum terhubung"}
+          {printer.connected
+            ? (printer.name ?? t("app.topbar.printerFallback"))
+            : t("app.topbar.printerNotConnected")}
         </StatusPill>
       </div>
     </header>

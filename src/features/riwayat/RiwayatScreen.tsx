@@ -1,5 +1,6 @@
 import { useCallback, useDeferredValue, useMemo, useState } from "react";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import { t } from "@/services/i18n";
 import { useAppStore } from "@/stores/appStore";
 import { filterOrders, groupByDate, type ActionRequest, type HistoryFilter } from "./historyUtils";
 import { HistoryBody } from "./HistoryBody";
@@ -11,15 +12,15 @@ import { useOrderActions } from "./useOrderActions";
 function confirmCopy(req: ActionRequest | null) {
   if (req?.action === "refund") {
     return {
-      title: "Refund order?",
-      description: `Refund order ${req.label}? Stok akan dikembalikan dan order ditandai refunded (permanen).`,
-      confirmLabel: "Refund",
+      title: t("riwayat.confirm.refundTitle"),
+      description: t("riwayat.confirm.refundDescription", { label: req.label }),
+      confirmLabel: t("riwayat.action.refund"),
     };
   }
   return {
-    title: "Void order?",
-    description: `Void order ${req?.label ?? ""}? Tindakan permanen.`,
-    confirmLabel: "Void",
+    title: t("riwayat.confirm.voidTitle"),
+    description: t("riwayat.confirm.voidDescription", { label: req?.label ?? "" }),
+    confirmLabel: t("riwayat.action.void"),
   };
 }
 

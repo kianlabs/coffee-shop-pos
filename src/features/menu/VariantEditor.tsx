@@ -1,4 +1,5 @@
 import type { CatalogProduct } from "@/domain/catalog";
+import { t } from "@/services/i18n";
 import { NewVariantForm } from "./NewVariantForm";
 import type { CatalogActions } from "./useCatalogEditor";
 import { VariantRow } from "./VariantRow";
@@ -16,19 +17,14 @@ export function VariantEditor({ product, basePrice, busy, actions }: VariantEdit
     <section className="grid gap-3" aria-labelledby="variant-heading">
       <div>
         <h3 id="variant-heading" className="text-base font-semibold">
-          Varian
+          {t("menu.variant.heading")}
         </h3>
-        <p className="text-sm text-muted-foreground">
-          Selisih harga ditambahkan ke harga jual dan boleh minus. Perubahan tersimpan saat kolom
-          ditinggalkan.
-        </p>
+        <p className="text-sm text-muted-foreground">{t("menu.variant.description")}</p>
       </div>
       {product.variants.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          Belum ada varian. Contoh: Regular, Large, Panas, Dingin.
-        </p>
+        <p className="text-sm text-muted-foreground">{t("menu.variant.empty")}</p>
       ) : (
-        <ul className="grid gap-2" aria-label={`Varian ${product.name}`}>
+        <ul className="grid gap-2" aria-label={t("menu.variant.listAria", { nama: product.name })}>
           {product.variants.map((v) => (
             <VariantRow
               key={v.id}

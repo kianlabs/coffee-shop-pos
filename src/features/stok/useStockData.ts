@@ -3,6 +3,7 @@ import { isNativePlatform } from "@/data/db";
 import { loadIngredientOptions } from "@/data/recipeRepo";
 import { loadIngredients, type IngredientRow } from "@/data/stock";
 import { errorMessage, notify } from "@/lib/notify";
+import { t } from "@/services/i18n";
 
 export interface StockItem extends IngredientRow {
   /** Harga beli terakhir per satuan dasar (0 bila belum pernah dibeli). */
@@ -27,7 +28,7 @@ export function useStockData() {
       setLoadFailed(false);
     } catch (e) {
       setLoadFailed(true);
-      notify.error(errorMessage(e, "Gagal memuat bahan."));
+      notify.error(errorMessage(e, t("stok.loadFailed.message")));
     }
   }, []);
 
@@ -44,7 +45,7 @@ export function useStockData() {
       .catch((e: unknown) => {
         if (cancelled) return;
         setLoadFailed(true);
-        notify.error(errorMessage(e, "Gagal memuat bahan."));
+        notify.error(errorMessage(e, t("stok.loadFailed.message")));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

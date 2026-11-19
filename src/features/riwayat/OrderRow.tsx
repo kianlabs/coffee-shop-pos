@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { paymentLabel } from "@/data/receipt";
 import { formatRupiah } from "@/domain/money";
 import { type Order } from "@/domain/orders";
+import { t } from "@/services/i18n";
 import { orderItemCount, orderTime, type OrderAction } from "./historyUtils";
 import { OrderDetail } from "./OrderDetail";
 import { OrderStatusBadge } from "./OrderStatusBadge";
@@ -27,13 +28,19 @@ export function OrderRow({ order, expanded, busy, onToggle, onPrint, onAction }:
             <OrderStatusBadge status={order.status} />
           </div>
           <p className="text-sm text-muted-foreground">
-            {orderTime(order)} · {paymentLabel(order.payment.method)} · {orderItemCount(order)} item
-            · kembali {formatRupiah(order.changeRp)}
+            {t("riwayat.row.meta", {
+              time: orderTime(order),
+              payment: paymentLabel(order.payment.method),
+              count: orderItemCount(order),
+              change: formatRupiah(order.changeRp),
+            })}
           </p>
         </div>
         <div className="flex items-baseline gap-2 sm:flex-col sm:items-end sm:gap-0">
           <span className="text-lg font-semibold">{formatRupiah(order.totalRp)}</span>
-          <span className="text-xs text-muted-foreground">{order.lines.length} baris</span>
+          <span className="text-xs text-muted-foreground">
+            {t("riwayat.row.lines", { count: order.lines.length })}
+          </span>
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -44,11 +51,11 @@ export function OrderRow({ order, expanded, busy, onToggle, onPrint, onAction }:
           onClick={() => onToggle(order.id)}
         >
           {expanded ? <ChevronDown aria-hidden /> : <ChevronRight aria-hidden />}
-          {expanded ? "Sembunyikan" : "Detail"}
+          {expanded ? t("riwayat.row.hide") : t("riwayat.row.detail")}
         </Button>
         <Button variant="outline" disabled={busy} onClick={() => onPrint(order)}>
           <Printer aria-hidden />
-          Cetak
+          {t("riwayat.row.print")}
         </Button>
         {order.status === "completed" && (
           <>
@@ -59,7 +66,7 @@ export function OrderRow({ order, expanded, busy, onToggle, onPrint, onAction }:
               onClick={() => onAction("refund", order)}
             >
               <Undo2 aria-hidden />
-              Refund
+              {t("riwayat.action.refund")}
             </Button>
             <Button
               variant="outline"
@@ -68,7 +75,7 @@ export function OrderRow({ order, expanded, busy, onToggle, onPrint, onAction }:
               onClick={() => onAction("void", order)}
             >
               <XCircle aria-hidden />
-              Void
+              {t("riwayat.action.void")}
             </Button>
           </>
         )}

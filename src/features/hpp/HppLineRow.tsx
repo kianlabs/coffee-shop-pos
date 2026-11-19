@@ -3,6 +3,7 @@ import { type ReactNode } from "react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { formatRupiah } from "@/domain/money";
+import { t } from "@/services/i18n";
 import { HppSourceBadge } from "./HppSourceBadge";
 import { lineLabel, type HppLine } from "./hppModel";
 import { HPP_GRID_COLS } from "./layout";
@@ -31,7 +32,7 @@ export function HppLineRow({ line, subtitle, onEdit, onRecipe, children }: HppLi
         </p>
         <p className="truncate text-xs text-muted-foreground">
           {subtitle}
-          {line.recipePerUnitRp !== null && ` · resep ${formatRupiah(line.recipePerUnitRp)}`}
+          {line.recipePerUnitRp !== null && ` · ${t("hpp.line.recipeCost", { harga: formatRupiah(line.recipePerUnitRp) })}`}
         </p>
         <HppSourceBadge line={line} />
         {line.note && (
@@ -44,14 +45,26 @@ export function HppLineRow({ line, subtitle, onEdit, onRecipe, children }: HppLi
       </div>
       <MarginValues priceRp={line.priceRp} hppRp={line.hppRp} margin={line.margin} />
       <div className="flex flex-wrap gap-2 lg:justify-end">
-        <Button variant="outline" size="sm" className="flex-1 lg:flex-none" aria-label={`Ubah HPP ${label}`} onClick={() => onEdit(line)}>
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-1 lg:flex-none"
+          aria-label={t("hpp.line.editAria", { nama: label })}
+          onClick={() => onEdit(line)}
+        >
           <Pencil aria-hidden />
-          Ubah HPP
+          {t("hpp.line.edit")}
         </Button>
         {line.mode === "recipe" && (
-          <Button variant="outline" size="sm" className="flex-1 lg:flex-none" aria-label={`Atur resep ${label}`} onClick={() => onRecipe(line)}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 lg:flex-none"
+            aria-label={t("hpp.line.recipeAria", { nama: label })}
+            onClick={() => onRecipe(line)}
+          >
             <BookOpen aria-hidden />
-            Atur resep
+            {t("hpp.line.recipe")}
           </Button>
         )}
       </div>

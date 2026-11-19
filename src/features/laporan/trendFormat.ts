@@ -1,20 +1,27 @@
 import { type TrendUnit } from "@/domain/sales";
 
-export const TREND_UNIT_LABEL: Record<TrendUnit, string> = {
-  hour: "per jam",
-  day: "per hari",
-  week: "per minggu",
-  month: "per bulan",
+/** i18n keys for the unit phrase in trend descriptions, e.g. "per jam". */
+export const TREND_UNIT_KEY: Record<TrendUnit, string> = {
+  hour: "laporan.unit.hour",
+  day: "laporan.unit.day",
+  week: "laporan.unit.week",
+  month: "laporan.unit.month",
 };
 
-/** Short rupiah for the Y axis: 1,2 jt / 250 rb. */
-export function compactRupiah(value: number): string {
+export interface CompactLabels {
+  billion: string;
+  million: string;
+  thousand: string;
+}
+
+/** Short rupiah for the Y axis: 1,2 jt / 250 rb (id) or 1.2 M / 250 K (en). */
+export function compactRupiah(value: number, labels: CompactLabels): string {
   const abs = Math.abs(value);
   const fmt = (v: number, suffix: string) =>
     `${v.toLocaleString("id-ID", { maximumFractionDigits: 1 })} ${suffix}`;
-  if (abs >= 1_000_000_000) return fmt(value / 1_000_000_000, "M");
-  if (abs >= 1_000_000) return fmt(value / 1_000_000, "jt");
-  if (abs >= 1_000) return fmt(value / 1_000, "rb");
+  if (abs >= 1_000_000_000) return fmt(value / 1_000_000_000, labels.billion);
+  if (abs >= 1_000_000) return fmt(value / 1_000_000, labels.million);
+  if (abs >= 1_000) return fmt(value / 1_000, labels.thousand);
   return value.toLocaleString("id-ID");
 }
 

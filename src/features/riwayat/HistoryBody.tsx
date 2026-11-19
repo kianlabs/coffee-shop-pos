@@ -2,6 +2,7 @@ import { type ReactNode } from "react";
 import { ReceiptText, SearchX } from "lucide-react";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ScreenSkeleton } from "@/components/common/ScreenSkeleton";
+import { t } from "@/services/i18n";
 
 interface HistoryBodyProps {
   dbReady: boolean;
@@ -11,13 +12,13 @@ interface HistoryBodyProps {
 }
 
 export function HistoryBody({ dbReady, hasOrders, isEmpty, list }: HistoryBodyProps) {
-  if (!dbReady && !hasOrders) return <ScreenSkeleton label="Memuat riwayat…" rows={4} />;
+  if (!dbReady && !hasOrders) return <ScreenSkeleton label={t("riwayat.body.loading")} rows={4} />;
   if (!hasOrders) {
     return (
       <EmptyState
         icon={ReceiptText}
-        title="Belum ada order"
-        description="Transaksi yang selesai akan muncul di sini."
+        title={t("riwayat.body.emptyTitle")}
+        description={t("riwayat.body.emptyDescription")}
       />
     );
   }
@@ -25,8 +26,8 @@ export function HistoryBody({ dbReady, hasOrders, isEmpty, list }: HistoryBodyPr
     return (
       <EmptyState
         icon={SearchX}
-        title="Tidak ada order yang cocok"
-        description="Ubah kata kunci atau filter status untuk melihat order lain."
+        title={t("riwayat.body.noMatchTitle")}
+        description={t("riwayat.body.noMatchDescription")}
       />
     );
   }

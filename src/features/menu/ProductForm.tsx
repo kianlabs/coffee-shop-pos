@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { Separator } from "@/components/ui/separator";
 import type { CatalogProduct, Category } from "@/domain/catalog";
+import { t } from "@/services/i18n";
 import { ProductFields, type ProductDraft } from "./ProductFields";
 import { ProductFormFooter } from "./ProductFormFooter";
 import type { CatalogActions } from "./useCatalogEditor";
@@ -74,7 +75,7 @@ export function ProductForm({
           <VariantEditor product={product} basePrice={draft.price} busy={busy} actions={actions} />
         </>
       ) : (
-        <p className="text-sm text-muted-foreground">Varian bisa ditambahkan setelah menu disimpan.</p>
+        <p className="text-sm text-muted-foreground">{t("menu.product.variantAfterSave")}</p>
       )}
       <ProductFormFooter
         formId={FORM_ID}
@@ -90,9 +91,9 @@ export function ProductForm({
         <ConfirmDialog
           open={confirmOpen}
           onOpenChange={setConfirmOpen}
-          title={`Hapus menu "${product.name}"?`}
-          description={`"${product.name}" dihapus dari daftar jual dan tidak muncul lagi di kasir. Riwayat transaksi lama tetap utuh.`}
-          confirmLabel="Hapus menu"
+          title={t("menu.product.deleteTitle", { nama: product.name })}
+          description={t("menu.product.deleteDescription", { nama: product.name })}
+          confirmLabel={t("menu.product.delete")}
           destructive
           onConfirm={() => void handleDelete()}
         />

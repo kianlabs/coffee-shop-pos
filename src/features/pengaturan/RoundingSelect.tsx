@@ -1,5 +1,6 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ROUNDING_OPTIONS, type RoundingStep } from "@/data/settings";
+import { t } from "@/services/i18n";
 
 interface RoundingSelectProps {
   id: string;
@@ -7,11 +8,11 @@ interface RoundingSelectProps {
   onChange: (step: RoundingStep) => void;
 }
 
-const LABELS: Record<RoundingStep, string> = {
-  0: "Tanpa pembulatan (bawaan)",
-  100: "Ke Rp100 terdekat",
-  500: "Ke Rp500 terdekat",
-  1000: "Ke Rp1.000 terdekat",
+const LABEL_KEYS: Record<RoundingStep, string> = {
+  0: "pengaturan.rounding.none",
+  100: "pengaturan.rounding.nearest100",
+  500: "pengaturan.rounding.nearest500",
+  1000: "pengaturan.rounding.nearest1000",
 };
 
 function toStep(raw: string): RoundingStep | null {
@@ -33,7 +34,7 @@ export function RoundingSelect({ id, value, onChange }: RoundingSelectProps) {
       <SelectContent>
         {ROUNDING_OPTIONS.map((step) => (
           <SelectItem key={step} value={String(step)} className="min-h-touch">
-            {LABELS[step]}
+            {t(LABEL_KEYS[step])}
           </SelectItem>
         ))}
       </SelectContent>

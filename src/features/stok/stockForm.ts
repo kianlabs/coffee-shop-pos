@@ -5,17 +5,19 @@ import {
   isConvertible,
   normalizeUnit,
 } from "@/domain/units";
+import { t } from "@/services/i18n";
 
 /** Select value for "create a new ingredient" (Radix Select forbids ""). */
 export const NEW_INGREDIENT = "__new__";
 
-export const BASE_UNIT_PRESETS: ReadonlyArray<{ value: string; label: string }> = [
-  { value: "g", label: "gram (g)" },
-  { value: "kg", label: "kilogram (kg)" },
-  { value: "ml", label: "mililiter (ml)" },
-  { value: "l", label: "liter (l)" },
-  { value: "pcs", label: "pcs" },
-  { value: "custom", label: "Lainnya (bebas)…" },
+/** `labelKey` is translated at render time, so the list follows the active locale. */
+export const BASE_UNIT_PRESETS: ReadonlyArray<{ value: string; labelKey: string }> = [
+  { value: "g", labelKey: "stok.unitPreset.gram" },
+  { value: "kg", labelKey: "stok.unitPreset.kilogram" },
+  { value: "ml", labelKey: "stok.unitPreset.milliliter" },
+  { value: "l", labelKey: "stok.unitPreset.liter" },
+  { value: "pcs", labelKey: "stok.unitPreset.pcs" },
+  { value: "custom", labelKey: "stok.unitPreset.custom" },
 ];
 
 export function slugId(name: string): string {
@@ -53,20 +55,21 @@ type PurchasePlan =
   | { ok: true; convertedQty: number; costPerBaseUnit: number }
   | { ok: false; error: string };
 
+function notConvertibleMessage(inputUnit: string, baseUnit: string): string {
+  return t("stok.validation.notConvertible", { satuan: inputUnit, dasar: baseUnit });
+}
+
 export function planPurchase({ name, baseUnit, inputUnit, qty, costRp }: PurchaseInput): PurchasePlan {
-  if (!name) return { ok: false, error: "Nama bahan wajib diisi." };
-  if (!baseUnit) return { ok: false, error: "Satuan dasar bahan wajib diisi." };
-  if (!(qty > 0)) return { ok: false, error: "Jumlah pembelian harus lebih dari 0." };
-  if (!(costRp >= 0)) return { ok: false, error: "Harga per satuan tidak boleh negatif." };
+  if (!name) return { ok: false, error: t("stok.validation.nameRequired") };
+  if (!baseUnit) return { ok: false, error: t("stok.validation.baseUnitRequired") };
+  if (!(qty > 0)) return { ok: false, error: t("stok.validation.qtyPositive") };
+  if (!(costRp >= 0)) return { ok: false, error: t("stok.validation.costNegative") };
   if (!isConvertible(inputUnit, baseUnit)) {
-    return {
-      ok: false,
-      error: `Satuan "${inputUnit}" tidak dapat dikonversi ke satuan dasar "${baseUnit}".`,
-    };
+    return { ok: false, error: notConvertibleMessage(inputUnit, baseUnit) };
   }
   const convertedQty = convertQty(qty, inputUnit, baseUnit);
   if (convertedQty === null || !(convertedQty > 0)) {
-    return { ok: false, error: `Jumlah pembelian tidak valid setelah konversi ke "${baseUnit}".` };
+    return { ok: false, error: t("stok.validation.qtyInvalidAfterConvert", { dasar: baseUnit }) };
   }
   // Total belanja = qty × harga per satuan input; dibagi qty dalam satuan dasar.
   const costPerBaseUnit = Math.round(((qty * costRp) / convertedQty) * 100) / 100;
@@ -81,8 +84,8 @@ export function purchaseMessage(
   baseUnit: string,
 ): string {
   return normalizeUnit(inputUnit) !== normalizeUnit(baseUnit)
-    ? `Pembelian ${name} ${qty} ${inputUnit} (${convertedQty} ${baseUnit}) dicatat.`
-    : `Pembelian ${name} ${qty} ${baseUnit} dicatat.`;
+    ? t("stok.message.purchaseWithUnit", { nama: name, qty, satuan: inputUnit, hasil: convertedQty, dasar: baseUnit })
+    : t("stok.message.purchase", { nama: name, qty, dasar: baseUnit });
 }
 
 /** Converted quantity and price per base unit, shown under the purchase form. */
@@ -109,18 +112,15 @@ interface AdjustInput {
 type AdjustPlan = { ok: true; convertedDelta: number } | { ok: false; error: string };
 
 export function planAdjust({ ingredientName, baseUnit, inputUnit, delta, reason }: AdjustInput): AdjustPlan {
-  if (ingredientName === null) return { ok: false, error: "Pilih bahan yang mau dikoreksi." };
-  if (delta === 0) return { ok: false, error: "Selisih tidak boleh 0." };
-  if (!reason) return { ok: false, error: "Alasan koreksi wajib diisi." };
+  if (ingredientName === null) return { ok: false, error: t("stok.adjust.noIngredient") };
+  if (delta === 0) return { ok: false, error: t("stok.validation.deltaZero") };
+  if (!reason) return { ok: false, error: t("stok.validation.reasonRequired") };
   if (!isConvertible(inputUnit, baseUnit)) {
-    return {
-      ok: false,
-      error: `Satuan "${inputUnit}" tidak dapat dikonversi ke satuan dasar "${baseUnit}".`,
-    };
+    return { ok: false, error: notConvertibleMessage(inputUnit, baseUnit) };
   }
   const convertedDelta = convertQty(delta, inputUnit, baseUnit);
   if (convertedDelta === null || convertedDelta === 0) {
-    return { ok: false, error: `Selisih tidak boleh nol setelah konversi ke "${baseUnit}".` };
+    return { ok: false, error: t("stok.validation.deltaZeroAfterConvert", { dasar: baseUnit }) };
   }
   return { ok: true, convertedDelta };
 }
@@ -135,6 +135,12 @@ export function adjustMessage(
   baseUnit: string,
 ): string {
   return normalizeUnit(inputUnit) !== normalizeUnit(baseUnit)
-    ? `Koreksi stok ${name} ${signed(delta)} ${inputUnit} (${signed(convertedDelta)} ${baseUnit}) tersimpan.`
-    : `Koreksi stok ${name} ${signed(convertedDelta)} ${baseUnit} tersimpan.`;
+    ? t("stok.message.adjustWithUnit", {
+        nama: name,
+        selisih: signed(delta),
+        satuan: inputUnit,
+        hasil: signed(convertedDelta),
+        dasar: baseUnit,
+      })
+    : t("stok.message.adjust", { nama: name, hasil: signed(convertedDelta), dasar: baseUnit });
 }

@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { t } from "@/services/i18n";
 import { useCartStore } from "@/stores/cartStore";
 
 const QUICK_NOTES = ["Less sugar", "No sugar", "Less ice", "Extra shot", "Panas", "Dingin", "Pisah kantong"];
@@ -42,21 +43,21 @@ export function NotesDialog({ open, onOpenChange }: NotesDialogProps) {
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Catatan pesanan</DialogTitle>
-          <DialogDescription>Dicetak di struk. Ketuk pilihan cepat untuk menambah.</DialogDescription>
+          <DialogTitle>{t("kasir.notes.title")}</DialogTitle>
+          <DialogDescription>{t("kasir.notes.description")}</DialogDescription>
         </DialogHeader>
         <div className="grid gap-2">
-          <Label htmlFor="cart-notes">Catatan</Label>
+          <Label htmlFor="cart-notes">{t("kasir.notes.label")}</Label>
           <Textarea
             id="cart-notes"
             value={draft}
             maxLength={MAX_NOTE}
             rows={3}
-            placeholder="Contoh: meja 4, tanpa es"
+            placeholder={t("kasir.notes.placeholder")}
             onChange={(e) => setDraft(e.target.value)}
           />
         </div>
-        <div role="group" aria-label="Catatan cepat" className="flex flex-wrap gap-2">
+        <div role="group" aria-label={t("kasir.notes.quickGroup")} className="flex flex-wrap gap-2">
           {QUICK_NOTES.map((preset) => (
             <Button key={preset} variant="outline" size="sm" onClick={() => setDraft((d) => appendNote(d, preset))}>
               <Plus /> {preset}
@@ -64,14 +65,14 @@ export function NotesDialog({ open, onOpenChange }: NotesDialogProps) {
           ))}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>{t("kasir.common.cancel")}</Button>
           <Button
             onClick={() => {
               setNotes(draft);
               onOpenChange(false);
             }}
           >
-            Simpan catatan
+            {t("kasir.notes.save")}
           </Button>
         </DialogFooter>
       </DialogContent>

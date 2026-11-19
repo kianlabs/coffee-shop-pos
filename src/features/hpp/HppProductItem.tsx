@@ -4,6 +4,7 @@ import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { type HppProductView } from "@/data/productRepo";
 import { formatRupiah } from "@/domain/money";
+import { t } from "@/services/i18n";
 import { HppLineRow } from "./HppLineRow";
 import { productLine, variantLine, type HppLine } from "./hppModel";
 
@@ -26,7 +27,7 @@ export function HppProductItem({ product, onEdit, onRecipe }: HppProductItemProp
       onClick={() => setOpen((v) => !v)}
     >
       <ChevronDown className={cn("transition-transform", open && "rotate-180")} aria-hidden />
-      {open ? "Sembunyikan" : "Atur"} varian ({count})
+      {open ? t("hpp.variant.hideCount", { jumlah: count }) : t("hpp.variant.showCount", { jumlah: count })}
     </Button>
   );
   return (
@@ -35,12 +36,16 @@ export function HppProductItem({ product, onEdit, onRecipe }: HppProductItemProp
         {toggle}
       </HppLineRow>
       {open && (
-        <ul id={`hpp-variants-${product.id}`} className="mt-3 grid gap-3 border-t pt-3" aria-label={`Varian ${product.name}`}>
+        <ul
+          id={`hpp-variants-${product.id}`}
+          className="mt-3 grid gap-3 border-t pt-3"
+          aria-label={t("hpp.variant.listLabel", { nama: product.name })}
+        >
           {product.variants.map((v) => (
             <li key={v.id} className="rounded-md bg-muted/50 p-3 lg:bg-transparent lg:p-0">
               <HppLineRow
                 line={variantLine(product, v)}
-                subtitle={`Varian · selisih harga ${formatRupiah(v.priceDeltaRp)}`}
+                subtitle={t("hpp.variant.subtitle", { harga: formatRupiah(v.priceDeltaRp) })}
                 onEdit={onEdit}
                 onRecipe={onRecipe}
               />

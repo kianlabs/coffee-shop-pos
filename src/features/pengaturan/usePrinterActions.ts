@@ -8,6 +8,7 @@ import {
   type PrinterStatus,
 } from "@/data/printer";
 import { errorMessage, notify } from "@/lib/notify";
+import { t } from "@/services/i18n";
 import { useAppStore } from "@/stores/appStore";
 
 interface PrinterActions {
@@ -48,10 +49,10 @@ export function usePrinterActions(): PrinterActions {
       setDevices(list);
       setScanned(true);
       setPrinter(await printerStatus());
-      if (list.length > 0) notify.success(`${list.length} printer Bluetooth ditemukan.`);
-      else notify.info("Belum ada printer yang dipasangkan. Pasangkan dulu lewat Setelan Bluetooth Android.");
+      if (list.length > 0) notify.success(t("pengaturan.printer.found", { jumlah: list.length }));
+      else notify.info(t("pengaturan.printer.noneFound"));
     } catch (e) {
-      notify.error(errorMessage(e, "Gagal memindai printer."));
+      notify.error(errorMessage(e, t("pengaturan.printer.scanFailed")));
     } finally {
       setBusy(false);
     }
@@ -63,10 +64,13 @@ export function usePrinterActions(): PrinterActions {
       try {
         const status = await connectPrinter(address);
         setPrinter(status);
-        if (status.connected) notify.success(`Terhubung ke ${status.name ?? address}.`);
-        else notify.error("Koneksi printer gagal.");
+        if (status.connected) {
+          notify.success(t("pengaturan.printer.connectedToToast", { nama: status.name ?? address }));
+        } else {
+          notify.error(t("pengaturan.printer.connectRejected"));
+        }
       } catch (e) {
-        notify.error(errorMessage(e, "Gagal menyambung printer."));
+        notify.error(errorMessage(e, t("pengaturan.printer.connectFailed")));
       } finally {
         setBusy(false);
       }
@@ -79,9 +83,9 @@ export function usePrinterActions(): PrinterActions {
     try {
       await disconnectPrinter();
       setPrinter({ connected: false, address: null, name: null });
-      notify.success("Printer diputuskan.");
+      notify.success(t("pengaturan.printer.disconnected"));
     } catch (e) {
-      notify.error(errorMessage(e, "Gagal memutus printer."));
+      notify.error(errorMessage(e, t("pengaturan.printer.disconnectFailed")));
     } finally {
       setBusy(false);
     }

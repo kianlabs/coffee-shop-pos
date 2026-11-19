@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { t } from "@/services/i18n";
 import { useAppStore } from "@/stores/appStore";
 const DEFAULT_LOGO = "assets/logo.png";
 /** The logo printed at the top of the receipt, shown only when "Cetak logo di struk" is on. */
@@ -10,7 +11,7 @@ export function ReceiptLogo() {
   return (
     <img
       src={logoB64 || DEFAULT_LOGO}
-      alt="Logo Toko"
+      alt={t("kasir.receipt.logoAlt")}
       className="mx-auto max-h-[70px] max-w-[140px] object-contain"
       onError={() => setFailed(true)}
     />

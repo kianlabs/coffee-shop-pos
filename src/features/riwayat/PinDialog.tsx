@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MAX_PIN_ATTEMPTS } from "@/data/settings";
+import { t } from "@/services/i18n";
 import { actionLabel } from "./historyUtils";
 import { type VoidPinState } from "./useVoidPin";
 
@@ -22,7 +23,8 @@ interface PinDialogProps {
 export function PinDialog({ pin }: PinDialogProps) {
   const { request, verifying } = pin;
   const inputRef = useRef<HTMLInputElement>(null);
-  const title = request?.action === "refund" ? "PIN refund" : "PIN void";
+  const title =
+    request?.action === "refund" ? t("riwayat.pin.titleRefund") : t("riwayat.pin.titleVoid");
   const showAttempts = pin.error === null && pin.attempts > 0;
 
   return (
@@ -54,7 +56,12 @@ export function PinDialog({ pin }: PinDialogProps) {
               {title}
             </DialogTitle>
             <DialogDescription>
-              {request ? `${actionLabel(request.action)} order ${request.label} butuh PIN.` : ""}
+              {request
+                ? t("riwayat.pin.description", {
+                    action: actionLabel(request.action),
+                    label: request.label,
+                  })
+                : ""}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-2">
@@ -76,17 +83,17 @@ export function PinDialog({ pin }: PinDialogProps) {
               {pin.error && <span className="text-destructive">{pin.error}</span>}
               {showAttempts && (
                 <span className="text-muted-foreground">
-                  Sudah salah {pin.attempts} dari {MAX_PIN_ATTEMPTS} percobaan.
+                  {t("riwayat.pin.attempts", { attempts: pin.attempts, max: MAX_PIN_ATTEMPTS })}
                 </span>
               )}
             </p>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" disabled={verifying} onClick={pin.cancel}>
-              Batal
+              {t("riwayat.pin.cancel")}
             </Button>
             <Button type="submit" loading={verifying}>
-              {verifying ? "Memeriksa…" : "Lanjut"}
+              {verifying ? t("riwayat.pin.checking") : t("riwayat.pin.continue")}
             </Button>
           </DialogFooter>
         </form>

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { ProductVariant } from "@/domain/catalog";
 import { formatRupiah } from "@/domain/money";
+import { t } from "@/services/i18n";
 import type { VariantPatch } from "./useCatalogEditor";
 
 interface VariantRowProps {
@@ -48,7 +49,7 @@ export function VariantRow({ variant, productName, basePrice, busy, onSave, onRe
     <li className="grid gap-2 rounded-md border p-3" data-testid="variant-row">
       <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_9rem]">
         <div className="grid gap-1.5">
-          <Label htmlFor={nameId}>Nama varian</Label>
+          <Label htmlFor={nameId}>{t("menu.variant.nameLabel")}</Label>
           <Input
             id={nameId}
             value={name}
@@ -58,19 +59,19 @@ export function VariantRow({ variant, productName, basePrice, busy, onSave, onRe
           />
         </div>
         <div className="grid gap-1.5">
-          <Label htmlFor={deltaId}>Selisih harga</Label>
+          <Label htmlFor={deltaId}>{t("menu.variant.deltaLabel")}</Label>
           <MoneyInput id={deltaId} value={delta} allowNegative onChange={setDelta} onBlur={saveDelta} />
         </div>
       </div>
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm text-muted-foreground tabular-nums">
-          Harga di kasir: {formatRupiah(basePrice + delta)}
+          {t("menu.variant.cashierPrice", { harga: formatRupiah(basePrice + delta) })}
         </span>
         <Button
           variant="ghost"
           size="icon"
           className="text-destructive"
-          aria-label={`Hapus varian ${variant.name}`}
+          aria-label={t("menu.variant.deleteAria", { nama: variant.name })}
           disabled={busy}
           onClick={() => setConfirmOpen(true)}
         >
@@ -80,9 +81,12 @@ export function VariantRow({ variant, productName, basePrice, busy, onSave, onRe
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title={`Hapus varian "${variant.name}"?`}
-        description={`Varian "${variant.name}" pada menu "${productName}" tidak muncul lagi di kasir. Riwayat transaksi lama tetap utuh.`}
-        confirmLabel="Hapus varian"
+        title={t("menu.variant.deleteTitle", { nama: variant.name })}
+        description={t("menu.variant.deleteDescription", {
+          nama: variant.name,
+          produk: productName,
+        })}
+        confirmLabel={t("menu.variant.delete")}
         destructive
         onConfirm={() => void onRemove(variant)}
       />

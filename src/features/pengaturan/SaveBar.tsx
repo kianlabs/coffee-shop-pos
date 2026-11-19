@@ -1,5 +1,6 @@
 import { Check, CircleDot } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { t } from "@/services/i18n";
 
 interface SaveBarProps {
   dirty: boolean;
@@ -18,15 +19,15 @@ export function SaveBar({ dirty, saving, onSave }: SaveBarProps) {
         {dirty ? (
           <>
             <CircleDot className="size-4 shrink-0 text-warning" aria-hidden />
-            Ada perubahan yang belum disimpan.
+            {t("pengaturan.save.dirty")}
           </>
         ) : (
-          "Perubahan berlaku setelah tombol simpan ditekan."
+          t("pengaturan.save.clean")
         )}
       </p>
       <Button type="button" className="w-full sm:w-auto" loading={saving} onClick={onSave} data-testid="settings-save">
         {!saving && <Check aria-hidden />}
-        {saving ? "Menyimpan…" : "Simpan pengaturan"}
+        {saving ? t("pengaturan.save.saving") : t("pengaturan.save.button")}
       </Button>
     </div>
   );

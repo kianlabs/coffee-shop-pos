@@ -6,6 +6,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { CatalogProduct, Category } from "@/domain/catalog";
+import { t } from "@/services/i18n";
 import { ProductForm } from "./ProductForm";
 import type { CatalogActions } from "./useCatalogEditor";
 
@@ -38,10 +39,10 @@ export function ProductFormDialog({
         data-testid="product-form-dialog"
       >
         <DialogHeader>
-          <DialogTitle>{product ? "Edit menu" : "Tambah menu"}</DialogTitle>
-          <DialogDescription>
-            Menu langsung muncul di layar kasir setelah disimpan.
-          </DialogDescription>
+          <DialogTitle>
+            {product ? t("menu.product.dialogTitleEdit") : t("menu.product.add")}
+          </DialogTitle>
+          <DialogDescription>{t("menu.product.dialogDescription")}</DialogDescription>
         </DialogHeader>
         {/* Keyed so the draft resets when a different product is opened. */}
         <ProductForm

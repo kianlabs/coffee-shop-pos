@@ -1,5 +1,6 @@
 import { CheckCircle2, CircleOff, Printer, Search, Unplug } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { t } from "@/services/i18n";
 import { PrinterDeviceList } from "./PrinterDeviceList";
 import { SettingsSection } from "./SettingsSection";
 import { usePrinterActions } from "./usePrinterActions";
@@ -10,8 +11,8 @@ export function PrinterSection() {
   return (
     <SettingsSection
       icon={Printer}
-      title="Printer Bluetooth"
-      description="Printer thermal 58 mm. Pasangkan dulu lewat Setelan Bluetooth Android."
+      title={t("pengaturan.printer.title")}
+      description={t("pengaturan.printer.description")}
       testId="settings-printer"
     >
       <p
@@ -28,21 +29,23 @@ export function PrinterSection() {
           <CircleOff className="size-4 shrink-0 text-muted-foreground" aria-hidden />
         )}
         <span>
-          Status:{" "}
+          {t("pengaturan.printer.status")}{" "}
           <span className="font-semibold">
-            {printer.connected ? `Terhubung ke ${printerLabel}` : "Belum terhubung"}
+            {printer.connected
+              ? t("pengaturan.printer.connectedTo", { nama: printerLabel })
+              : t("pengaturan.printer.notConnected")}
           </span>
         </span>
       </p>
       <div className="flex flex-wrap gap-2">
         <Button type="button" variant="outline" loading={busy} onClick={() => void scan()}>
           {!busy && <Search aria-hidden />}
-          Cari printer
+          {t("pengaturan.printer.scan")}
         </Button>
         {printer.connected && (
           <Button type="button" variant="ghost" disabled={busy} onClick={() => void disconnect()}>
             <Unplug aria-hidden />
-            Putuskan
+            {t("pengaturan.printer.disconnect")}
           </Button>
         )}
       </div>

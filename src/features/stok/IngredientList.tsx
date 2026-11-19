@@ -1,4 +1,5 @@
 import { cn } from "cn";
+import { t } from "@/services/i18n";
 import { IngredientRowItem } from "./IngredientRowItem";
 import { STOCK_GRID_COLS } from "./layout";
 import { type StockItem } from "./useStockData";
@@ -19,12 +20,12 @@ export function IngredientList({ items, onPurchase, onAdjust }: IngredientListPr
           STOCK_GRID_COLS,
         )}
       >
-        <span>Bahan</span>
-        <span>Stok</span>
-        <span>Harga beli terakhir</span>
-        <span className="text-right">Aksi</span>
+        <span>{t("stok.ingredient.label")}</span>
+        <span>{t("stok.stock.label")}</span>
+        <span>{t("stok.lastCost.label")}</span>
+        <span className="text-right">{t("stok.action.label")}</span>
       </div>
-      <ul className="grid gap-3 lg:gap-0 lg:[&>li:last-child]:border-b-0" aria-label="Daftar bahan">
+      <ul className="grid gap-3 lg:gap-0 lg:[&>li:last-child]:border-b-0" aria-label={t("stok.list.ariaLabel")}>
         {items.map((item) => (
           <IngredientRowItem key={item.id} item={item} onPurchase={onPurchase} onAdjust={onAdjust} />
         ))}

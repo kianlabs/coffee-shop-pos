@@ -1,5 +1,6 @@
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { t } from "@/services/i18n";
 
 interface UnitSelectProps {
   id: string;
@@ -17,13 +18,13 @@ export function UnitSelect({ id, label, value, options, baseUnit, disabled, onCh
       <Label htmlFor={id}>{label}</Label>
       <Select value={value} onValueChange={onChange} disabled={disabled}>
         <SelectTrigger id={id} className="w-full min-w-0">
-          <SelectValue placeholder="Pilih satuan" />
+          <SelectValue placeholder={t("stok.unit.placeholder")} />
         </SelectTrigger>
         <SelectContent>
           {options.map((u) => (
             <SelectItem key={u} value={u}>
               {u}
-              {u === baseUnit && <span className="text-muted-foreground">(satuan dasar)</span>}
+              {u === baseUnit && <span className="text-muted-foreground">{t("stok.unit.base")}</span>}
             </SelectItem>
           ))}
         </SelectContent>

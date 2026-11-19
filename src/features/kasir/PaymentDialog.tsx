@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { formatRupiah } from "@/domain/money";
 import { type PaymentMethod } from "@/domain/orders";
+import { t } from "@/services/i18n";
 import { useAppStore } from "@/stores/appStore";
 import { useCartStore } from "@/stores/cartStore";
 import { type CartTotals } from "@/stores/useCartTotals";
@@ -24,10 +25,10 @@ interface PaymentDialogProps {
   onConfirm: () => void;
 }
 
-const METHODS: Array<{ value: PaymentMethod; label: string; icon: LucideIcon; hint?: string }> = [
-  { value: "cash", label: "Tunai", icon: Banknote },
-  { value: "qris_manual", label: "QRIS", icon: QrCode, hint: "Cek notifikasi pembayaran QRIS berhasil sebelum menyelesaikan." },
-  { value: "other", label: "Lainnya", icon: CreditCard, hint: "Pastikan slip EDC atau transfer bank sudah valid." },
+const METHODS: Array<{ value: PaymentMethod; labelKey: string; icon: LucideIcon; hintKey?: string }> = [
+  { value: "cash", labelKey: "kasir.pay.method.cash", icon: Banknote },
+  { value: "qris_manual", labelKey: "kasir.pay.method.qris", icon: QrCode, hintKey: "kasir.pay.hint.qris" },
+  { value: "other", labelKey: "kasir.pay.method.other", icon: CreditCard, hintKey: "kasir.pay.hint.other" },
 ];
 
 export function PaymentDialog({ open, onOpenChange, totals, processing, onConfirm }: PaymentDialogProps) {
@@ -43,13 +44,16 @@ export function PaymentDialog({ open, onOpenChange, totals, processing, onConfir
     <Dialog open={open} onOpenChange={(next) => !processing && onOpenChange(next)}>
       <DialogContent className="max-h-[95dvh] overflow-y-auto sm:max-w-lg" data-testid="payment-dialog">
         <DialogHeader>
-          <DialogTitle>Pembayaran</DialogTitle>
+          <DialogTitle>{t("kasir.pay.title")}</DialogTitle>
           <DialogDescription>
-            Total tagihan <span className="font-semibold text-foreground tabular-nums">{formatRupiah(totals.total)}</span> · {totals.itemCount} item
+            {t("kasir.pay.totalPrefix")}{" "}
+            <span className="font-semibold text-foreground tabular-nums">{formatRupiah(totals.total)}</span>
+            {" · "}
+            {t("kasir.pay.itemCount", { count: totals.itemCount })}
           </DialogDescription>
         </DialogHeader>
-        <div role="group" aria-label="Metode bayar" className="grid grid-cols-3 gap-2">
-          {METHODS.map(({ value, label, icon: Icon }) => (
+        <div role="group" aria-label={t("kasir.pay.methodGroup")} className="grid grid-cols-3 gap-2">
+          {METHODS.map(({ value, labelKey, icon: Icon }) => (
             <button
               key={value}
               type="button"
@@ -61,14 +65,16 @@ export function PaymentDialog({ open, onOpenChange, totals, processing, onConfir
               )}
             >
               <Icon className="size-5" aria-hidden />
-              {label}
+              {t(labelKey)}
             </button>
           ))}
         </div>
         {method === "cash" ? (
           <CashTender total={totals.total} amount={amount} onAmount={setAmount} showNumpad={showNumpad} />
         ) : (
-          <p className="rounded-lg bg-info-soft px-4 py-3 text-sm text-info">{selected.hint}</p>
+          <p className="rounded-lg bg-info-soft px-4 py-3 text-sm text-info">
+            {selected.hintKey ? t(selected.hintKey) : null}
+          </p>
         )}
         <DialogFooter>
           <Button
@@ -78,7 +84,9 @@ export function PaymentDialog({ open, onOpenChange, totals, processing, onConfir
             loading={processing}
             onClick={onConfirm}
           >
-            {processing ? "Memproses…" : `Selesaikan · ${formatRupiah(totals.total)}`}
+            {processing
+              ? t("kasir.pay.processing")
+              : t("kasir.pay.finish", { amount: formatRupiah(totals.total) })}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -3,6 +3,7 @@ import { type Dispatch, type SetStateAction } from "react";
 import { MoneyInput } from "@/components/MoneyInput";
 import { Input } from "@/components/ui/input";
 import { type PosSettings } from "@/data/settings";
+import { t } from "@/services/i18n";
 import { Field } from "./Field";
 import { RoundingSelect } from "./RoundingSelect";
 import { SettingsSection } from "./SettingsSection";
@@ -15,11 +16,11 @@ interface KasirSectionProps {
 
 type BooleanKey = "autoPrint" | "printLogo" | "blockNegativeStock" | "showCashNumpad";
 
-const SWITCHES: { key: BooleanKey; label: string; description: string }[] = [
-  { key: "autoPrint", label: "Cetak struk otomatis setelah bayar", description: "Struk langsung dicetak begitu transaksi tersimpan." },
-  { key: "printLogo", label: "Cetak logo di struk", description: "Logo diatur di bagian Toko." },
-  { key: "blockNegativeStock", label: "Tolak transaksi bila stok bahan tidak cukup", description: "Bila mati, transaksi tetap jalan dan stok bisa minus." },
-  { key: "showCashNumpad", label: "Papan angka kasir", description: "Tampilkan tombol angka sentuh saat bayar tunai." },
+const SWITCHES: { key: BooleanKey; labelKey: string; descriptionKey: string }[] = [
+  { key: "autoPrint", labelKey: "pengaturan.kasir.autoPrint.label", descriptionKey: "pengaturan.kasir.autoPrint.description" },
+  { key: "printLogo", labelKey: "pengaturan.kasir.printLogo.label", descriptionKey: "pengaturan.kasir.printLogo.description" },
+  { key: "blockNegativeStock", labelKey: "pengaturan.kasir.blockNegativeStock.label", descriptionKey: "pengaturan.kasir.blockNegativeStock.description" },
+  { key: "showCashNumpad", labelKey: "pengaturan.kasir.showCashNumpad.label", descriptionKey: "pengaturan.kasir.showCashNumpad.description" },
 ];
 
 export function KasirSection({ settings, setSettings }: KasirSectionProps) {
@@ -27,22 +28,22 @@ export function KasirSection({ settings, setSettings }: KasirSectionProps) {
   return (
     <SettingsSection
       icon={Calculator}
-      title="Kasir"
-      description="Nama kasir, biaya tambahan, pembulatan, dan cetak."
+      title={t("pengaturan.kasir.title")}
+      description={t("pengaturan.kasir.description")}
       testId="settings-kasir"
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field id="cashier-name" label="Nama kasir" hint="Tampil di struk dan dipakai saat membuka shift.">
+        <Field id="cashier-name" label={t("pengaturan.kasir.cashierName.label")} hint={t("pengaturan.kasir.cashierName.hint")}>
           <Input
             id="cashier-name"
             value={settings.cashierName}
             onChange={(e) => update({ cashierName: e.target.value })}
-            placeholder="Opsional"
+            placeholder={t("pengaturan.common.optional")}
             maxLength={100}
             aria-describedby="cashier-name-hint"
           />
         </Field>
-        <Field id="service-charge" label="Biaya layanan (Rp)" hint="Ditambahkan ke setiap transaksi. Isi 0 bila tidak ada.">
+        <Field id="service-charge" label={t("pengaturan.kasir.serviceCharge.label")} hint={t("pengaturan.kasir.serviceCharge.hint")}>
           <MoneyInput
             id="service-charge"
             value={settings.serviceChargeRp}
@@ -51,7 +52,7 @@ export function KasirSection({ settings, setSettings }: KasirSectionProps) {
             aria-describedby="service-charge-hint"
           />
         </Field>
-        <Field id="rounding-step" label="Pembulatan total">
+        <Field id="rounding-step" label={t("pengaturan.kasir.rounding.label")}>
           <RoundingSelect
             id="rounding-step"
             value={settings.roundingStep}
@@ -60,12 +61,12 @@ export function KasirSection({ settings, setSettings }: KasirSectionProps) {
         </Field>
       </div>
       <div className="grid gap-2 lg:grid-cols-2">
-        {SWITCHES.map(({ key, label, description }) => (
+        {SWITCHES.map(({ key, labelKey, descriptionKey }) => (
           <SwitchField
             key={key}
             id={`setting-${key}`}
-            label={label}
-            description={description}
+            label={t(labelKey)}
+            description={t(descriptionKey)}
             checked={settings[key]}
             onCheckedChange={(checked) => update({ [key]: checked })}
           />

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { BadgePercent, Check, NotebookPen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatRupiah } from "@/domain/money";
+import { t } from "@/services/i18n";
 import { useCartStore } from "@/stores/cartStore";
 import { type CartTotals } from "@/stores/useCartTotals";
 import { AdjustmentsDialog } from "./AdjustmentsDialog";
@@ -32,27 +33,35 @@ export function CartSummary({ totals, onPay }: CartSummaryProps) {
   return (
     <div className="space-y-3 border-t bg-card p-4">
       <div className="space-y-1">
-        <Row label="Subtotal" value={formatRupiah(totals.subtotal)} />
-        {totals.discount > 0 && <Row label="Diskon" value={`−${formatRupiah(totals.discount)}`} />}
-        {totals.tax > 0 && <Row label="Pajak" value={formatRupiah(totals.tax)} />}
-        {totals.serviceCharge > 0 && <Row label="Biaya layanan" value={formatRupiah(totals.serviceCharge)} />}
-        {totals.roundingRp !== 0 && <Row label="Pembulatan" value={formatRupiah(totals.roundingRp)} />}
+        <Row label={t("kasir.summary.subtotal")} value={formatRupiah(totals.subtotal)} />
+        {totals.discount > 0 && (
+          <Row label={t("kasir.summary.discount")} value={`−${formatRupiah(totals.discount)}`} />
+        )}
+        {totals.tax > 0 && <Row label={t("kasir.summary.tax")} value={formatRupiah(totals.tax)} />}
+        {totals.serviceCharge > 0 && (
+          <Row label={t("kasir.summary.serviceCharge")} value={formatRupiah(totals.serviceCharge)} />
+        )}
+        {totals.roundingRp !== 0 && (
+          <Row label={t("kasir.summary.rounding")} value={formatRupiah(totals.roundingRp)} />
+        )}
       </div>
       <div className="grid grid-cols-2 gap-2">
         <Button variant="outline" size="sm" disabled={empty} onClick={() => setAdjustOpen(true)}>
-          {adjusted ? <Check /> : <BadgePercent />} Diskon & pajak
+          {adjusted ? <Check /> : <BadgePercent />} {t("kasir.adjust.title")}
         </Button>
         <Button variant="outline" size="sm" disabled={empty} onClick={() => setNotesOpen(true)} className="min-w-0">
           {notes ? <Check /> : <NotebookPen />}
-          <span className="truncate">{notes ? `Catatan: ${notes}` : "Catatan"}</span>
+          <span className="truncate">
+            {notes ? t("kasir.summary.notesFilled", { notes }) : t("kasir.summary.notes")}
+          </span>
         </Button>
       </div>
       <div className="flex items-baseline justify-between pt-1">
-        <span className="text-sm font-medium">Total</span>
+        <span className="text-sm font-medium">{t("kasir.summary.total")}</span>
         <span className="text-2xl font-bold tracking-tight tabular-nums">{formatRupiah(totals.total)}</span>
       </div>
       <Button size="lg" className="h-14 w-full text-base" disabled={empty} onClick={onPay}>
-        Bayar {formatRupiah(totals.total)}
+        {t("kasir.summary.pay", { amount: formatRupiah(totals.total) })}
       </Button>
       <AdjustmentsDialog open={adjustOpen} onOpenChange={setAdjustOpen} subtotal={totals.subtotal} />
       <NotesDialog open={notesOpen} onOpenChange={setNotesOpen} />

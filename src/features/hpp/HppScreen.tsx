@@ -3,6 +3,7 @@ import { useState } from "react";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ScreenSkeleton } from "@/components/common/ScreenSkeleton";
 import { Button } from "@/components/ui/button";
+import { t } from "@/services/i18n";
 import { useAppStore } from "@/stores/appStore";
 import { HppDialogs, type HppDialogState } from "./HppDialogs";
 import { HppList } from "./HppList";
@@ -25,41 +26,41 @@ export function HppScreen() {
     return (
       <EmptyState
         icon={Calculator}
-        title="HPP hanya tersedia di aplikasi Android"
-        description="Layar ini membaca database SQLite tablet. Di browser (mode pratinjau), data HPP tidak tersedia. Buka aplikasi Android untuk mengatur HPP dan margin."
+        title={t("hpp.native.title")}
+        description={t("hpp.native.description")}
       />
     );
   }
-  if (loading) return <ScreenSkeleton label="Memuat HPP…" />;
+  if (loading) return <ScreenSkeleton label={t("hpp.loading")} />;
 
   return (
     <div className="space-y-4" data-testid="hpp-screen">
       <header className="space-y-1">
-        <h2 className="text-xl font-semibold">HPP &amp; margin</h2>
+        <h2 className="text-xl font-semibold">{t("hpp.header.title")}</h2>
         <p className="text-sm text-muted-foreground">
-          Pilih sumber HPP per produk: <strong>Manual</strong> diisi sendiri, <strong>Resep</strong>{" "}
-          dihitung dari bahan, atau <strong>Tanpa HPP</strong> bila tidak dilacak. HPP dikunci saat
-          transaksi, jadi laporan laba lama tidak berubah ketika harga bahan naik.
+          {t("hpp.header.intro")} <strong>{t("hpp.mode.manual")}</strong> {t("hpp.header.manualDesc")}{" "}
+          <strong>{t("hpp.mode.recipe")}</strong> {t("hpp.header.recipeDesc")}{" "}
+          <strong>{t("hpp.mode.none")}</strong> {t("hpp.header.noneDesc")} {t("hpp.lock.note")}
         </p>
       </header>
       {rows.length > 0 && <HppStats {...hppStats(rows)} />}
       {loadFailed && rows.length === 0 ? (
         <EmptyState
           icon={Calculator}
-          title="Gagal memuat data HPP"
+          title={t("hpp.loadFailed.title")}
           action={
             <Button variant="outline" onClick={() => void reload()}>
               <RefreshCw aria-hidden />
-              Coba lagi
+              {t("common.retry")}
             </Button>
           }
         />
       ) : rows.length === 0 ? (
         <EmptyState
           icon={UtensilsCrossed}
-          title="Belum ada produk aktif"
-          description="Tambahkan menu terlebih dahulu di layar Menu & Harga."
-          action={<Button onClick={() => setView("menu")}>Buka Menu &amp; Harga</Button>}
+          title={t("hpp.empty.title")}
+          description={t("hpp.empty.description")}
+          action={<Button onClick={() => setView("menu")}>{t("hpp.empty.openMenu")}</Button>}
         />
       ) : (
         <HppList rows={rows} onEdit={openEdit} onRecipe={openRecipe} />

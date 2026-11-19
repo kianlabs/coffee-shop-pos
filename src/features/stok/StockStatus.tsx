@@ -1,5 +1,6 @@
 import { CircleAlert, CircleCheck, CircleMinus } from "lucide-react";
 import { cn } from "cn";
+import { t } from "@/services/i18n";
 
 interface StockStatusProps {
   stockQty: number;
@@ -12,10 +13,10 @@ interface StockStatusProps {
 export function StockStatus({ stockQty }: StockStatusProps) {
   const status =
     stockQty < 0
-      ? { Icon: CircleAlert, label: "Stok minus, lakukan koreksi", tone: "bg-destructive/10 text-destructive" }
+      ? { Icon: CircleAlert, label: t("stok.status.negative"), tone: "bg-destructive/10 text-destructive" }
       : stockQty === 0
-        ? { Icon: CircleMinus, label: "Habis", tone: "bg-warning-soft text-warning" }
-        : { Icon: CircleCheck, label: "Tersedia", tone: "bg-muted text-muted-foreground" };
+        ? { Icon: CircleMinus, label: t("stok.status.empty"), tone: "bg-warning-soft text-warning" }
+        : { Icon: CircleCheck, label: t("stok.status.available"), tone: "bg-muted text-muted-foreground" };
   const { Icon } = status;
   return (
     <span

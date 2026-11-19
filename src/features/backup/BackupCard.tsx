@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { type BackupRecord } from "@/data/orderRepo";
+import { t } from "@/services/i18n";
 import { BackupList } from "./BackupList";
 import { PasswordInput } from "./PasswordInput";
 import { SectionHeader } from "./SectionHeader";
@@ -24,8 +25,8 @@ export function BackupCard({ backups, onSaved }: BackupCardProps) {
       <SectionHeader
         id="backup-title"
         icon={Download}
-        title="Backup file"
-        description="Simpan salinan semua data (order, menu, HPP, stok, setelan) ke file. Lakukan minimal sekali sehari, misalnya saat tutup shift."
+        title={t("backup.file.title")}
+        description={t("backup.file.description")}
       />
       <CardContent className="flex flex-col gap-4">
         <Button
@@ -36,7 +37,7 @@ export function BackupCard({ backups, onSaved }: BackupCardProps) {
           data-testid="backup-plain-btn"
         >
           <Download aria-hidden />
-          Unduh backup
+          {t("backup.plain.button")}
         </Button>
         <Separator />
         <form
@@ -48,18 +49,15 @@ export function BackupCard({ backups, onSaved }: BackupCardProps) {
           }}
         >
           <h3 id="backup-enc-title" className="text-sm font-semibold">
-            Backup terenkripsi
+            {t("backup.encrypted.title")}
           </h3>
-          <p className="text-sm text-muted-foreground">
-            File dikunci dengan passphrase, jadi aman disimpan di cloud. Tanpa passphrase, file
-            tidak bisa dibuka.
-          </p>
-          <Label htmlFor="backup-passphrase">Passphrase</Label>
+          <p className="text-sm text-muted-foreground">{t("backup.encrypted.description")}</p>
+          <Label htmlFor="backup-passphrase">{t("backup.passphrase.label")}</Label>
           <PasswordInput
             id="backup-passphrase"
             value={passphrase}
             onChange={(e) => setPassphrase(e.target.value)}
-            placeholder="wajib untuk file .enc"
+            placeholder={t("backup.passphrase.placeholder")}
             data-testid="backup-passphrase-input"
           />
           <Button
@@ -71,7 +69,7 @@ export function BackupCard({ backups, onSaved }: BackupCardProps) {
             data-testid="backup-encrypted-btn"
           >
             <Lock aria-hidden />
-            Unduh .enc.json
+            {t("backup.encrypted.button")}
           </Button>
         </form>
         <Separator />

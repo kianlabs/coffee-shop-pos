@@ -1,19 +1,22 @@
 import { type HppDraft, type HppProductView, type HppVariantView } from "@/data/productRepo";
 import { marginFor, type HppMode, type MarginInfo, type VariantHppMode } from "@/domain/hppResolve";
+import { t } from "@/services/i18n";
 
-export const PRODUCT_MODES: ReadonlyArray<{ value: HppMode; label: string }> = [
-  { value: "manual", label: "Manual" },
-  { value: "recipe", label: "Resep" },
-  { value: "none", label: "Tanpa HPP" },
+/** `labelKey` is translated at render time, so labels follow the active locale. */
+export const PRODUCT_MODES: ReadonlyArray<{ value: HppMode; labelKey: string }> = [
+  { value: "manual", labelKey: "hpp.mode.manual" },
+  { value: "recipe", labelKey: "hpp.mode.recipe" },
+  { value: "none", labelKey: "hpp.mode.none" },
 ];
 
-export const VARIANT_MODES: ReadonlyArray<{ value: VariantHppMode; label: string }> = [
-  { value: "inherit", label: "Ikut produk" },
+export const VARIANT_MODES: ReadonlyArray<{ value: VariantHppMode; labelKey: string }> = [
+  { value: "inherit", labelKey: "hpp.mode.inherit" },
   ...PRODUCT_MODES,
 ];
 
 export function modeLabel(mode: VariantHppMode): string {
-  return VARIANT_MODES.find((m) => m.value === mode)?.label ?? mode;
+  const entry = VARIANT_MODES.find((m) => m.value === mode);
+  return entry ? t(entry.labelKey) : mode;
 }
 
 /** HPP shown in the editor; mirrors `resolveHpp` (recipe falls back to manual). */
@@ -27,10 +30,8 @@ function draftHpp(mode: HppMode, manualRp: number, recipePerUnitRp: number | nul
 }
 
 function hppNote(mode: HppMode, manualRp: number, recipePerUnitRp: number | null): string | null {
-  if (mode === "recipe" && recipePerUnitRp === null) {
-    return "Resep belum ada — angka manual dipakai sebagai cadangan.";
-  }
-  if (mode === "manual" && manualRp === 0) return "HPP masih 0.";
+  if (mode === "recipe" && recipePerUnitRp === null) return t("hpp.note.recipeMissing");
+  if (mode === "manual" && manualRp === 0) return t("hpp.note.manualZero");
   return null;
 }
 

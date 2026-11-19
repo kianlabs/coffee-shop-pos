@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { recordPurchase } from "@/data/stock";
 import { errorMessage, notify } from "@/lib/notify";
+import { t } from "@/services/i18n";
 import { planPurchase, purchaseMessage, slugId, unitOptionsFor } from "./stockForm";
 import { type StockItem } from "./useStockData";
 
@@ -71,7 +72,7 @@ export function usePurchaseForm(items: StockItem[], initialId: string, onSaved: 
       await onSaved();
       return true;
     } catch (e) {
-      notify.error(errorMessage(e, "Gagal mencatat pembelian."));
+      notify.error(errorMessage(e, t("stok.purchase.failed")));
       return false;
     } finally {
       setBusy(false);

@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatQtyWithUnit } from "@/domain/units";
+import { t } from "@/services/i18n";
 import { FormAlert } from "./FormAlert";
 import { IngredientSelect } from "./IngredientSelect";
 import { parseQty } from "./stockForm";
@@ -39,35 +40,35 @@ export function AdjustDialog({ open, onOpenChange, items, initialId, onSaved }: 
     <Dialog open={open} onOpenChange={(next) => !form.busy && onOpenChange(next)}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl" data-testid="stok-adjust-dialog">
         <DialogHeader>
-          <DialogTitle>{form.selected ? `Koreksi stok ${form.selected.name}` : "Koreksi stok"}</DialogTitle>
-          <DialogDescription>
-            Untuk stok opname, bahan rusak, atau susut. Alasan wajib diisi agar jejaknya jelas.
-          </DialogDescription>
+          <DialogTitle>
+            {form.selected ? t("stok.adjust.titleNamed", { nama: form.selected.name }) : t("stok.adjust.title")}
+          </DialogTitle>
+          <DialogDescription>{t("stok.adjust.description")}</DialogDescription>
         </DialogHeader>
         <form className="grid gap-4" onSubmit={(e) => void handleSubmit(e)} noValidate>
           <IngredientSelect id="adj-ingredient" value={form.adjId} items={items} onChange={form.selectIngredient} />
           {form.selected && (
             <p className="text-sm text-muted-foreground">
-              Stok sekarang: {formatQtyWithUnit(form.selected.stockQty, form.selected.baseUnit)}
+              {t("stok.adjust.current", { jumlah: formatQtyWithUnit(form.selected.stockQty, form.selected.baseUnit) })}
             </p>
           )}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid min-w-0 gap-2">
-              <Label htmlFor="adj-delta">Selisih (+/−)</Label>
+              <Label htmlFor="adj-delta">{t("stok.adjust.delta.label")}</Label>
               <Input
                 id="adj-delta"
                 data-testid="stok-adj-delta"
                 type="number"
                 step="any"
                 inputMode="decimal"
-                placeholder="mis. -250 atau 1.5"
+                placeholder={t("stok.adjust.delta.placeholder")}
                 value={form.delta || ""}
                 onChange={(e) => form.setDelta(parseQty(e.target.value, true))}
               />
             </div>
             <UnitSelect
               id="adj-unit"
-              label="Satuan koreksi"
+              label={t("stok.adjust.unit.label")}
               value={form.inputUnit}
               options={form.unitOptions}
               baseUnit={form.selected?.baseUnit ?? ""}
@@ -76,11 +77,11 @@ export function AdjustDialog({ open, onOpenChange, items, initialId, onSaved }: 
             />
           </div>
           <div className="grid min-w-0 gap-2">
-            <Label htmlFor="adj-reason">Alasan</Label>
+            <Label htmlFor="adj-reason">{t("stok.adjust.reason.label")}</Label>
             <Input
               id="adj-reason"
               data-testid="stok-adj-reason"
-              placeholder="mis. stok opname / tumpah / kedaluwarsa"
+              placeholder={t("stok.adjust.reason.placeholder")}
               value={form.reason}
               onChange={(e) => form.setReason(e.target.value)}
             />
@@ -88,11 +89,11 @@ export function AdjustDialog({ open, onOpenChange, items, initialId, onSaved }: 
           <FormAlert message={form.error} />
           <DialogFooter>
             <Button type="button" variant="outline" disabled={form.busy} onClick={() => onOpenChange(false)}>
-              Batal
+              {t("common.cancel")}
             </Button>
             <Button type="submit" loading={form.busy} data-testid="stok-adj-submit">
               <ClipboardCheck aria-hidden />
-              Simpan koreksi
+              {t("stok.adjust.submit")}
             </Button>
           </DialogFooter>
         </form>

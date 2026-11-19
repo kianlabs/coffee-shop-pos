@@ -3,6 +3,7 @@ import { BookOpen, SearchX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/common/EmptyState";
 import { type CatalogProduct, type ProductVariant } from "@/domain/catalog";
+import { t } from "@/services/i18n";
 import { useAppStore } from "@/stores/appStore";
 import { useCartStore } from "@/stores/cartStore";
 import { CatalogToolbar } from "./CatalogToolbar";
@@ -33,7 +34,7 @@ export function CatalogPanel() {
   );
 
   return (
-    <section aria-label="Daftar menu" className="flex min-h-0 min-w-0 flex-1 flex-col">
+    <section aria-label={t("kasir.catalog.region")} className="flex min-h-0 min-w-0 flex-1 flex-col">
       <CatalogToolbar
         search={search}
         onSearch={setSearch}
@@ -46,16 +47,20 @@ export function CatalogPanel() {
         {catalog.products.length === 0 ? (
           <EmptyState
             icon={BookOpen}
-            title="Menu masih kosong"
-            description="Isi nama menu dan harganya dulu. Setelah itu tinggal dipilih saat jualan."
-            action={<Button onClick={() => setView("menu")}>Buka Menu & Harga</Button>}
+            title={t("kasir.catalog.emptyTitle")}
+            description={t("kasir.catalog.emptyDescription")}
+            action={<Button onClick={() => setView("menu")}>{t("kasir.catalog.openMenu")}</Button>}
           />
         ) : products.length === 0 ? (
           <EmptyState
             icon={SearchX}
-            title="Menu tidak ditemukan"
-            description="Coba kata kunci lain, atau pilih kategori yang berbeda."
-            action={<Button variant="outline" onClick={() => setSearch("")}>Hapus pencarian</Button>}
+            title={t("kasir.catalog.notFound")}
+            description={t("kasir.catalog.notFoundDescription")}
+            action={
+              <Button variant="outline" onClick={() => setSearch("")}>
+                {t("kasir.search.clear")}
+              </Button>
+            }
           />
         ) : (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">

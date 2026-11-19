@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Category } from "@/domain/catalog";
+import { t } from "@/services/i18n";
 import { ALL_CATEGORIES } from "./catalogView";
 
 interface MenuToolbarProps {
@@ -34,7 +35,7 @@ export function MenuToolbar({
   return (
     <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_12rem_auto] md:items-end">
       <div className="grid gap-2">
-        <Label htmlFor="menu-search">Cari menu</Label>
+        <Label htmlFor="menu-search">{t("menu.toolbar.searchLabel")}</Label>
         <div className="relative">
           <Search
             className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
@@ -44,7 +45,7 @@ export function MenuToolbar({
             id="menu-search"
             data-testid="menu-search"
             type="search"
-            placeholder="Nama menu atau varian…"
+            placeholder={t("menu.toolbar.searchPlaceholder")}
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
             className="pr-11 pl-9"
@@ -54,7 +55,7 @@ export function MenuToolbar({
               variant="ghost"
               size="icon"
               className="absolute top-0 right-0"
-              aria-label="Hapus pencarian"
+              aria-label={t("menu.search.clear")}
               onClick={() => onQueryChange("")}
             >
               <X />
@@ -63,7 +64,7 @@ export function MenuToolbar({
         </div>
       </div>
       <div className="grid gap-2">
-        <Label htmlFor="menu-category-filter">Kategori</Label>
+        <Label htmlFor="menu-category-filter">{t("menu.common.category")}</Label>
         <Select value={categoryFilter} onValueChange={onCategoryFilterChange}>
           <SelectTrigger
             id="menu-category-filter"
@@ -73,7 +74,7 @@ export function MenuToolbar({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL_CATEGORIES}>Semua kategori</SelectItem>
+            <SelectItem value={ALL_CATEGORIES}>{t("menu.toolbar.allCategories")}</SelectItem>
             {categories.map((c) => (
               <SelectItem key={c.id} value={c.id}>
                 {c.name}
@@ -90,11 +91,11 @@ export function MenuToolbar({
           onClick={onManageCategories}
         >
           <Tags aria-hidden />
-          Kategori
+          {t("menu.toolbar.manageCategories")}
         </Button>
         <Button className="flex-1 md:flex-none" data-testid="menu-add-button" onClick={onAddProduct}>
           <Plus aria-hidden />
-          Tambah menu
+          {t("menu.product.add")}
         </Button>
       </div>
     </div>

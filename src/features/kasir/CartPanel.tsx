@@ -1,4 +1,5 @@
 import { ShoppingCart } from "lucide-react";
+import { t } from "@/services/i18n";
 import { useCartStore } from "@/stores/cartStore";
 import { type CartTotals } from "@/stores/useCartTotals";
 import { CartHeader } from "./CartHeader";
@@ -28,10 +29,10 @@ export function CartPanel({ totals, onPay }: CartPanelProps) {
         {lines.length === 0 ? (
           <div className="flex h-full min-h-40 flex-col items-center justify-center gap-2 text-center text-muted-foreground">
             <ShoppingCart className="size-8" aria-hidden />
-            <p className="max-w-56 text-sm">Belum ada item. Pilih menu untuk mulai transaksi.</p>
+            <p className="max-w-56 text-sm">{t("kasir.cart.empty")}</p>
           </div>
         ) : (
-          <ul className="divide-y" aria-label="Item pesanan">
+          <ul className="divide-y" aria-label={t("kasir.cart.items")}>
             {lines.map((line) => (
               <CartLineRow
                 key={`${line.productId}-${line.variantId ?? "base"}`}

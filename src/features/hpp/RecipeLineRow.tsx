@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { type IngredientOption } from "@/data/recipeRepo";
 import { formatRupiah } from "@/domain/money";
+import { t } from "@/services/i18n";
 import { lineCostRp, type DraftLine } from "./useRecipeEditor";
 
 interface RecipeLineRowProps {
@@ -24,10 +25,10 @@ export function RecipeLineRow(props: RecipeLineRowProps) {
   return (
     <li data-testid="recipe-line" className="grid gap-3 rounded-md border p-3 sm:grid-cols-[minmax(0,1fr)_8rem_auto] sm:items-end">
       <div className="grid min-w-0 gap-2">
-        <Label htmlFor={`recipe-ing-${line.key}`}>Bahan {n}</Label>
+        <Label htmlFor={`recipe-ing-${line.key}`}>{t("hpp.recipe.line.ingredient", { nomor: n })}</Label>
         <Select value={line.ingredientId} disabled={disabled} onValueChange={(v) => onChange(line.key, { ingredientId: v })}>
           <SelectTrigger id={`recipe-ing-${line.key}`} className="w-full min-w-0">
-            <SelectValue placeholder="Pilih bahan" />
+            <SelectValue placeholder={t("hpp.recipe.line.placeholder")} />
           </SelectTrigger>
           <SelectContent>
             {ingredients.map((o) => (
@@ -39,7 +40,10 @@ export function RecipeLineRow(props: RecipeLineRowProps) {
         </Select>
       </div>
       <div className="grid min-w-0 gap-2">
-        <Label htmlFor={`recipe-qty-${line.key}`}>Takaran {ing ? `(${ing.baseUnit})` : ""}</Label>
+        <Label htmlFor={`recipe-qty-${line.key}`}>
+          {t("hpp.recipe.line.qty")}
+          {ing ? ` (${ing.baseUnit})` : ""}
+        </Label>
         <Input
           id={`recipe-qty-${line.key}`}
           type="number"
@@ -53,7 +57,7 @@ export function RecipeLineRow(props: RecipeLineRowProps) {
       </div>
       <div className="flex items-center justify-between gap-2 sm:justify-end">
         <p className="text-sm sm:text-right">
-          <span className="sr-only">Biaya baris {n}: </span>
+          <span className="sr-only">{t("hpp.recipe.line.costSr", { nomor: n })}</span>
           <strong>{formatRupiah(lineCostRp(line, ing))}</strong>
           {ing && (
             <span className="block text-xs text-muted-foreground">
@@ -64,7 +68,7 @@ export function RecipeLineRow(props: RecipeLineRowProps) {
         <Button
           variant="ghost"
           size="icon"
-          aria-label={`Hapus bahan baris ${n}`}
+          aria-label={t("hpp.recipe.line.removeAria", { nomor: n })}
           disabled={disabled || !canRemove}
           onClick={() => onRemove(line.key)}
         >

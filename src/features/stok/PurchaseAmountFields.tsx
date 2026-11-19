@@ -2,6 +2,7 @@ import { MoneyInput } from "@/components/MoneyInput";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatRupiah } from "@/domain/money";
+import { t } from "@/services/i18n";
 import { parseQty, purchaseConversion } from "./stockForm";
 import { UnitSelect } from "./UnitSelect";
 import { type PurchaseForm } from "./usePurchaseForm";
@@ -16,7 +17,7 @@ export function PurchaseAmountFields({ form }: PurchaseAmountFieldsProps) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <div className="grid min-w-0 gap-2">
-        <Label htmlFor="buy-qty">Jumlah pembelian</Label>
+        <Label htmlFor="buy-qty">{t("stok.purchase.qty.label")}</Label>
         <Input
           id="buy-qty"
           data-testid="stok-buy-qty"
@@ -24,38 +25,44 @@ export function PurchaseAmountFields({ form }: PurchaseAmountFieldsProps) {
           min={0}
           step="any"
           inputMode="decimal"
-          placeholder="qty"
+          placeholder={t("stok.purchase.qty.placeholder")}
           value={qty || ""}
           onChange={(e) => form.setQty(parseQty(e.target.value, false))}
         />
       </div>
       <UnitSelect
         id="buy-unit"
-        label="Satuan pembelian"
+        label={t("stok.purchase.unit.label")}
         value={inputUnit}
         options={form.unitOptions}
         baseUnit={baseUnit}
         onChange={form.setInputUnit}
       />
       <div className="grid gap-2 sm:col-span-2">
-        <Label htmlFor="buy-cost">Harga per {inputUnit || "satuan"} (Rp)</Label>
+        <Label htmlFor="buy-cost">
+          {t("stok.purchase.cost.label", { satuan: inputUnit || t("stok.unit.fallback") })}
+        </Label>
         <MoneyInput
           id="buy-cost"
           data-testid="stok-buy-cost"
           value={costRp}
           allowEmpty
-          placeholder="Rp/satuan"
+          placeholder={t("stok.purchase.cost.placeholder")}
           onChange={form.setCostRp}
         />
       </div>
       {qty > 0 && costRp > 0 && (
         <div className="rounded-md bg-muted px-3 py-2 text-sm sm:col-span-2" aria-live="polite">
           <p>
-            Total belanja: <strong>{formatRupiah(qty * costRp)}</strong>
+            {t("stok.purchase.total.label")} <strong>{formatRupiah(qty * costRp)}</strong>
           </p>
           {conversion && (
             <p className="text-muted-foreground">
-              ≈ {conversion.qty} {baseUnit} @ {formatRupiah(conversion.costPerBaseRp)}/{baseUnit}
+              {t("stok.purchase.conversion", {
+                jumlah: conversion.qty,
+                satuan: baseUnit,
+                harga: formatRupiah(conversion.costPerBaseRp),
+              })}
             </p>
           )}
         </div>

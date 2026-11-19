@@ -3,6 +3,7 @@ import { isNativePlatform } from "@/data/db";
 import { loadHppProducts, saveHppDrafts, type HppProductView } from "@/data/productRepo";
 import { type VariantHppMode } from "@/domain/hppResolve";
 import { errorMessage, notify } from "@/lib/notify";
+import { t } from "@/services/i18n";
 import { buildDraft, lineLabel, type HppLine } from "./hppModel";
 
 export function useHppData() {
@@ -17,7 +18,7 @@ export function useHppData() {
       setLoadFailed(false);
     } catch (e) {
       setLoadFailed(true);
-      notify.error(errorMessage(e, "Gagal memuat data HPP."));
+      notify.error(errorMessage(e, t("hpp.loadFailed.message")));
     }
   }, []);
 
@@ -34,7 +35,7 @@ export function useHppData() {
       .catch((e: unknown) => {
         if (cancelled) return;
         setLoadFailed(true);
-        notify.error(errorMessage(e, "Gagal memuat data HPP."));
+        notify.error(errorMessage(e, t("hpp.loadFailed.message")));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -51,11 +52,11 @@ export function useHppData() {
       if (!draft) return true;
       try {
         await saveHppDrafts([draft]);
-        notify.success(`HPP ${lineLabel(line)} disimpan.`);
+        notify.success(t("hpp.saved", { nama: lineLabel(line) }));
         await reload();
         return true;
       } catch (e) {
-        notify.error(errorMessage(e, "Gagal menyimpan HPP."));
+        notify.error(errorMessage(e, t("hpp.saveFailed")));
         return false;
       }
     },
