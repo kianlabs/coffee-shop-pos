@@ -13,6 +13,10 @@
   <img src="https://img.shields.io/badge/Cloud%20fees-none-17694a?style=flat-square" alt="No cloud fees">
 </p>
 
+<p align="center">
+  <strong>Status:</strong> v1.0.1 · 110/110 domain tests passing · Android APK via GitHub Releases
+</p>
+
 ---
 
 ## Description
@@ -20,6 +24,8 @@
 Suro POS runs on an Android tablet and keeps every sale on the device in a local SQLite database, so the counter keeps working when the internet does not. A sale is saved before anything is printed, prices are whole Rupiah (no floating-point money), and the cost of goods (HPP) is captured at the moment of sale so historical profit never changes when ingredient prices do.
 
 It is built to be understood quickly: a plain React + TypeScript web app wrapped with Capacitor, with all business rules kept as pure functions that are unit tested.
+
+There is no web demo — Suro POS is a tablet app. Install the APK from [GitHub Releases](https://github.com/kianlabs/coffee-shop-pos/releases/latest) or run it in the browser with the development instructions below.
 
 ## Screenshots
 
@@ -69,7 +75,7 @@ Useful commands:
 
 ```bash
 npm run typecheck  # TypeScript strict mode
-npm test           # domain unit tests + repository guard tests
+npm test           # domain unit tests + repository guard tests (110 tests)
 npm run build      # production web bundle
 npm run smoke:ui   # headless Chromium UI smoke test (build first)
 npm run test:e2e   # end-to-end flow test (build first)
@@ -114,6 +120,14 @@ flowchart TD
 3. **Integer Rupiah only.** No floating-point money.
 4. **HPP is a snapshot.** Each order line keeps the unit cost at the time of sale.
 5. **Every stock change is a ledger row**, tied to an idempotency key.
+
+## What I Learned
+
+- **Offline-first is a data-model decision, not a feature toggle.** Making SQLite the source of truth and sync a background outbox kept checkout working with zero network — and forced every other decision (idempotency keys, ledger-based stock) to follow.
+- **Money must be integers.** Storing Rupiah as whole numbers removed an entire class of rounding bugs from HPP and profit reports.
+- **Snapshots beat live lookups for history.** Capturing HPP at the moment of sale means old reports never change when ingredient prices do — a small choice that makes the numbers trustworthy.
+- **Pure functions make business rules testable.** Keeping the domain layer free of React and database access is what makes 110 unit tests fast and meaningful.
+- **Hardware fails — design for it.** A printer failing mid-sale must never cancel a saved sale, so "save first, print second" became a hard rule, not a preference.
 
 ## Documentation
 
