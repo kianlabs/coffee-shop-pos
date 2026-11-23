@@ -115,6 +115,14 @@ flowchart TD
 4. **HPP adalah snapshot.** Setiap baris order menyimpan biaya per unit pada saat penjualan.
 5. **Setiap perubahan stok adalah satu baris buku besar**, terikat ke idempotency key.
 
+## Apa yang Saya Pelajari
+
+- **Offline-first adalah keputusan model data, bukan sekadar tombol fitur.** Menjadikan SQLite sumber kebenaran dan sinkronisasi sebagai outbox di latar belakang membuat kasir tetap berjalan tanpa jaringan — dan memaksa semua keputusan lain (idempotency key, stok berbasis buku besar) mengikutinya.
+- **Uang harus berupa bilangan bulat.** Menyimpan Rupiah sebagai angka bulat menghilangkan sekelompok bug pembulatan dari laporan HPP dan laba.
+- **Snapshot lebih baik daripada lookup langsung untuk riwayat.** Mencatat HPP pada saat penjualan membuat laporan lama tidak berubah ketika harga bahan naik — pilihan kecil yang membuat angka bisa dipercaya.
+- **Fungsi murni membuat aturan bisnis bisa diuji.** Menjaga lapisan domain bebas dari React dan akses database adalah alasan 110 unit test bisa berjalan cepat dan bermakna.
+- **Perangkat keras bisa rusak — rancang untuk itu.** Printer yang gagal di tengah penjualan tidak boleh membatalkan penjualan yang sudah tersimpan, sehingga "simpan dulu, cetak kemudian" menjadi aturan keras, bukan sekadar preferensi.
+
 ## Dokumentasi
 
 - [Arsitektur dan cara memperluasnya](docs/architecture.md)
